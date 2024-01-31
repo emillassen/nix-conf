@@ -1,6 +1,15 @@
 # My NixOS config using Flakes and Home Manager
 
-## Manual stuff
+# Initial setup for a new device
+1. Install NixOS (remember to allow unfree packages and name the user `emil`)
+1. Run `nano /etc/nixos/configuration.nix` and add `git` to system packages
+1. Run `sudo nixos-rebuild switch`
+1. Go to github.com, login, download the repo, unpack it and then copy it to `~/Documents/`
+1. Copy `/etc/nixos/hardware-configuration.nix` to `~/Documents/nix-conf/nixos/` replacing the downloaded `hardware-configuration.nix`
+1. Make sure that the `boot` configuration lines in `~/Documents/nix-conf/nixos/configuration.nix` match `~/Documents/nix-config/nixos/configuration.nix`
+1. Run `sudo nixos-rebuild switch --upgrade --flake ~/Documents/nix-conf#fw13` and reboot
+
+## Manual changes
 
 ### Color Manager
 ```

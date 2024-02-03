@@ -17,7 +17,7 @@
     ./config/nvim.nix
     ./config/zsh/zsh.nix
     #./config/gnomesettings.nix
-    ./config/nextcloud.nix
+    #./config/nextcloud.nix # Broken in gnome
   ];
 
   nixpkgs = {
@@ -65,6 +65,7 @@
     wl-clipboard
     unstable.chromium
     mpv
+    unstable.nextcloud-client
     gnome.gnome-tweaks
     gnome-extension-manager
     easyeffects

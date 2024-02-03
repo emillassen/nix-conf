@@ -57,6 +57,8 @@
     bat
     bottom
     duf
+    usbutils
+    pciutils
     unstable.amdgpu_top
     unstable.fastfetch
     firefox

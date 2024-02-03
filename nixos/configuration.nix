@@ -77,8 +77,6 @@
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
-  boot.initrd.luks.devices."luks-52da54ec-54a7-4ceb-8f63-79ece944eb7e".device = "/dev/disk/by-uuid/52da54ec-54a7-4ceb-8f63-79ece944eb7e";
-
   # Enables automatic upgrades
   #system.autoUpgrade.enable = true;
   #system.autoUpgrade.allowReboot = true;
@@ -92,6 +90,10 @@
 
   # Enable latest linux kernel
   boot.kernelPackages = pkgs.linuxPackages_latest;
+
+  # Enables Enable this option to support certain USB WLAN and WWAN adapters.
+  #These network adapters initial present themselves as Flash Drives containing their drivers. This option enables automatic switching to the networking mode.
+  hardware.usb-modeswitch.enable = true;
 
   # Enables fingerprint support
   services.fprintd.enable = true;

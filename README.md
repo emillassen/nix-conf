@@ -26,7 +26,7 @@ colormgr device-add-profile `Device ID` `Profile ID`
 3. Go to Settings -> Color, select the new color profile, and enable it for all users
 
 
-### Yubikey Setup
+### YubiKey Setup
 
 1. Download pub.asc from Bitwarden
 1. Run the following commands: 

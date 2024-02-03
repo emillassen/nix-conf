@@ -34,12 +34,13 @@
         "nano" = "micro";
         "vim" = "nvim";
         "bottom" = "echo 'To run bottom, use the command btm'";
+        "myip" = "curl ip.wtf/moo";
+        "pocket-up" = "pupdate -s -p /run/media/emil/Pocket/";
         "cdnix" = "cd ~/Documents/nix-conf/";
         "nix-switch" = "sudo nixos-rebuild switch --flake ~/Documents/nix-conf#fw13";
         "nix-switchu" = "sudo nixos-rebuild switch --upgrade --flake ~/Documents/nix-conf#fw13";
         "nix-clean" = "sudo nix-collect-garbage -d && sudo nix-store --optimise";
         "flake-up" = "sudo nix flake update ~/Documents/nix-conf/";
-        "pupdate" = "pupdate -p -s /run/media/emil/Pocket/";
       };
     };
   };

@@ -9,6 +9,7 @@
 1. `cp /etc/nixos/hardware-configuration.nix ~/Documents/nix-conf/nixos/` replacing the downloaded `hardware-configuration.nix`
 1. `sudo nixos-rebuild switch --upgrade --flake ~/Documents/nix-conf#fw13`
 1. `reboot`
+1. `cdnix && git remote set-url origin git@github.com:emillassen/nix-conf.git`
 
 ## Manual changes
 

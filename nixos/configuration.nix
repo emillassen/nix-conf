@@ -91,10 +91,6 @@
   # Enable latest linux kernel
   boot.kernelPackages = pkgs.linuxPackages_latest;
 
-  # Enables Enable this option to support certain USB WLAN and WWAN adapters.
-  #These network adapters initial present themselves as Flash Drives containing their drivers. This option enables automatic switching to the networking mode.
-  hardware.usb-modeswitch.enable = true;
-
   # Enables fingerprint support
   services.fprintd.enable = true;
 

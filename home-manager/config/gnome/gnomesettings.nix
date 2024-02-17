@@ -20,5 +20,16 @@
     "org/gnome/desktop/peripherals/touchpad" = {
       tap-to-click = "true";
     };
-  };
+    # Enables dark mode
+    "org/gnome/desktop/interface" = {
+      color-scheme = "prefer-dark";
+    };
+    # Sets Touchpad speed
+    "org/gnome/desktop/peripherals/touchpad" = {
+      speed = "0.1";
+    };
+    # Disables mouse acceleration
+    "org/gnome/desktop/peripherals/mouse" = {
+      accel-profile = "flat";
+    };
 }

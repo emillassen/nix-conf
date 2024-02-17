@@ -84,21 +84,21 @@
   # Enables firmware updates
   services.fwupd = {
     enable = true;
-    package = pkgs.unstable.fwupd;
+    #package = pkgs.unstable.fwupd;
     enableTestRemote = true;
   };
 
   # Enable latest linux kernel
   boot.kernelPackages = pkgs.linuxPackages_latest;
 
-  # Enables fingerprint support
-  services.fprintd.enable = true;
-
   # Enable networking
   networking.networkmanager.enable = true;
 
-  # Required for mullvad to work
-  services.mullvad-vpn.enable = true;
+  # Enables Mullvad
+  services.mullvad-vpn = {
+    enable = true;
+    package = pkgs.unstable.mullvad-vpn;
+  };
 
   # Packages to be installed systemwide
   #environment.systemPackages = with pkgs; [

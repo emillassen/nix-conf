@@ -1,9 +1,8 @@
 # My NixOS config using Flakes and Home Manager
 
 # Initial setup for a new device
-1. Install NixOS (remember to allow unfree packages and name the user `emil`)
-1. `nano /etc/nixos/configuration.nix` and add `git` to system packages
-1. `sudo nixos-rebuild switch`
+1. Install the latest NixOS release (remember to allow unfree packages and name the user `emil`)
+1. `nix shell nixpkgs#git`
 1. `cd ~/Documents/`
 1. `git clone https://github.com/emillassen/nix-conf.git`
 1. `cp /etc/nixos/hardware-configuration.nix ~/Documents/nix-conf/nixos/` replacing the downloaded `hardware-configuration.nix`
@@ -14,6 +13,7 @@
 ## Manual changes
 1. Enable Fractional Scaling in GNOME
 1. Enroll fingerprints
+1. Login to Nextcloud Desktop client
 
 ### YubiKey Setup
 1. Download pub.asc from Bitwarden

@@ -16,7 +16,8 @@
     ./config/kitty.nix
     ./config/nvim.nix
     ./config/zsh/zsh.nix
-    #./config/gnomesettings.nix
+    #./config/gnome/gnomesettings.nix
+    #./config/gnome/catppuccin.nix # Broken atm
     #./config/nextcloud.nix # Broken in gnome
   ];
 
@@ -80,7 +81,6 @@
     unstable.mkvtoolnix
     filebot
     unstable.calibre
-    unstable.mullvad-vpn # remember to add the service for mullvad in configuration.nix
     caprine-bin
     libreoffice
     yacreader
@@ -89,6 +89,9 @@
     unstable.pupdate
    (pkgs.nerdfonts.override { fonts = [ "Hack" ]; })
     lazygit  # Enable git and basic config
+    wirelesstools
+    wavemon
+    unstable.ventoy-full
     #kde connect, gsconnect
     #dunst
     #cliphist

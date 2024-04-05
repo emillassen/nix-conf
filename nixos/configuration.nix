@@ -89,10 +89,13 @@
   };
 
   # Enable latest linux kernel
-  boot.kernelPackages = pkgs.linuxPackages_latest;
+  boot.kernelPackages = pkgs.linuxPackages_6_8;
 
   # Enable networking
   networking.networkmanager.enable = true;
+
+  # Enable memtest86 in systemd-boot menu
+  boot.loader.systemd-boot.memtest86.enable = true;
 
   # Enables Mullvad
   services.mullvad-vpn = {
@@ -142,9 +145,16 @@
     emil = {
       isNormalUser = true;
       description = "Emil Lassen";
-      extraGroups = [ "networkmanager" "wheel" ];
+      extraGroups = [ "networkmanager" "wheel" "dialout" ];
       shell = pkgs.zsh;
     };
+  };
+
+  # Cleans up generations every week
+  nix.gc = {
+    automatic = true;
+    dates = "weekly";
+    options = "--delete-older-than 30d";
   };
 
   # https://nixos.wiki/wiki/FAQ/When_do_I_update_stateVersion

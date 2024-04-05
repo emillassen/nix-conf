@@ -14,7 +14,7 @@
   programs.gnupg.agent = {
     enable = true;
     enableSSHSupport = true;
-    pinentryFlavor = "gnome3"; # Use gnome3 for GNOME gui version
+    pinentryFlavor = "gnome3"; # Use gnome3 for GNOME, qt for Plasma
   };
 
   environment.shellInit = ''

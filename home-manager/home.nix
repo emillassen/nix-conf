@@ -31,7 +31,7 @@
 
       # You can also add overlays exported from other flakes:
       # neovim-nightly-overlay.overlays.default
-
+    
     ];
     # Configure your nixpkgs instance
     config = {
@@ -90,9 +90,15 @@
    (pkgs.nerdfonts.override { fonts = [ "Hack" ]; })
     lazygit  # Enable git and basic config
     wirelesstools
+    iw
     wavemon
+    iperf
     unstable.ventoy-full
-    #kde connect, gsconnect
+    whois
+    unstable.stress-ng
+    unstable.s-tui
+    unstable.ollama
+    #kdeconnect or gsconnect
     #dunst
     #cliphist
     #fuzzel

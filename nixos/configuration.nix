@@ -85,7 +85,7 @@
   services.fwupd = {
     enable = true;
     #package = pkgs.unstable.fwupd;
-    enableTestRemote = true;
+    extraRemotes = [ "lvfs-testing" ];
   };
 
   # Enable latest linux kernel

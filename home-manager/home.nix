@@ -60,17 +60,28 @@
     duf
     pciutils
     usbutils
+    wirelesstools
+    iw
+    wavemon
+    iperf
+    wireguard-tools
     unstable.amdgpu_top
     unstable.fastfetch
-    firefox
-    wl-clipboard
-    unstable.chromium
-    mpv
-    unstable.nextcloud-client
+    unstable.stress-ng
+    unstable.s-tui
+    unstable.ventoy-full
+   (pkgs.nerdfonts.override { fonts = [ "Hack" ]; })
     gnome.gnome-tweaks
     gnome-extension-manager
-    easyeffects
+    wl-clipboard
+    lazygit # Enable git and basic config
+    firefox
+    unstable.chromium
     unstable.vscodium
+    remmina
+    mpv
+    unstable.nextcloud-client
+    easyeffects
     libation
     thunderbird
     discord
@@ -81,23 +92,13 @@
     unstable.mkvtoolnix
     filebot
     unstable.calibre
-    caprine-bin
     libreoffice
+    unstable.krita
+    unstable.inkscape
     yacreader
-    remmina
-    wireguard-tools
     unstable.pupdate
-   (pkgs.nerdfonts.override { fonts = [ "Hack" ]; })
-    lazygit  # Enable git and basic config
-    wirelesstools
-    iw
-    wavemon
-    iperf
-    unstable.ventoy-full
-    whois
-    unstable.stress-ng
-    unstable.s-tui
     unstable.ollama
+    unstable.android-tools
     #kdeconnect or gsconnect
     #dunst
     #cliphist

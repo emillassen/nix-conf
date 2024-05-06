@@ -16,6 +16,8 @@
       remember_window_size = "no";
       initial_window_width = "100c";
       initial_window_height = "63c";
+      window_margin_width = "0";
+      window_padding_width = "0";
       enabled_layouts = "horizontal";
       tab_bar_style = "powerline";
       tab_bar_min_tabs = 2;

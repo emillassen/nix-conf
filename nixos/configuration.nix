@@ -89,7 +89,7 @@
   };
 
   # Enable latest linux kernel
-  boot.kernelPackages = pkgs.linuxPackages_6_8;
+  boot.kernelPackages = pkgs.linuxPackages_6_9;
 
   # Enable networking
   networking.networkmanager.enable = true;
@@ -126,9 +126,9 @@
   };
 
   # Configure keymap in X11
-  services.xserver = {
+  services.xserver.xkb = {
     layout = "dk";
-    xkbVariant = "";
+    variant = "";
   };
 
   # Configure console keymap

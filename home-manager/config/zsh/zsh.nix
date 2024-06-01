@@ -35,6 +35,7 @@
         "vim" = "nvim";
         "bottom" = "echo 'To run bottom, use the command btm'";
         "myip" = "curl ip.wtf/moo";
+        "pupdate" = "pocket-up";
         "pocket-up" = "pupdate -s -p /run/media/$(whoami)/Pocket/";
         "cdnix" = "cd ~/Documents/nix-conf/";
         "nix-switch" = "sudo nixos-rebuild switch --flake ~/Documents/nix-conf#fw13";

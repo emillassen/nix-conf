@@ -2,7 +2,7 @@
 
 # Initial setup for a new device
 1. Install the latest NixOS release (remember to allow unfree packages and name the user `emil`)
-1. `nix shell nixpkgs#git`
+1. `nix-shell -p git`
 1. `cd ~/Documents/`
 1. `git clone https://github.com/emillassen/nix-conf.git`
 1. `cp /etc/nixos/hardware-configuration.nix ~/Documents/nix-conf/nixos/` replacing the downloaded `hardware-configuration.nix`

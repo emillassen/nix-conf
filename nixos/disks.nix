@@ -1,7 +1,7 @@
 {
   disko.devices = {
     disk = {
-      vdb = {
+      nvme0n1 = {
         type = "disk";
         device = "/dev/nvme0n1";
         content = {
@@ -14,9 +14,6 @@
                 type = "filesystem";
                 format = "vfat";
                 mountpoint = "/boot";
-                mountOptions = [
-                  "defaults"
-                ];
               };
             };
             luks = {
@@ -24,49 +21,15 @@
               content = {
                 type = "luks";
                 name = "crypted";
-                extraOpenArgs = [ ];
-                settings = {
-                  # if you want to use the key for interactive login be sure there is no trailing newline
-                  # for example use `echo -n "password" > /tmp/secret.key`
-                  keyFile = "/tmp/secret.key";
-                  allowDiscards = true;
-                };
-                additionalKeyFiles = [ "/tmp/additionalSecret.key" ];
+                settings.allowDiscards = true;
+                passwordFile = "/tmp/secret.key";
                 content = {
-                  type = "lvm_pv";
-                  vg = "pool";
+                  type = "filesystem";
+                  format = "ext4";
+                  mountpoint = "/";
                 };
               };
             };
-          };
-        };
-      };
-    };
-    lvm_vg = {
-      pool = {
-        type = "lvm_vg";
-        lvs = {
-          root = {
-            size = "100M";
-            content = {
-              type = "filesystem";
-              format = "ext4";
-              mountpoint = "/";
-              mountOptions = [
-                "defaults"
-              ];
-            };
-          };
-          home = {
-            size = "10M";
-            content = {
-              type = "filesystem";
-              format = "ext4";
-              mountpoint = "/home";
-            };
-          };
-          raw = {
-            size = "10M";
           };
         };
       };

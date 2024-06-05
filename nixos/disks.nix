@@ -22,6 +22,7 @@
                 type = "luks";
                 name = "crypted";
                 settings.allowDiscards = true;
+                # for example use `echo -n "password" > /tmp/secret.key
                 passwordFile = "/tmp/secret.key";
                 content = {
                   type = "filesystem";

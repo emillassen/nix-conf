@@ -16,7 +16,7 @@
     ./config/kitty.nix
     ./config/nvim.nix
     ./config/zsh/zsh.nix
-    ./config/gnome/gnomesettings.nix
+    #./config/gnome/gnomesettings.nix # Keeps resetting settings
     #./config/gnome/catppuccin.nix # Broken atm
     #./config/nextcloud.nix # Broken in gnome
   ];

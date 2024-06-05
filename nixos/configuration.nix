@@ -89,7 +89,7 @@
   };
 
   # Enable latest linux kernel
-  boot.kernelPackages = pkgs.linuxPackages_6_9;
+  boot.kernelPackages = pkgs.linuxPackages_6_8;
 
   # Enable networking
   networking.networkmanager.enable = true;

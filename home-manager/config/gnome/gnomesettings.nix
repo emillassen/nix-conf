@@ -13,7 +13,7 @@
       idle-dim = "false";
     };
     # Shows the excact charge level in the top bar
-    "/org/gnome/desktop/interface" = {
+    "org/gnome/desktop/interface" = {
       show-battery-percentage = "true";
     };
     # Enables fractional scaling in Gnome Settings -> Displays

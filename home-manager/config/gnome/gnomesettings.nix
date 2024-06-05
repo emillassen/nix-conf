@@ -16,6 +16,10 @@
     "org/gnome/mutter" = {
       experimental-features = [ "scale-monitor-framebuffer" ];
     };
+    # Changes the text scaling factor to 1.25
+    #"org/gnome/desktop/interface" = {
+    #  text-scaling-factor = "1.25";
+    #};
     # Enables tap to click using the trackpad
     "org/gnome/desktop/peripherals/touchpad" = {
       tap-to-click = "true";
@@ -32,4 +36,5 @@
     "org/gnome/desktop/peripherals/mouse" = {
       accel-profile = "flat";
     };
+  };
 }

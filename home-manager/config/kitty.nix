@@ -5,7 +5,7 @@
     enable = true;
     package = pkgs.unstable.kitty;
     font.name = "Hack Nerd Font Mono";
-    font.size = 11.0;
+    font.size = 12.0;
     theme = "Catppuccin-Mocha";
     settings = {
       cursor = "none";
@@ -14,8 +14,8 @@
       enable_audio_bell = "no";
       update_check_interval = 0;
       remember_window_size = "no";
-      initial_window_width = "100c";
-      initial_window_height = "63c";
+      initial_window_width = "112c";
+      initial_window_height = "75c";
       window_margin_width = "0";
       window_padding_width = "0";
       enabled_layouts = "horizontal";

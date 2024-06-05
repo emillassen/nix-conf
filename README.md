@@ -11,8 +11,9 @@
 1. `cdnix && git remote set-url origin git@github.com:emillassen/nix-conf.git`
 
 ## Manual changes
-1. Enable Fractional Scaling in GNOME
-1. Enroll fingerprints
+1. gsettings set org.gnome.desktop.interface text-scaling-factor 1.25
+* Can't be set using home-manager, as it is reset to 1.00 during rebuilds.. also works better than fractional scaling
+1. Enroll fingerprints using `fprintd-enroll`
 1. Login to Nextcloud Desktop client
 
 ### YubiKey Setup

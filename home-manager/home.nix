@@ -16,7 +16,7 @@
     ./config/kitty.nix
     ./config/nvim.nix
     ./config/zsh/zsh.nix
-    #./config/gnome/gnomesettings.nix
+    ./config/gnome/gnomesettings.nix
     #./config/gnome/catppuccin.nix # Broken atm
     #./config/nextcloud.nix # Broken in gnome
   ];
@@ -80,6 +80,7 @@
     unstable.vscodium
     remmina
     mpv
+    unstable.delfin
     unstable.nextcloud-client
     easyeffects
     libation

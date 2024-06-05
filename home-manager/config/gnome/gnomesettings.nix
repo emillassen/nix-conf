@@ -12,6 +12,10 @@
     "org/gnome/settings-daemon/plugins/power" = {
       idle-dim = "false";
     };
+    # Shows the excact charge level in the top bar
+    "/org/gnome/desktop/interface" = {
+      show-battery-percentage = "true";
+    };
     # Enables fractional scaling in Gnome Settings -> Displays
     "org/gnome/mutter" = {
       experimental-features = [ "scale-monitor-framebuffer" ];

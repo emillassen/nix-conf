@@ -7,7 +7,6 @@
 1. `cd /tmp`
 1. `git clone https://github.com/emillassen/nix-conf.git`
 1. `cd nix-conf/nixos`
-1. Delete everything using GParted on nvme0n1
 1. `nano -L /tmp/secret.key`
 1. Enter the desired password for LUKS encryption and save the file
 1. `cat /tmp/secret.key` to make sure that the output matches your desired password and that it is without any trailing linebreaks

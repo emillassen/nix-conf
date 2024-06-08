@@ -1,9 +1,8 @@
 # My NixOS config using Flakes and Home Manager
 
 # Initial setup for a new device
-1. Boot from a USB stick with the latest NixOS GNOME release
-1. Open Settings -> Keyboard -> Input Sources -> Add Input Source -> Select the desired language
-1. Select the language in the top right corner and test if the keyboard mappings are correct
+1. Boot from a USB stick with the latest NixOS release
+1. Change keyboard layout to match device and test that it is correct
 1. Logon to Wi-Fi
 1. `cd /tmp`
 1. `git clone https://github.com/emillassen/nix-conf.git`

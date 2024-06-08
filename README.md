@@ -4,23 +4,20 @@
 1. Boot from a USB stick with the latest NixOS GNOME release
 1. Open Settings -> Keyboard -> Input Sources -> Add Input Source -> Select the desired language
 1. Select the language in the top right corner and test if the keyboard mappings are correct
+1. Logon to Wi-Fi
 1. `cd /tmp`
-1. `nix-shell -p git`
 1. `git clone https://github.com/emillassen/nix-conf.git`
 1. `cd nix-conf/nixos`
 1. Delete everything using GParted on nvme0n1
 1. `nano -L /tmp/secret.key`
 1. Enter the desired password for LUKS encryption and save the file
-1. `cat secret.key` to make sure that the output matches your desired password and that it is without any trailing linebreaks
+1. `cat /tmp/secret.key` to make sure that the output matches your desired password and that it is without any trailing linebreaks
 1. `sudo nix --experimental-features "nix-command flakes" run github:nix-community/disko -- --mode disko /tmp/nix-conf/nixos/disks.nix`
 1. `sudo nixos-install --root /mnt --flake /tmp/nix-conf#fw13 --no-root-passwd`
 1. Select `y` to everything
 1. Enter a new password for the root user
 1. restart and remove the USB stick
 1. Logon to Wi-Fi
-1. `su - root PASSWORD`
-1. `passwd USERNAME`
-1. `exit`
 1. `cd ~/Documents`
 1. `git clone https://github.com/emillassen/nix-conf.git`
 1. `cdnix && git remote set-url origin git@github.com:emillassen/nix-conf.git`

@@ -15,8 +15,7 @@
 1. `sudo nix --experimental-features "nix-command flakes" run github:nix-community/disko -- --mode disko /tmp/nix-conf/nixos/disks.nix`
 1. `sudo nixos-install --root /mnt --flake /tmp/nix-conf#fw13 --no-root-passwd`
 1. Select `y` to everything
-1. Enter a new password for the root user
-1. restart and remove the USB stick
+1. Restart and remove the USB stick
 1. Logon to Wi-Fi
 1. `cd ~/Documents`
 1. `git clone https://github.com/emillassen/nix-conf.git`

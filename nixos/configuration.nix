@@ -16,8 +16,8 @@
     ./disks.nix
     ../modules/nixos/upgrade-diff.nix
     ./common/pipewire.nix
-    #./gnome.nix
-    ./kde.nix
+    ./gnome.nix
+    #./kde.nix
     #./common/fingerprint.nix
     ./common/steam.nix
     ./common/yubikey.nix
@@ -73,10 +73,6 @@
 
   # Sets Host Name for the device
   networking.hostName = "fw13";
-
-  # Bootloader
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
 
   # Enables automatic upgrades
   #system.autoUpgrade.enable = true;

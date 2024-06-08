@@ -16,8 +16,8 @@
     ./disks.nix
     ../modules/nixos/upgrade-diff.nix
     ./common/pipewire.nix
-    ./gnome.nix
-    #./kde.nix
+    #./gnome.nix
+    ./kde.nix
     #./common/fingerprint.nix
     ./common/steam.nix
     ./common/yubikey.nix

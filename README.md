@@ -13,7 +13,7 @@
 1. Enter the desired password for LUKS encryption and save the file
 1. `cat secret.key` to make sure that the output matches your desired password and that it is without any trailing linebreaks
 1. `sudo nix --experimental-features "nix-command flakes" run github:nix-community/disko -- --mode disko /tmp/nix-conf/nixos/disks.nix`
-1. `sudo nixos-install --root /mnt --flake /tmp/nix-conf#fw13`
+1. `sudo nixos-install --root /mnt --flake /tmp/nix-conf#fw13 --no-root-passwd`
 1. Select `y` to everything
 1. Enter a new password for the root user
 1. restart and remove the USB stick

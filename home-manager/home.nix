@@ -71,6 +71,7 @@
     unstable.s-tui
     unstable.ventoy-full
    (pkgs.nerdfonts.override { fonts = [ "Hack" ]; })
+    gnome.gnome-themes-extra
     gnome.gnome-tweaks
     gnome-extension-manager
     wl-clipboard

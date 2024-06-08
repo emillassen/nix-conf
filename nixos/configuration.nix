@@ -146,6 +146,8 @@
     emil = {
       isNormalUser = true;
       description = "Emil Lassen";
+      # mkpasswd -m sha-512
+      hashedPassword = "$6$DlWtQKGvf7B7Xb1h$r0mRQaLyvSWSf2VcvitX5uUIsHQoJfgNQDJcc30vtnh29WpZ1Xx0KMB7BJyTUGd0cntc2xdu4ZLd2KKyW/Pdc/";
       extraGroups = [ "networkmanager" "wheel" "dialout" ];
       shell = pkgs.zsh;
     };

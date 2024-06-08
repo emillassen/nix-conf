@@ -30,6 +30,10 @@
     nixpkgs-unstable.url = "github:nixos/nixpkgs/nixos-unstable";
     # Also see the 'unstable-packages' overlay at 'overlays/default.nix'.
 
+    # Adds disko support for partitioning, formatting and LUKS on disks
+    disko.url = "github:nix-community/disko";
+    disko.inputs.nixpkgs.follows = "nixpkgs";
+
     # Home manager
     home-manager.url = "github:nix-community/home-manager/release-24.05";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
@@ -38,7 +42,7 @@
     nixos-hardware.url = "github:NixOS/nixos-hardware/master";
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable, home-manager, nixos-hardware, ... }
+  outputs = { self, nixpkgs, nixpkgs-unstable, disko, home-manager, nixos-hardware, ... }
   @ inputs: let
     inherit (self) outputs;
     # Supported systems for your flake packages, shell, etc.
@@ -71,6 +75,7 @@
         modules = [
           # > Our main nixos configuration file <
           ./nixos/configuration.nix
+          disko.nixosModules.disko
           nixos-hardware.nixosModules.framework-13-7040-amd
           
           # given the users in this list the right to specify additional substituters via:

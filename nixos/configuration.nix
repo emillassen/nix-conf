@@ -13,6 +13,7 @@
 
     # You can also split up your configuration and import pieces of it here:
     ./hardware-configuration.nix
+    ./disks.nix
     ../modules/nixos/upgrade-diff.nix
     ./common/pipewire.nix
     ./gnome.nix

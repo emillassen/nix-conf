@@ -1,8 +1,11 @@
 # Git is needed for home-manager to work
-{ config, pkgs, nixpkgs-unstable, ... }:
-
 {
-# Enable git and basic config
+  config,
+  pkgs,
+  nixpkgs-unstable,
+  ...
+}: {
+  # Enable git and basic config
   programs = {
     git = {
       enable = true;

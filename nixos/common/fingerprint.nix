@@ -1,8 +1,10 @@
 # https://github.com/NixOS/nixpkgs/issues/171136#issuecomment-1627779037
-
-{ lib, config, pkgs,... }:
-
 {
+  lib,
+  config,
+  pkgs,
+  ...
+}: {
   security.pam.services.login.fprintAuth = false;
   # similarly to how other distributions handle the fingerprinting login
   security.pam.services.gdm-fingerprint = lib.mkIf (config.services.fprintd.enable) {

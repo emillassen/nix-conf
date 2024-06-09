@@ -1,8 +1,14 @@
 # This is your home-manager configuration file
 # Use this to configure your home environment (it replaces ~/.config/nixpkgs/home.nix)
-{ inputs, outputs, lib, config, pkgs, nixpkgs-unstable, ... }:
-
 {
+  inputs,
+  outputs,
+  lib,
+  config,
+  pkgs,
+  nixpkgs-unstable,
+  ...
+}: {
   # You can import other home-manager modules here
   imports = [
     # If you want to use modules your own flake exports (from modules/home-manager):
@@ -31,7 +37,6 @@
 
       # You can also add overlays exported from other flakes:
       # neovim-nightly-overlay.overlays.default
-    
     ];
     # Configure your nixpkgs instance
     config = {
@@ -68,7 +73,7 @@
     unstable.stress-ng
     unstable.s-tui
     unstable.ventoy-full
-   (pkgs.nerdfonts.override { fonts = [ "Hack" ]; })
+    (pkgs.nerdfonts.override {fonts = ["Hack"];})
     gnome-extension-manager
     gnome.gnome-themes-extra
     gnome.gnome-tweaks
@@ -77,6 +82,8 @@
     firefox
     unstable.chromium
     unstable.vscodium
+    vscode-extensions.kamadorueda.alejandra
+    unstable.alejandra
     remmina
     mpv
     unstable.delfin
@@ -109,7 +116,7 @@
   ];
 
   # Required to autoload fonts from packages installed via Home Manager
-  fonts.fontconfig.enable = true; 
+  fonts.fontconfig.enable = true;
 
   # Enable home-manager (git also required)
   programs.home-manager.enable = true;

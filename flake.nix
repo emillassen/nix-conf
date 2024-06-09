@@ -21,7 +21,7 @@
       "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
     ];
   };
- 
+
   inputs = {
     # Nixpkgs
     nixpkgs.url = "github:nixos/nixpkgs/nixos-24.05";
@@ -42,11 +42,18 @@
     nixos-hardware.url = "github:NixOS/nixos-hardware/master";
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable, disko, home-manager, nixos-hardware, ... }
-  @ inputs: let
+  outputs = {
+    self,
+    nixpkgs,
+    nixpkgs-unstable,
+    disko,
+    home-manager,
+    nixos-hardware,
+    ...
+  } @ inputs: let
     inherit (self) outputs;
     # Supported systems for your flake packages, shell, etc.
-    systems = [ "aarch64-linux" "i686-linux" "x86_64-linux" "aarch64-darwin" "x86_64-darwin" ];
+    systems = ["aarch64-linux" "i686-linux" "x86_64-linux" "aarch64-darwin" "x86_64-darwin"];
     # This is a function that generates an attribute by calling a function you
     # pass to it, with each system as an argument
     forAllSystems = nixpkgs.lib.genAttrs systems;
@@ -77,11 +84,10 @@
           ./nixos/configuration.nix
           disko.nixosModules.disko
           nixos-hardware.nixosModules.framework-13-7040-amd
-          
+
           # given the users in this list the right to specify additional substituters via:
           # 1. `nixConfig.substituers` in `flake.nix`
-          { nix.settings.trusted-users = [ "emil" ]; }
-
+          {nix.settings.trusted-users = ["emil"];}
         ];
       };
     };

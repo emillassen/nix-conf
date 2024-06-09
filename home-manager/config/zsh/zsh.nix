@@ -1,6 +1,9 @@
-{ config, pkgs, nixpkgs-unstable, ... }:
-
 {
+  config,
+  pkgs,
+  nixpkgs-unstable,
+  ...
+}: {
   programs = {
     zsh = {
       enable = true;
@@ -12,12 +15,16 @@
       history.save = 1000000;
       history.size = 1000000;
       plugins = [
-        { name = "powerlevel10k";
+        {
+          name = "powerlevel10k";
           src = pkgs.zsh-powerlevel10k;
-          file = "share/zsh-powerlevel10k/powerlevel10k.zsh-theme"; }
-        { name = "powerlevel10k-config";
+          file = "share/zsh-powerlevel10k/powerlevel10k.zsh-theme";
+        }
+        {
+          name = "powerlevel10k-config";
           src = ../zsh;
-          file = "p10k.zsh"; }
+          file = "p10k.zsh";
+        }
       ];
       shellAliases = {
         "ll" = "ls -a";

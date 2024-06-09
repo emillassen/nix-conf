@@ -1,8 +1,13 @@
 # This is your system's configuration file.
 # Use this to configure your system environment (it replaces /etc/nixos/configuration.nix)
-{ inputs, outputs, lib, config, pkgs, ... }:
-
 {
+  inputs,
+  outputs,
+  lib,
+  config,
+  pkgs,
+  ...
+}: {
   # You can import other NixOS modules here
   imports = [
     # If you want to use modules your own flake exports (from modules/nixos):
@@ -24,7 +29,7 @@
   ];
 
   home-manager = {
-    extraSpecialArgs = { inherit inputs outputs; };
+    extraSpecialArgs = {inherit inputs outputs;};
     users = {
       emil = import ../home-manager/home.nix;
     };
@@ -40,7 +45,6 @@
 
       # You can also add overlays exported from other flakes:
       # neovim-nightly-overlay.overlays.default
-
     ];
     # Configure your nixpkgs instance
     config = {
@@ -86,7 +90,7 @@
   services.fwupd = {
     enable = true;
     #package = pkgs.unstable.fwupd;
-    extraRemotes = [ "lvfs-testing" ];
+    extraRemotes = ["lvfs-testing"];
   };
 
   # Enable latest linux kernel
@@ -148,7 +152,7 @@
       description = "Emil Lassen";
       # mkpasswd -m sha-512
       hashedPassword = "$6$DlWtQKGvf7B7Xb1h$r0mRQaLyvSWSf2VcvitX5uUIsHQoJfgNQDJcc30vtnh29WpZ1Xx0KMB7BJyTUGd0cntc2xdu4ZLd2KKyW/Pdc/";
-      extraGroups = [ "networkmanager" "wheel" "dialout" ];
+      extraGroups = ["networkmanager" "wheel" "dialout"];
       shell = pkgs.zsh;
     };
   };

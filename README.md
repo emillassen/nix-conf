@@ -22,6 +22,8 @@
 ## Manual changes
 1. Enroll fingerprints using `fprintd-enroll`
 1. Login to Nextcloud Desktop client
+1. `nvim ~/.config/Nextcloud/nextcloud.cfg`
+1. Paste `maxChunkSize=50000000` under `[General]`
 
 ### GNOME changes
 1. `gsettings set org.gnome.desktop.interface color-scheme prefer-dark`

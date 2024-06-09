@@ -74,6 +74,10 @@
   # Sets Host Name for the device
   networking.hostName = "fw13";
 
+  # Bootloader
+  boot.loader.systemd-boot.enable = true;
+  boot.loader.efi.canTouchEfiVariables = true;
+
   # Enables automatic upgrades
   #system.autoUpgrade.enable = true;
   #system.autoUpgrade.allowReboot = true;

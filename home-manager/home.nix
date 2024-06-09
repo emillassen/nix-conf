@@ -37,8 +37,6 @@
     config = {
       # Disable if you don't want unfree packages
       allowUnfree = true;
-      # Workaround for https://github.com/nix-community/home-manager/issues/2942
-      allowUnfreePredicate = _: true;
     };
   };
 
@@ -71,9 +69,9 @@
     unstable.s-tui
     unstable.ventoy-full
    (pkgs.nerdfonts.override { fonts = [ "Hack" ]; })
+    gnome-extension-manager
     gnome.gnome-themes-extra
     gnome.gnome-tweaks
-    gnome-extension-manager
     wl-clipboard
     lazygit # Enable git and basic config
     firefox
@@ -103,6 +101,7 @@
     unstable.ollama
     unstable.android-tools
     unstable.vcmi
+    vuescan # from /nix-conf/pkgs
     #kdeconnect or gsconnect
     #dunst
     #cliphist

@@ -23,7 +23,6 @@
     ./common/pipewire.nix
     ./gnome.nix
     #./kde.nix
-    #./common/fingerprint.nix
     ./common/steam.nix
     ./common/yubikey.nix
   ];
@@ -94,7 +93,7 @@
   };
 
   # Enable latest linux kernel
-  boot.kernelPackages = pkgs.linuxPackages_6_8;
+  boot.kernelPackages = pkgs.linuxPackages_6_6;
 
   # Enable networking
   networking.networkmanager.enable = true;
@@ -107,6 +106,9 @@
     enable = true;
     package = pkgs.unstable.mullvad-vpn;
   };
+
+  # Enables RTL-SDR udev rules etc.
+  hardware.rtl-sdr.enable = true;
 
   # Packages to be installed systemwide
   #environment.systemPackages = with pkgs; [
@@ -152,7 +154,7 @@
       description = "Emil Lassen";
       # mkpasswd -m sha-512
       hashedPassword = "$6$DlWtQKGvf7B7Xb1h$r0mRQaLyvSWSf2VcvitX5uUIsHQoJfgNQDJcc30vtnh29WpZ1Xx0KMB7BJyTUGd0cntc2xdu4ZLd2KKyW/Pdc/";
-      extraGroups = ["networkmanager" "wheel" "dialout"];
+      extraGroups = ["networkmanager" "wheel" "dialout" "plugdev"];
       shell = pkgs.zsh;
     };
   };

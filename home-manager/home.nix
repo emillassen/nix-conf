@@ -61,6 +61,7 @@
     bat
     bottom
     duf
+    ncdu
     pciutils
     usbutils
     wirelesstools
@@ -109,6 +110,7 @@
     unstable.android-tools
     unstable.vcmi
     vuescan # from /nix-conf/pkgs
+    sdrpp
     #kdeconnect or gsconnect
     #dunst
     #cliphist

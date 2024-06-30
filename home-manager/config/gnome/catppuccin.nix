@@ -1,10 +1,6 @@
 # Enables the catppuccin theme for gtk
 # https://github.com/catppuccin/gtk
-{
-  pkgs,
-  nixpkgs-unstable,
-  ...
-}: {
+{pkgs, ...}: {
   gtk = {
     enable = true;
     theme = {

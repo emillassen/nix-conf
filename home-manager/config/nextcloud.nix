@@ -1,12 +1,11 @@
 {
   config,
   pkgs,
-  nixpkgs-unstable,
   ...
 }: {
   services.nextcloud-client = {
     enable = true;
-    package = pkgs.unstable.nextcloud-client;
+    package = pkgs.nextcloud-client;
     startInBackground = true;
   };
 }

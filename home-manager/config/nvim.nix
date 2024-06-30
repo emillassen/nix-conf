@@ -1,12 +1,11 @@
 {
   config,
   pkgs,
-  nixpkgs-unstable,
   ...
 }: {
   programs.neovim = {
     enable = true;
-    package = pkgs.unstable.neovim-unwrapped;
+    package = pkgs.neovim-unwrapped;
     extraConfig =
       /*
       vim

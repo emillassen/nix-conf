@@ -1,13 +1,12 @@
 {
   config,
   pkgs,
-  nixpkgs-unstable,
   ...
 }: {
   programs = {
     zsh = {
       enable = true;
-      package = pkgs.unstable.zsh;
+      package = pkgs.zsh;
       autocd = false;
       syntaxHighlighting.enable = true;
       enableCompletion = true;

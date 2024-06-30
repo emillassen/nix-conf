@@ -40,7 +40,7 @@
       # Add overlays your own flake exports (from overlays and pkgs dir):
       outputs.overlays.additions
       outputs.overlays.modifications
-      outputs.overlays.unstable-packages
+      outputs.overlays.stable-packages
 
       # You can also add overlays exported from other flakes:
       # neovim-nightly-overlay.overlays.default
@@ -88,12 +88,12 @@
   # Enables firmware updates
   services.fwupd = {
     enable = true;
-    #package = pkgs.unstable.fwupd;
+    #package = pkgs.fwupd;
     extraRemotes = ["lvfs-testing"];
   };
 
   # Enable latest linux kernel
-  boot.kernelPackages = pkgs.linuxPackages_6_6;
+  boot.kernelPackages = pkgs.linuxPackages_latest;
 
   # Enable networking
   networking.networkmanager.enable = true;
@@ -104,7 +104,7 @@
   # Enables Mullvad
   services.mullvad-vpn = {
     enable = true;
-    package = pkgs.unstable.mullvad-vpn;
+    package = pkgs.mullvad-vpn;
   };
 
   # Enables RTL-SDR udev rules etc.

@@ -6,7 +6,7 @@
   lib,
   config,
   pkgs,
-  nixpkgs-unstable,
+  nixpkgs-stable,
   ...
 }: {
   # You can import other home-manager modules here
@@ -33,7 +33,7 @@
       # Add overlays your own flake exports (from overlays and pkgs dir):
       outputs.overlays.additions
       outputs.overlays.modifications
-      outputs.overlays.unstable-packages
+      outputs.overlays.stable-packages
 
       # You can also add overlays exported from other flakes:
       # neovim-nightly-overlay.overlays.default
@@ -55,9 +55,9 @@
   };
 
   home.packages = with pkgs; [
-    unstable.curl
-    unstable.wget
-    unstable.micro
+    curl
+    wget
+    micro
     bat
     bottom
     duf
@@ -69,11 +69,11 @@
     wavemon
     iperf
     wireguard-tools
-    unstable.amdgpu_top
-    unstable.fastfetch
-    unstable.stress-ng
-    unstable.s-tui
-    unstable.ventoy-full
+    amdgpu_top
+    fastfetch
+    stress-ng
+    s-tui
+    ventoy-full
     (pkgs.nerdfonts.override {fonts = ["Hack"];})
     gnome-extension-manager
     gnome.gnome-themes-extra
@@ -81,34 +81,34 @@
     wl-clipboard
     lazygit # Enable git and basic config
     firefox
-    unstable.chromium
-    unstable.vscodium
+    chromium
+    vscodium
     vscode-extensions.kamadorueda.alejandra
-    unstable.alejandra
+    alejandra
     remmina
     mpv
-    unstable.delfin
-    unstable.nextcloud-client
+    delfin
+    nextcloud-client
     easyeffects
     libation
     thunderbird
     discord
-    unstable.spotify
+    spotify
     yt-dlp
     handbrake
-    unstable.mediainfo-gui
-    unstable.mkvtoolnix
-    unstable.ffmpeg
+    mediainfo-gui
+    mkvtoolnix
+    ffmpeg
     filebot
-    unstable.calibre
+    calibre
     libreoffice
-    unstable.krita
-    unstable.inkscape
+    krita
+    inkscape
     yacreader
-    unstable.pupdate
-    unstable.ollama
-    unstable.android-tools
-    unstable.vcmi
+    pupdate
+    ollama
+    android-tools
+    vcmi
     vuescan # from /nix-conf/pkgs
     sdrpp
     #kdeconnect or gsconnect

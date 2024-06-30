@@ -2,14 +2,13 @@
 {
   config,
   pkgs,
-  nixpkgs-unstable,
   ...
 }: {
   # Enable git and basic config
   programs = {
     git = {
       enable = true;
-      package = pkgs.unstable.git;
+      package = pkgs.git;
       userName = "Emil Lassen";
       userEmail = "155289+emillassen@users.noreply.github.com";
     };

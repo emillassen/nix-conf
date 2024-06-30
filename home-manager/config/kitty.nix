@@ -1,11 +1,7 @@
-{
-  pkgs,
-  nixpkgs-unstable,
-  ...
-}: {
+{pkgs, ...}: {
   programs.kitty = {
     enable = true;
-    package = pkgs.unstable.kitty;
+    package = pkgs.kitty;
     font.name = "Hack Nerd Font Mono";
     font.size = 12.0;
     theme = "Catppuccin-Mocha";

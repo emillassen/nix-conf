@@ -76,8 +76,8 @@
     ventoy-full
     (pkgs.nerdfonts.override {fonts = ["Hack"];})
     gnome-extension-manager
-    gnome.gnome-themes-extra
-    gnome.gnome-tweaks
+    gnome-themes-extra
+    gnome-tweaks
     wl-clipboard
     lazygit # Enable git and basic config
     firefox

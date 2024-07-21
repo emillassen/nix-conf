@@ -93,13 +93,16 @@
   };
 
   # Enable latest linux kernel
-  boot.kernelPackages = pkgs.linuxPackages_latest;
+  boot.kernelPackages = pkgs.linuxPackages_6_6;
 
   # Enable networking
   networking.networkmanager.enable = true;
 
   # Enable memtest86 in systemd-boot menu
   boot.loader.systemd-boot.memtest86.enable = true;
+
+  # Enable fingerprint sensor
+  services.fprintd.enable = true;
 
   # Enables Mullvad
   services.mullvad-vpn = {

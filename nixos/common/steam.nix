@@ -7,7 +7,7 @@
 }: {
   fonts.fontconfig.cache32Bit = true;
   hardware.steam-hardware.enable = true;
-  hardware.opengl.driSupport32Bit = true;
+  hardware.graphics.enable32Bit = true;
   programs = {
     steam = {
       enable = true;

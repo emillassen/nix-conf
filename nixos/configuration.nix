@@ -21,8 +21,8 @@
     ./disks.nix
     ../modules/nixos/upgrade-diff.nix
     ./common/pipewire.nix
-    ./gnome.nix
-    #./kde.nix
+    #./gnome.nix
+    ./kde.nix
     ./common/steam.nix
     ./common/yubikey.nix
   ];
@@ -93,7 +93,7 @@
   };
 
   # Enable latest linux kernel
-  boot.kernelPackages = pkgs.linuxPackages_6_6;
+  boot.kernelPackages = pkgs.linuxPackages_latest;
 
   # Enable networking
   networking.networkmanager.enable = true;

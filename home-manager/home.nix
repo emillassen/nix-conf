@@ -75,9 +75,9 @@
     s-tui
     ventoy-full
     (pkgs.nerdfonts.override {fonts = ["Hack"];})
-    gnome-extension-manager
-    gnome-themes-extra
-    gnome-tweaks
+    #gnome-extension-manager
+    #gnome-themes-extra
+    #gnome-tweaks
     wl-clipboard
     lazygit # Enable git and basic config
     firefox
@@ -106,7 +106,7 @@
     inkscape
     yacreader
     pupdate
-    ollama
+   # ollama
     android-tools
     vcmi
     vuescan # from /nix-conf/pkgs

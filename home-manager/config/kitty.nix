@@ -13,7 +13,7 @@
       update_check_interval = 0;
       remember_window_size = "no";
       initial_window_width = "112c";
-      initial_window_height = "69c";
+      initial_window_height = "70c";
       window_margin_width = "0";
       window_padding_width = "0";
       enabled_layouts = "horizontal";

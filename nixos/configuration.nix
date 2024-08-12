@@ -19,7 +19,7 @@
     # You can also split up your configuration and import pieces of it here:
     ./hardware-configuration.nix
     ./disks.nix
-    ../modules/nixos/upgrade-diff.nix
+    #../modules/nixos/upgrade-diff.nix
     ./common/pipewire.nix
     #./gnome.nix
     ./kde.nix
@@ -110,6 +110,9 @@
     package = pkgs.mullvad-vpn;
   };
 
+  # Enables KDE Connect
+  programs.kdeconnect.enable = true;
+
   # Enables RTL-SDR udev rules etc.
   hardware.rtl-sdr.enable = true;
 
@@ -146,6 +149,9 @@
 
   # Enable zsh
   programs.zsh.enable = true;
+
+  # Enable nh
+  programs.nh.enable = true;
 
   # Enable the X11 windowing system. Required for GNOME, KDE, Hyprland etc.
   services.xserver.enable = true;

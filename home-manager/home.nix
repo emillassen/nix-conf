@@ -51,6 +51,7 @@
     sessionVariables = {
       VISUAL = "nvim";
       EDITOR = "nvim";
+      FLAKE = "/home/emil/Documents/nix-conf";
     };
   };
 
@@ -106,7 +107,7 @@
     inkscape
     yacreader
     pupdate
-   # ollama
+    ollama
     android-tools
     vcmi
     vuescan # from /nix-conf/pkgs

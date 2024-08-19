@@ -112,6 +112,7 @@
     vcmi
     vuescan # from /nix-conf/pkgs
     sdrpp
+    chirp
     #kdeconnect or gsconnect
     #dunst
     #cliphist

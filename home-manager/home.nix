@@ -70,13 +70,13 @@
     wavemon
     iperf
     wireguard-tools
-    (pkgs.btop.override { rocmSupport = true; })
+    (btop.override { rocmSupport = true; })
     amdgpu_top
     fastfetch
     stress-ng
     s-tui
     ventoy-full
-    (pkgs.nerdfonts.override {fonts = ["Hack"];})
+    (nerdfonts.override {fonts = ["Hack"];})
     #gnome-extension-manager
     #gnome-themes-extra
     #gnome-tweaks

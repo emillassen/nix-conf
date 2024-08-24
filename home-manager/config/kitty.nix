@@ -6,6 +6,7 @@
     font.size = 10.0;
     theme = "Catppuccin-Mocha";
     settings = {
+      term = "xterm-kitty";
       cursor = "none";
       cursor_shape = "block";
       scrollback_lines = 10000;
@@ -20,8 +21,8 @@
       tab_bar_style = "powerline";
       tab_bar_min_tabs = 2;
       tab_powerline_style = "slanted";
-      #background_opacity = "0.9";
-      #background_blur = 250;
+      #background_opacity = "1.0";
+      #background_blur = 1;
       #dynamic_background_opacity = "yes";
       #wayland_titlebar_color = "system";
     };

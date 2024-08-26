@@ -9,7 +9,7 @@
       term = "xterm-kitty";
       cursor = "none";
       cursor_shape = "block";
-      scrollback_lines = 10000;
+      scrollback_lines = 100000;
       enable_audio_bell = "no";
       update_check_interval = 0;
       remember_window_size = "no";

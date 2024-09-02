@@ -61,6 +61,7 @@
     micro
     bat
     bottom
+    (btop.override {rocmSupport = true;})
     duf
     ncdu
     pciutils
@@ -70,7 +71,6 @@
     wavemon
     iperf
     wireguard-tools
-    (btop.override {rocmSupport = true;})
     amdgpu_top
     fastfetch
     stress-ng
@@ -113,7 +113,7 @@
     vcmi
     vuescan # from /nix-conf/pkgs
     sdrpp
-    #chirp
+    chirp
     #kdeconnect or gsconnect
     #dunst
     #cliphist

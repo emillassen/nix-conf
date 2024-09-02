@@ -25,6 +25,7 @@
     ./kde.nix
     ./common/steam.nix
     ./common/yubikey.nix
+    ./common/cifs.nix
   ];
 
   home-manager = {

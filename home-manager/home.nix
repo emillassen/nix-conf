@@ -70,7 +70,7 @@
     wavemon
     iperf
     wireguard-tools
-    (btop.override { rocmSupport = true; })
+    (btop.override {rocmSupport = true;})
     amdgpu_top
     fastfetch
     stress-ng

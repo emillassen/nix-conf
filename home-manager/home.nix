@@ -101,7 +101,7 @@
     mediainfo-gui
     mkvtoolnix
     ffmpeg
-    stable.filebot
+    filebot
     calibre
     libreoffice
     krita

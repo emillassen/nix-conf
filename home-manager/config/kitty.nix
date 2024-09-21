@@ -4,7 +4,7 @@
     package = pkgs.kitty;
     font.name = "Hack Nerd Font Mono";
     font.size = 10.0;
-    theme = "Catppuccin-Mocha";
+    themeFile = "Catppuccin-Mocha";
     settings = {
       term = "xterm-kitty";
       cursor = "none";

@@ -99,7 +99,7 @@
     yt-dlp
     handbrake
     mediainfo-gui
-    #mkvtoolnix
+    mkvtoolnix
     ffmpeg
     filebot
     calibre

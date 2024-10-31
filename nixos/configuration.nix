@@ -102,6 +102,10 @@
   # Enable memtest86 in systemd-boot menu
   boot.loader.systemd-boot.memtest86.enable = true;
 
+  # Enable Bluetooth
+  hardware.bluetooth.enable = true;
+  hardware.bluetooth.powerOnBoot = true;
+
   # Enable fingerprint sensor
   services.fprintd.enable = true;
 

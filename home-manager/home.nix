@@ -103,6 +103,7 @@
     ffmpeg
     filebot
     calibre
+    kcc
     libreoffice
     krita
     inkscape
@@ -114,7 +115,7 @@
     vuescan # from /nix-conf/pkgs
     sdrpp
     chirp
-    #kdeconnect or gsconnect
+    gimp
     #dunst
     #cliphist
     #fuzzel
@@ -130,5 +131,5 @@
   systemd.user.startServices = "sd-switch";
 
   # https://nixos.wiki/wiki/FAQ/When_do_I_update_stateVersion
-  home.stateVersion = "24.05";
+  home.stateVersion = "24.11";
 }

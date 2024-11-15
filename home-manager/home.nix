@@ -103,6 +103,7 @@
     ffmpeg
     filebot
     calibre
+    kcc
     libreoffice
     krita
     inkscape

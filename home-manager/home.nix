@@ -76,7 +76,7 @@
     stress-ng
     s-tui
     ventoy-full
-    (nerdfonts.override {fonts = ["Hack"];})
+    nerd-fonts.hack
     #gnome-extension-manager
     #gnome-themes-extra
     #gnome-tweaks
@@ -108,7 +108,7 @@
     krita
     inkscape
     yacreader
-    pupdate
+    #pupdate
     ollama
     android-tools
     vcmi

@@ -7,13 +7,13 @@
   gnutar,
   autoPatchelfHook,
   glibc,
-  gtk2,
+  gtk3,
   xorg,
   libgudev,
   makeDesktopItem,
 }: let
   pname = "vuescan";
-  version = "9.7";
+  version = "9.8.40";
   desktopItem = makeDesktopItem {
     name = "VueScan";
     desktopName = "VueScan";
@@ -33,8 +33,8 @@ in
     name = "${pname}-${version}";
 
     src = fetchurl {
-      url = "https://www.hamrick.com/oldfiles/vuex6497.tgz";
-      hash = "sha256-Jx0jw+x9xkckDPS0DXCEY2OuwsnWZ1ZHyk8L8qrG3Qk=";
+      url = "https://www.hamrick.com/files/vuex6498.tgz";
+      hash = "sha256-EshJEqoZTnQh7Uj8fDgr06l+PmFJrAZ6SotybJhAtMM=";
     };
 
     # Stripping breaks the program
@@ -42,7 +42,7 @@ in
 
     nativeBuildInputs = [gnutar autoPatchelfHook];
 
-    buildInputs = [glibc gtk2 xorg.libSM libgudev];
+    buildInputs = [glibc gtk3 xorg.libSM libgudev];
 
     unpackPhase = ''
       tar xfz $src

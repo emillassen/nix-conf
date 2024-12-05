@@ -108,7 +108,7 @@
     krita
     inkscape
     yacreader
-    #pupdate
+    pupdate
     ollama
     android-tools
     vcmi

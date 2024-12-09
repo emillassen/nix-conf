@@ -61,7 +61,8 @@
     micro
     bat
     bottom
-    (btop.override {rocmSupport = true;})
+    btop
+    #(btop.override {rocmSupport = true;})
     duf
     ncdu
     pciutils
@@ -116,6 +117,7 @@
     sdrpp
     chirp
     gimp
+    immich-cli
     #dunst
     #cliphist
     #fuzzel

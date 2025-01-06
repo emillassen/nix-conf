@@ -60,6 +60,7 @@
     curl
     wget
     micro
+    helix
     bat
     bottom
     btop

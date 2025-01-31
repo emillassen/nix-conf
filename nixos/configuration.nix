@@ -96,6 +96,12 @@
   # Enable latest linux kernel
   boot.kernelPackages = pkgs.linuxPackages_latest;
 
+  hardware = {
+    # disable framework kernel module
+    # https://github.com/NixOS/nixos-hardware/issues/1330
+    framework.enableKmod = false;
+  };
+
   # Enable networking
   networking.networkmanager.enable = true;
 

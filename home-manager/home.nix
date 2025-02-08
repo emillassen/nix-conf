@@ -119,7 +119,7 @@
     sdrpp
     chirp
     gimp
-    immich-cli
+    #immich-cli
     #dunst
     #cliphist
     #fuzzel

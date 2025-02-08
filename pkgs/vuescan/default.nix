@@ -34,7 +34,7 @@ in
 
     src = fetchurl {
       url = "https://www.hamrick.com/files/vuex6498.tgz";
-      hash = "sha256-/L4L8xIOFJEzXDboPyHxQzKh+52Hqrjg/WIZ+TRGsEg=";
+      hash = "sha256-sC37+dd0+61UmI6G3q39yZmzGVY7xOTn1PAQEfBEiOc=";
     };
 
     # Stripping breaks the program

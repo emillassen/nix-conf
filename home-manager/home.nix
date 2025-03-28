@@ -63,8 +63,7 @@
     helix
     bat
     bottom
-    btop
-    #(btop.override {rocmSupport = true;})
+    (btop.override {rocmSupport = true;})
     duf
     ncdu
     pciutils

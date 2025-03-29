@@ -115,6 +115,7 @@
     android-tools
     vcmi
     vuescan # from /nix-conf/pkgs
+    signal-desktop
     sdrpp
     chirp
     gimp

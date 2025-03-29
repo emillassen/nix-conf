@@ -116,6 +116,7 @@
     vcmi
     vuescan # from /nix-conf/pkgs
     signal-desktop
+    anydesk
     sdrpp
     chirp
     gimp

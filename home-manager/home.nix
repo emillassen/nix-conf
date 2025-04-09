@@ -52,7 +52,7 @@
     sessionVariables = {
       VISUAL = "nvim";
       EDITOR = "nvim";
-      FLAKE = "/home/emil/Documents/nix-conf";
+      NH_FLAKE = "/home/emil/Documents/nix-conf";
     };
   };
 

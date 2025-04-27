@@ -25,16 +25,26 @@
 1. `nvim ~/.config/Nextcloud/nextcloud.cfg`
 1. Paste `maxChunkSize=50000000` under `[General]`
 
-### GNOME changes
-1. `gsettings set org.gnome.desktop.interface color-scheme prefer-dark`
-1. `gsettings set org.gnome.desktop.interface show-battery-percentage true`
-1. `gsettings set org.gnome.desktop.interface text-scaling-factor 1.25`
-1. `gsettings set org.gnome.desktop.peripherals.touchpad speed 0.1`
-1. `gsettings set org.gnome.desktop.peripherals.touchpad tap-to-click true`
-1. `gsettings set org.gnome.desktop.peripherals.mouse accel-profile flat`
-1. `gsettings set org.gnome.mutter experimental-features "['scale-monitor-framebuffer']"`
-1. `gsettings set org.gnome.settings-daemon.plugins.power ambient-enabled false`
-1. `gsettings set org.gnome.settings-daemon.plugins.power idle-dim false`
+### KDE changes
+1. Create KDE Wallet with empty password
+1. Right-click battery in system tray and tick show battery percentage
+1. Import window rules under Settings -> Window Management -> Window Rules
+1. Settings -> Quick Settings -> Theme -> Breeze Dark
+1. Settings -> Display Configuration -> Scale -> 125 %
+1. Settings -> Display Configuration -> Color Profile -> ICC Profile
+1. Settings -> Mouse & Touchpad -> Touchpad -> Scrolling -> Invert scroll direction
+1. Settings -> Mouse & Touchpad -> Touchpad -> Scrolling speed -> 4th tick
+1. Settings -> Mouse & Touchpad -> Touchpad -> Right-click -> Press anywhere with two fingers
+1. Settings -> Mouse & Touchpad -> Screen Edges -> Maximize -> Untick
+1. Settings -> Apperance & Style -> Text & Fonts -> Sub-pixel rendering -> RGB
+1. Settings -> Apperance & Style -> Colors & Themes -> Colors -> Get New.. -> Catppuccin Mocha Colors by Catppuccin
+1. Settings -> Apperance & Style -> Colors & Themes -> Window Decorations -> Get New.. -> Scratchy by jomada
+1. Settings -> Apperance & Style -> Colors & Themes -> Icons -> Get New.. -> Papirus by x-varlesh-x
+1. Settings -> Workspace -> General Behavior -> Animation speed -> 11th tick
+1. Settings -> Window Management -> Window Behavior -> Movement -> Screen edge and window snap zone: 5 px
+1. Settings -> Window Management -> Desktop Effects -> Screed Edge -> Untick
+1. Virtual Desktops -> Create 3 -> (Main, IT, Misc)
+1. Virtual Desktops -> Show animation when switching -> Cog -> Gap between desktops -> Horizontal & Vertical -> 0
 
 ### YubiKey Setup
 1. Download pub.asc from Bitwarden

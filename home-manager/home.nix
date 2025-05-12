@@ -77,7 +77,7 @@
     fastfetch
     stress-ng
     s-tui
-    ventoy-full
+    #ventoy-full
     nerd-fonts.hack
     #gnome-extension-manager
     #gnome-themes-extra
@@ -107,6 +107,7 @@
     calibre
     kcc
     libreoffice
+    lgogdownloader
     krita
     inkscape
     yacreader

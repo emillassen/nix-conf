@@ -84,6 +84,7 @@
     #gnome-tweaks
     wl-clipboard
     lazygit # Enable git and basic config
+    ansible
     firefox
     chromium
     vscodium

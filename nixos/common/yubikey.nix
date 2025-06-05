@@ -14,10 +14,21 @@
     enableSSHSupport = true;
   };
 
-  environment.shellInit = ''
-    gpg-connect-agent /bye
-    export SSH_AUTH_SOCK=$(gpgconf --list-dirs agent-ssh-socket)
-  '';
+  # Set SSH_AUTH_SOCK as a session variable instead of shell init
+  environment.sessionVariables = {
+    SSH_AUTH_SOCK = "$(${pkgs.gnupg}/bin/gpgconf --list-dirs agent-ssh-socket)";
+  };
+
+  # Initialize GPG agent once at login
+  systemd.user.services.gpg-agent-init = {
+    description = "Initialize GnuPG agent";
+    wantedBy = [ "default.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      ExecStart = "${pkgs.gnupg}/bin/gpg-connect-agent /bye";
+    };
+  };
 
   services.pcscd.enable = true;
 }

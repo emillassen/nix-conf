@@ -82,6 +82,10 @@
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
+  # Enable tmpfs for /tmp
+  boot.tmp.useTmpfs = true;
+  boot.tmp.tmpfsSize = "16G";  # Adjust size as needed
+
   # Enables automatic upgrades
   #system.autoUpgrade.enable = true;
   #system.autoUpgrade.allowReboot = true;

@@ -17,6 +17,13 @@
                 mountOptions = ["umask=0077"];
               };
             };
+            swap = {
+              size = "64G";  # Adjust based on your RAM
+              content = {
+                type = "swap";
+                randomEncryption = true;
+              };
+            };
             luks = {
               size = "100%";
               content = {

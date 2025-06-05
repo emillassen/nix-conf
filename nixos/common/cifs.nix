@@ -1,84 +1,46 @@
-{pkgs, ...}: {
-  # For mount.cifs, required unless domain name resolution is not needed.
+{pkgs, lib, ...}: let
+  mkSmbMount = share: {
+    device = "//192.168.1.30/${share}";
+    fsType = "cifs";
+    options = [
+      "x-systemd.automount"
+      "noauto"
+      "x-systemd.idle-timeout=60"
+      "x-systemd.device-timeout=5s"
+      "x-systemd.mount-timeout=5s"
+      "credentials=/run/credentials/smb-creds"
+      "uid=1000"
+      "gid=100"
+    ];
+  };
+
+  shares = [
+    "appdata"
+    "backups"
+    "books"
+    "domains"
+    "downloads"
+    "games"
+    "isos"
+    "movies"
+    "nextcloud"
+    "series"
+  ];
+in {
   environment.systemPackages = [pkgs.cifs-utils];
-  fileSystems."/mnt/appdata" = {
-    device = "//192.168.1.30/appdata";
-    fsType = "cifs";
-    options = let
-      # this line prevents hanging on network split
-      automount_opts = "x-systemd.automount,noauto,x-systemd.idle-timeout=60,x-systemd.device-timeout=5s,x-systemd.mount-timeout=5s";
-    in ["${automount_opts},credentials=/etc/nixos/smb-secrets,uid=1000,gid=100"];
-  };
-  fileSystems."/mnt/backups" = {
-    device = "//192.168.1.30/backups";
-    fsType = "cifs";
-    options = let
-      # this line prevents hanging on network split
-      automount_opts = "x-systemd.automount,noauto,x-systemd.idle-timeout=60,x-systemd.device-timeout=5s,x-systemd.mount-timeout=5s";
-    in ["${automount_opts},credentials=/etc/nixos/smb-secrets,uid=1000,gid=100"];
-  };
-  fileSystems."/mnt/books" = {
-    device = "//192.168.1.30/books";
-    fsType = "cifs";
-    options = let
-      # this line prevents hanging on network split
-      automount_opts = "x-systemd.automount,noauto,x-systemd.idle-timeout=60,x-systemd.device-timeout=5s,x-systemd.mount-timeout=5s";
-    in ["${automount_opts},credentials=/etc/nixos/smb-secrets,uid=1000,gid=100"];
-  };
-  fileSystems."/mnt/domains" = {
-    device = "//192.168.1.30/domains";
-    fsType = "cifs";
-    options = let
-      # this line prevents hanging on network split
-      automount_opts = "x-systemd.automount,noauto,x-systemd.idle-timeout=60,x-systemd.device-timeout=5s,x-systemd.mount-timeout=5s";
-    in ["${automount_opts},credentials=/etc/nixos/smb-secrets,uid=1000,gid=100"];
-  };
-  fileSystems."/mnt/downloads" = {
-    device = "//192.168.1.30/downloads";
-    fsType = "cifs";
-    options = let
-      # this line prevents hanging on network split
-      automount_opts = "x-systemd.automount,noauto,x-systemd.idle-timeout=60,x-systemd.device-timeout=5s,x-systemd.mount-timeout=5s";
-    in ["${automount_opts},credentials=/etc/nixos/smb-secrets,uid=1000,gid=100"];
-  };
-  fileSystems."/mnt/games" = {
-    device = "//192.168.1.30/games";
-    fsType = "cifs";
-    options = let
-      # this line prevents hanging on network split
-      automount_opts = "x-systemd.automount,noauto,x-systemd.idle-timeout=60,x-systemd.device-timeout=5s,x-systemd.mount-timeout=5s";
-    in ["${automount_opts},credentials=/etc/nixos/smb-secrets,uid=1000,gid=100"];
-  };
-  fileSystems."/mnt/isos" = {
-    device = "//192.168.1.30/isos";
-    fsType = "cifs";
-    options = let
-      # this line prevents hanging on network split
-      automount_opts = "x-systemd.automount,noauto,x-systemd.idle-timeout=60,x-systemd.device-timeout=5s,x-systemd.mount-timeout=5s";
-    in ["${automount_opts},credentials=/etc/nixos/smb-secrets,uid=1000,gid=100"];
-  };
-  fileSystems."/mnt/movies" = {
-    device = "//192.168.1.30/movies";
-    fsType = "cifs";
-    options = let
-      # this line prevents hanging on network split
-      automount_opts = "x-systemd.automount,noauto,x-systemd.idle-timeout=60,x-systemd.device-timeout=5s,x-systemd.mount-timeout=5s";
-    in ["${automount_opts},credentials=/etc/nixos/smb-secrets,uid=1000,gid=100"];
-  };
-  fileSystems."/mnt/nextcloud" = {
-    device = "//192.168.1.30/nextcloud";
-    fsType = "cifs";
-    options = let
-      # this line prevents hanging on network split
-      automount_opts = "x-systemd.automount,noauto,x-systemd.idle-timeout=60,x-systemd.device-timeout=5s,x-systemd.mount-timeout=5s";
-    in ["${automount_opts},credentials=/etc/nixos/smb-secrets,uid=1000,gid=100"];
-  };
-  fileSystems."/mnt/series" = {
-    device = "//192.168.1.30/series";
-    fsType = "cifs";
-    options = let
-      # this line prevents hanging on network split
-      automount_opts = "x-systemd.automount,noauto,x-systemd.idle-timeout=60,x-systemd.device-timeout=5s,x-systemd.mount-timeout=5s";
-    in ["${automount_opts},credentials=/etc/nixos/smb-secrets,uid=1000,gid=100"];
+  
+  fileSystems = lib.genAttrs 
+    (map (share: "/mnt/${share}") shares)
+    (mountPoint: mkSmbMount (lib.last (lib.splitString "/" mountPoint)));
+
+  systemd.services."smb-credentials" = {
+    description = "Load SMB credentials";
+    before = [ "remote-fs.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      # Create credential from your existing file
+      ExecStart = "${pkgs.coreutils}/bin/install -m 0600 /etc/nixos/smb-secrets /run/credentials/smb-creds";
+    };
   };
 }

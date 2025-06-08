@@ -35,6 +35,10 @@
         "Disable error bells
         set noerrorbells
 
+        " Highlight trailing whitespaces
+        set list
+        set listchars=tab:>\ ,trail:-,nbsp:+
+
         "Theme
         colorscheme catppuccin-mocha
       '';

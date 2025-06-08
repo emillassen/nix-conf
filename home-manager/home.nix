@@ -85,6 +85,9 @@
     wl-clipboard
     lazygit # Enable git and basic config
     ansible
+    ansible-lint
+    yamllint
+    pre-commit
     firefox
     chromium
     vscodium

@@ -88,6 +88,7 @@
     ansible-lint
     yamllint
     pre-commit
+    claude-code
     firefox
     chromium
     vscodium

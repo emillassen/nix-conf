@@ -104,7 +104,7 @@
     discord
     spotify
     yt-dlp
-    handbrake
+    #handbrake
     mediainfo-gui
     mkvtoolnix
     ffmpeg

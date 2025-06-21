@@ -29,15 +29,6 @@
         "ll" = "ls -a";
         "c" = "clear";
         ".." = "cd ..";
-        "g" = "git";
-        "ga" = "git add";
-        "gaa" = "git add --all";
-        "gc" = "git commit";
-        "gp" = "git push";
-        "gs" = "git status";
-        "lg" = "lazygit";
-        "cat" = "bat";
-        "nano" = "micro";
         "vim" = "nvim";
         "bottom" = "echo 'To run bottom, use the command btm'";
         "myip" = "curl ip.wtf/moo";

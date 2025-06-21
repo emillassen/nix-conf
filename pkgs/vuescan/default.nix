@@ -13,7 +13,7 @@
   makeDesktopItem,
 }: let
   pname = "vuescan";
-  version = "9.8.45.20";
+  version = "9.8.46.11";
   desktopItem = makeDesktopItem {
     name = "VueScan";
     desktopName = "VueScan";
@@ -34,7 +34,7 @@ in
 
     src = fetchurl {
       url = "https://www.hamrick.com/files/vuex6498.tgz";
-      hash = "sha256-jZF/8EaRRQeGPmBmQysaskfIvfk64hSvvewGtdj0QzU=";
+      hash = "sha256-KgzquExYr5HOdKcfm0Ghlnsw+KnCl50QRsCmVMKs628=";
     };
 
     # Stripping breaks the program

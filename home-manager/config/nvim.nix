@@ -2,14 +2,13 @@
   config,
   pkgs,
   ...
-}: {
+}:
+{
   programs.neovim = {
     enable = true;
     package = pkgs.neovim-unwrapped;
     extraConfig =
-      /*
-      vim
-      */
+      # vim
       ''
         "Use system clipboard
         set clipboard=unnamed,unnamedplus
@@ -64,9 +63,7 @@
         plugin = vim-fugitive;
         type = "viml";
         config =
-          /*
-          vim
-          */
+          # vim
           ''
             nmap <space>G :Git<CR>
           '';
@@ -75,9 +72,7 @@
         plugin = which-key-nvim;
         type = "lua";
         config =
-          /*
-          lua
-          */
+          # lua
           ''
             require('which-key').setup{}
           '';
@@ -86,9 +81,7 @@
         plugin = alpha-nvim;
         type = "lua";
         config =
-          /*
-          lua
-          */
+          # lua
           ''
             local alpha = require("alpha")
             local dashboard = require("alpha.themes.dashboard")

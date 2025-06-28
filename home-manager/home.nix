@@ -8,7 +8,8 @@
   pkgs,
   nixpkgs-stable,
   ...
-}: {
+}:
+{
   # You can import other home-manager modules here
   imports = [
     # If you want to use modules your own flake exports (from modules/home-manager):
@@ -63,7 +64,7 @@
     helix
     bat
     bottom
-    (btop.override {rocmSupport = true;})
+    (btop.override { rocmSupport = true; })
     duf
     ncdu
     pciutils
@@ -94,6 +95,8 @@
     vscodium
     vscode-extensions.kamadorueda.alejandra
     alejandra
+    nixd
+    nixfmt-rfc-style
     remmina
     mpv
     delfin

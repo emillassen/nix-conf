@@ -7,7 +7,8 @@
   config,
   pkgs,
   ...
-}: {
+}:
+{
   # You can import other NixOS modules here
   imports = [
     # If you want to use modules your own flake exports (from modules/nixos):
@@ -29,7 +30,7 @@
   ];
 
   home-manager = {
-    extraSpecialArgs = {inherit inputs outputs;};
+    extraSpecialArgs = { inherit inputs outputs; };
     users = {
       emil = import ../home-manager/home.nix;
     };
@@ -54,18 +55,17 @@
 
   # This will add each flake input as a registry
   # To make nix3 commands consistent with your flake
-  nix.registry = (lib.mapAttrs (_: flake: {inherit flake;})) ((lib.filterAttrs (_: lib.isType "flake")) inputs);
+  nix.registry = (lib.mapAttrs (_: flake: { inherit flake; })) (
+    (lib.filterAttrs (_: lib.isType "flake")) inputs
+  );
 
   # This will additionally add your inputs to the system's legacy channels
   # Making legacy nix commands consistent as well, awesome!
-  nix.nixPath = ["/etc/nix/path"];
-  environment.etc =
-    lib.mapAttrs'
-    (name: value: {
-      name = "nix/path/${name}";
-      value.source = value.flake;
-    })
-    config.nix.registry;
+  nix.nixPath = [ "/etc/nix/path" ];
+  environment.etc = lib.mapAttrs' (name: value: {
+    name = "nix/path/${name}";
+    value.source = value.flake;
+  }) config.nix.registry;
 
   nix.settings = {
     experimental-features = "nix-command flakes";
@@ -84,7 +84,7 @@
 
   # Enable tmpfs for /tmp
   boot.tmp.useTmpfs = true;
-  boot.tmp.tmpfsSize = "16G";  # Adjust size as needed
+  boot.tmp.tmpfsSize = "16G"; # Adjust size as needed
 
   # Enables automatic upgrades
   #system.autoUpgrade.enable = true;
@@ -94,7 +94,7 @@
   services.fwupd = {
     enable = true;
     #package = pkgs.fwupd;
-    extraRemotes = ["lvfs-testing"];
+    extraRemotes = [ "lvfs-testing" ];
   };
 
   # Enable latest linux kernel
@@ -172,7 +172,12 @@
       description = "Emil Lassen";
       # mkpasswd -m sha-512
       hashedPassword = "$6$DlWtQKGvf7B7Xb1h$r0mRQaLyvSWSf2VcvitX5uUIsHQoJfgNQDJcc30vtnh29WpZ1Xx0KMB7BJyTUGd0cntc2xdu4ZLd2KKyW/Pdc/";
-      extraGroups = ["networkmanager" "wheel" "dialout" "plugdev"];
+      extraGroups = [
+        "networkmanager"
+        "wheel"
+        "dialout"
+        "plugdev"
+      ];
       shell = pkgs.zsh;
     };
   };

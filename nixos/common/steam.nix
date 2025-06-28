@@ -4,7 +4,8 @@
   config,
   pkgs,
   ...
-}: {
+}:
+{
   fonts.fontconfig.cache32Bit = true;
   hardware.steam-hardware.enable = true;
   hardware.graphics.enable32Bit = true;

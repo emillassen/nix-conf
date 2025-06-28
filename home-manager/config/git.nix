@@ -3,7 +3,8 @@
   config,
   pkgs,
   ...
-}: {
+}:
+{
   # Enable git and basic config
   programs = {
     git = {

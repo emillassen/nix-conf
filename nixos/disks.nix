@@ -14,11 +14,11 @@
                 type = "filesystem";
                 format = "vfat";
                 mountpoint = "/boot";
-                mountOptions = ["umask=0077"];
+                mountOptions = [ "umask=0077" ];
               };
             };
             swap = {
-              size = "64G";  # Adjust based on your RAM
+              size = "16G"; # Adjust based on your RAM
               content = {
                 type = "swap";
                 randomEncryption = true;

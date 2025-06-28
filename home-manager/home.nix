@@ -24,6 +24,7 @@
     ./config/ghostty.nix
     ./config/nvim.nix
     ./config/zsh/zsh.nix
+    ./config/vscode.nix
     #./config/gnome/gnomesettings.nix # Keeps resetting settings
     #./config/gnome/catppuccin.nix # Broken atm
     #./config/nextcloud.nix # Broken in gnome
@@ -78,11 +79,7 @@
     fastfetch
     stress-ng
     s-tui
-    #ventoy-full
     nerd-fonts.hack
-    #gnome-extension-manager
-    #gnome-themes-extra
-    #gnome-tweaks
     wl-clipboard
     lazygit # Enable git and basic config
     ansible
@@ -92,9 +89,6 @@
     claude-code
     firefox
     chromium
-    vscodium
-    vscode-extensions.kamadorueda.alejandra
-    alejandra
     nixd
     nixfmt-rfc-style
     remmina
@@ -107,7 +101,6 @@
     discord
     spotify
     yt-dlp
-    #handbrake
     mediainfo-gui
     mkvtoolnix
     ffmpeg
@@ -129,10 +122,6 @@
     sdrpp
     chirp
     gimp
-    #immich-cli
-    #dunst
-    #cliphist
-    #fuzzel
   ];
 
   # Required to autoload fonts from packages installed via Home Manager

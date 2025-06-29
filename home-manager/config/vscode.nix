@@ -53,9 +53,13 @@
       # User settings
       userSettings = {
         # Disable telemetry
+        "redhat.telemetry.enabled" = false;
+        "telemetry.feedback.enabled" = false;
         "telemetry.telemetryLevel" = "off";
         "telemetry.enableCrashReporter" = false;
         "telemetry.enableTelemetry" = false;
+
+        # Disable automatic updates and hide release notes
         "extensions.autoCheckUpdates" = false;
         "extensions.autoUpdate" = false;
         "update.mode" = "none";

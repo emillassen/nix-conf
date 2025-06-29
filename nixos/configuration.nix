@@ -86,6 +86,9 @@
   boot.tmp.useTmpfs = true;
   boot.tmp.tmpfsSize = "16G"; # Adjust size as needed
 
+  # Enable zramswap
+  zramSwap.enable = true;
+
   # Enables automatic upgrades
   #system.autoUpgrade.enable = true;
   #system.autoUpgrade.allowReboot = true;

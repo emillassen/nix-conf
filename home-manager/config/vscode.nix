@@ -28,24 +28,26 @@
     profiles.default = {
 
       # Extensions
-      extensions = with pkgs.vscode-marketplace; [
-        anthropic.claude-code
-        catppuccin.catppuccin-vsc
-        catppuccin.catppuccin-vsc-icons
-        eamodio.gitlens
-        github.copilot
-        github.copilot-chat
-        github.vscode-github-actions
-        github.vscode-pull-request-github
-        jeff-hykin.better-dockerfile-syntax
-        jeff-hykin.better-nix-syntax
-        jnoortheen.nix-ide
-        pkief.material-icon-theme
-        redhat.ansible
-        redhat.vscode-yaml
-        saoudrizwan.claude-dev
-        streetsidesoftware.code-spell-checker
-        usernamehw.errorlens
+      # Use vscode-marketplace for extensions from nix-vscode-extensions (newest)
+      # Use vscode-extensions for extensions from nixpkgs
+      extensions = with pkgs; [
+        vscode-marketplace.anthropic.claude-code
+        vscode-marketplace.catppuccin.catppuccin-vsc
+        vscode-marketplace.catppuccin.catppuccin-vsc-icons
+        vscode-marketplace.eamodio.gitlens
+        vscode-marketplace.github.copilot
+        vscode-extensions.github.copilot-chat
+        vscode-marketplace.github.vscode-github-actions
+        vscode-extensions.github.vscode-pull-request-github
+        vscode-marketplace.jeff-hykin.better-dockerfile-syntax
+        vscode-marketplace.jeff-hykin.better-nix-syntax
+        vscode-marketplace.jnoortheen.nix-ide
+        vscode-marketplace.pkief.material-icon-theme
+        vscode-marketplace.redhat.ansible
+        vscode-marketplace.redhat.vscode-yaml
+        vscode-marketplace.saoudrizwan.claude-dev
+        vscode-marketplace.streetsidesoftware.code-spell-checker
+        vscode-marketplace.usernamehw.errorlens
       ];
 
       # User settings

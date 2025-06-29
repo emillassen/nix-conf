@@ -11,14 +11,16 @@
   ];
 
   # Packages that are used by VSCode and/or the extensions
-  home.packages = with pkgs; lib.mkAfter [
-    ansible-lint
-    claude-code
-    nixd
-    nixfmt-rfc-style
-    pre-commit
-    yamllint
-  ];
+  home.packages =
+    with pkgs;
+    lib.mkAfter [
+      ansible-lint
+      claude-code
+      nixd
+      nixfmt-rfc-style
+      pre-commit
+      yamllint
+    ];
 
   programs.vscode = {
     enable = true;

@@ -87,7 +87,7 @@
   boot.tmp.tmpfsSize = "16G"; # Adjust size as needed
 
   # Enable zramswap
-  zramSwap.enable = true;
+  #zramSwap.enable = true; # Disabled due to no swap on this host, have to reinstall first
 
   # Enables automatic upgrades
   #system.autoUpgrade.enable = true;

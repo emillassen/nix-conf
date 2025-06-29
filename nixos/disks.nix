@@ -17,13 +17,13 @@
                 mountOptions = [ "umask=0077" ];
               };
             };
-            swap = {
-              size = "16G"; # Adjust based on your RAM
-              content = {
-                type = "swap";
-                randomEncryption = true;
-              };
-            };
+            #swap = { # Disabled until the system is to be installed, remember to change zramswap too
+            #  size = "16G"; # Adjust based on your RAM
+            #  content = {
+            #    type = "swap";
+            #    randomEncryption = true;
+            #  };
+            #};
             luks = {
               size = "100%";
               content = {

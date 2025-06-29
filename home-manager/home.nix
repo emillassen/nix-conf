@@ -59,69 +59,61 @@
   };
 
   home.packages = with pkgs; [
-    curl
-    wget
-    micro
-    helix
+    amdgpu_top
+    android-tools
+    ansible
+    anydesk
     bat
     bottom
     (btop.override { rocmSupport = true; })
-    duf
-    ncdu
-    pciutils
-    usbutils
-    wirelesstools
-    iw
-    wavemon
-    iperf
-    wireguard-tools
-    amdgpu_top
-    fastfetch
-    stress-ng
-    s-tui
-    nerd-fonts.hack
-    wl-clipboard
-    lazygit # Enable git and basic config
-    ansible
-    ansible-lint
-    yamllint
-    pre-commit
-    claude-code
-    firefox
+    calibre
+    chirp
     chromium
-    nixd
-    nixfmt-rfc-style
-    remmina
-    mpv
+    curl
     delfin
-    nextcloud-client
-    easyeffects
-    libation
-    thunderbird
     discord
-    spotify
-    yt-dlp
-    mediainfo-gui
-    mkvtoolnix
+    duf
+    easyeffects
+    fastfetch
     ffmpeg
     filebot
-    calibre
-    kcc
-    libreoffice
-    lgogdownloader
-    krita
+    firefox
+    gimp
+    helix
     inkscape
-    yacreader
+    iperf
+    iw
+    kcc
+    krita
+    lazygit # Enable git and basic config
+    lgogdownloader
+    libation
+    libreoffice
+    mediainfo-gui
+    mkvtoolnix
+    mpv
+    ncdu
+    nerd-fonts.hack
+    nextcloud-client
+    pciutils
     pupdate
-    ollama
-    android-tools
+    remmina
+    s-tui
+    sdrpp
+    signal-desktop
+    spotify
+    stress-ng
+    thunderbird
+    usbutils
     vcmi
     vuescan # from /nix-conf/pkgs
-    signal-desktop
-    anydesk
-    sdrpp
-    chirp
-    gimp
+    wavemon
+    wget
+    wireguard-tools
+    wirelesstools
+    wl-clipboard
+    yacreader
+    yt-dlp
   ];
 
   # Required to autoload fonts from packages installed via Home Manager

@@ -39,6 +39,9 @@
 
     # NixOS profiles to optimize settings for different hardware
     nixos-hardware.url = "github:NixOS/nixos-hardware/master";
+
+    # VSCode extensions
+    nix-vscode-extensions.url = "github:nix-community/nix-vscode-extensions";
   };
 
   outputs =
@@ -49,6 +52,7 @@
       disko,
       home-manager,
       nixos-hardware,
+      nix-vscode-extensions,
       ...
     }@inputs:
     let

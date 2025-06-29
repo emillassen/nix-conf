@@ -1,29 +1,49 @@
 {
   config,
+  lib,
   pkgs,
+  inputs,
   ...
 }:
 {
+  nixpkgs.overlays = [
+    inputs.nix-vscode-extensions.overlays.default
+  ];
+
+  # Packages that are used by VSCode and/or the extensions
+  home.packages = with pkgs; lib.mkAfter [
+    ansible-lint
+    claude-code
+    nixd
+    nixfmt-rfc-style
+    pre-commit
+    yamllint
+  ];
+
   programs.vscode = {
     enable = true;
     package = pkgs.vscode; # Could also use VSCodium for better privacy
     profiles.default = {
 
       # Extensions
-      extensions = with pkgs.vscode-extensions; [
-        # Nix language support
-        jnoortheen.nix-ide
-        kamadorueda.alejandra # You already have this in home.nix
-
-        # General development
-        eamodio.gitlens
-        usernamehw.errorlens
-
-        # Themes and UI
+      extensions = with pkgs.vscode-marketplace; [
+        anthropic.claude-code
         catppuccin.catppuccin-vsc
         catppuccin.catppuccin-vsc-icons
+        eamodio.gitlens
+        github.copilot
+        github.copilot-chat
+        github.vscode-github-actions
+        github.vscode-pull-request-github
+        jeff-hykin.better-dockerfile-syntax
+        jeff-hykin.better-nix-syntax
+        jnoortheen.nix-ide
         pkief.material-icon-theme
-
+        redhat.ansible
+        redhat.vscode-yaml
+        saoudrizwan.claude-dev
+        streetsidesoftware.code-spell-checker
+        usernamehw.errorlens
       ];
 
       # User settings

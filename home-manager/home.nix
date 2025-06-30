@@ -17,6 +17,7 @@
     ./config/nvim.nix
     ./config/zsh/zsh.nix
     ./config/vscode.nix
+    ./config/helix.nix
     #./config/gnome/gnomesettings.nix # Keeps resetting settings
     #./config/gnome/catppuccin.nix # Broken atm
     #./config/nextcloud.nix # Broken in gnome
@@ -71,7 +72,6 @@
     filebot
     firefox
     gimp
-    helix
     inkscape
     iperf
     iw

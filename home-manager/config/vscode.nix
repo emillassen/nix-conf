@@ -18,6 +18,7 @@
       nixd
       nixfmt-rfc-style
       pre-commit
+      python3Full
       yamllint
     ];
 
@@ -47,7 +48,7 @@
         vscode-marketplace.redhat.ansible
         vscode-marketplace.redhat.vscode-yaml
         vscode-marketplace.saoudrizwan.claude-dev
-        vscode-marketplace.streetsidesoftware.code-spell-checker
+        #vscode-marketplace.streetsidesoftware.code-spell-checker
         vscode-marketplace.usernamehw.errorlens
       ];
 
@@ -77,6 +78,10 @@
           "editor.defaultFormatter" = "jnoortheen.nix-ide";
         };
 
+        "[jsonc]" = { 
+          "editor.defaultFormatter" = "esbenp.prettier-vscode";
+        };
+
         # General settings
         "editor.fontFamily" = "Hack Nerd Font Mono";
         "editor.fontSize" = 14;
@@ -103,14 +108,14 @@
         "terminal.integrated.defaultProfile.linux" = "zsh";
 
         # Add words to spellcheck
-        "cSpell.userWords" = [
-          "substituters"
-          "nixos"
-          "cachix"
-          "nixpkgs"
-          "disko"
-          "pkgs"
-        ];
+        #"cSpell.userWords" = [
+        #  "substituters"
+        #  "nixos"
+        #  "cachix"
+        #  "nixpkgs"
+        #  "disko"
+        #  "pkgs"
+        #];
       };
 
       # Keybindings

@@ -34,6 +34,7 @@
         vscode-marketplace.catppuccin.catppuccin-vsc
         vscode-marketplace.catppuccin.catppuccin-vsc-icons
         vscode-marketplace.eamodio.gitlens
+        vscode-marketplace.esbenp.prettier-vscode
         vscode-marketplace.github.copilot
         vscode-extensions.github.copilot-chat
         vscode-marketplace.github.vscode-github-actions

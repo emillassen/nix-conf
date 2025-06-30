@@ -103,6 +103,16 @@
         "terminal.integrated.fontFamily" = "'Hack Nerd Font Mono'";
         "terminal.integrated.fontSize" = 12;
         "terminal.integrated.defaultProfile.linux" = "zsh";
+
+        # Add words to spellcheck
+        "cSpell.userWords" = [
+        "substituters"
+        "nixos"
+        "cachix"
+        "nixpkgs"
+        "disko"
+        "pkgs"
+        ];
       };
 
       # Keybindings

@@ -1,9 +1,5 @@
 # Git is needed for home-manager to work
-{
-  config,
-  pkgs,
-  ...
-}:
+{ pkgs, ... }:
 {
   # Enable git and basic config
   programs = {

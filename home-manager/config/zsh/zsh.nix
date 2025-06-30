@@ -1,8 +1,4 @@
-{
-  config,
-  pkgs,
-  ...
-}:
+{ pkgs, ... }:
 {
   programs = {
     zsh = {
@@ -35,7 +31,6 @@
         "myip" = "curl ip.wtf/moo";
         "pupdate" = "pocket-up";
         "pocket-up" = "pupdate -s -p /run/media/$(whoami)/Pocket/";
-        "cdnix" = "cd ~/Documents/nix-conf/";
         "nix-switch" = "sudo nixos-rebuild switch --flake ~/Documents/nix-conf#fw13";
         "nix-switchu" = "sudo nixos-rebuild switch --upgrade --flake ~/Documents/nix-conf#fw13";
         "nix-clean" = "sudo nix-collect-garbage -d && nix-collect-garbage -d && sudo nix-store --optimise";

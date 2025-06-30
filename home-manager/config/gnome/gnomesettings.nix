@@ -1,4 +1,4 @@
-{ config, ... }:
+{ ... }:
 {
   # https://hoverbear.org/blog/declarative-gnome-configuration-in-nixos/
   # Use `dconf watch /` to track stateful changes you are doing, then set them here.

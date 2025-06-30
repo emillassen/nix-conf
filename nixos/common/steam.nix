@@ -1,10 +1,5 @@
 # https://nixos.wiki/wiki/Steam
-{
-  lib,
-  config,
-  pkgs,
-  ...
-}:
+{ ... }:
 {
   fonts.fontconfig.cache32Bit = true;
   hardware.steam-hardware.enable = true;

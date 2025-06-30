@@ -1,8 +1,4 @@
-{
-  pkgs,
-  user,
-  ...
-}:
+{ pkgs, ... }:
 {
   programs.ghostty = {
     enable = true;

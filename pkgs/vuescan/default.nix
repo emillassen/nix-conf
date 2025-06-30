@@ -1,7 +1,6 @@
 # From https://github.com/NixOS/nixpkgs/issues/217996#issuecomment-1476011005
 # replace src = ... with src =.vuex64.tgz if using local file
 {
-  lib,
   stdenv,
   fetchurl,
   gnutar,
@@ -36,7 +35,7 @@ let
     exec = "vuescan";
   };
 in
-stdenv.mkDerivation rec {
+stdenv.mkDerivation {
   name = "${pname}-${version}";
 
   src = fetchurl {

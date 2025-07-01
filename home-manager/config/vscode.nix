@@ -44,6 +44,7 @@
         vscode-marketplace.jeff-hykin.better-nix-syntax
         vscode-marketplace.jnoortheen.nix-ide
         vscode-marketplace.ms-python.python
+        vscode-marketplace.ms-python.vscode-pylance
         vscode-marketplace.pkief.material-icon-theme
         vscode-marketplace.redhat.ansible
         vscode-marketplace.redhat.vscode-yaml

@@ -42,6 +42,10 @@
 
     # VSCode extensions
     nix-vscode-extensions.url = "github:nix-community/nix-vscode-extensions";
+
+    # Secrets management
+    sops-nix.url = "github:Mic92/sops-nix";
+    sops-nix.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs =
@@ -53,6 +57,7 @@
       home-manager,
       nixos-hardware,
       nix-vscode-extensions,
+      sops-nix,
       ...
     }@inputs:
     let
@@ -96,10 +101,37 @@
             ./nixos/configuration.nix
             disko.nixosModules.disko
             nixos-hardware.nixosModules.framework-13-7040-amd
+            sops-nix.nixosModules.sops
 
             # given the users in this list the right to specify additional substituters via:
             # 1. `nixConfig.substituers` in `flake.nix`
             { nix.settings.trusted-users = [ "emil" ]; }
+
+            # sops-nix configuration
+            {
+              sops = {
+                defaultSopsFile = ./secrets/secrets.yaml;
+                defaultSopsFormat = "yaml";
+
+                age = {
+                  keyFile = "/home/emil/.config/sops/age/keys.txt";
+                  generateKey = true;
+                };
+
+                secrets = {
+                  smb_username = {
+                    owner = "root";
+                    group = "root";
+                    mode = "0400";
+                  };
+                  smb_password = {
+                    owner = "root";
+                    group = "root";
+                    mode = "0400";
+                  };
+                };
+              };
+            }
           ];
         };
       };

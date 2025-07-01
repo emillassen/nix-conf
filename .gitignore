@@ -1,1 +1,5 @@
 *.tgz
+
+# sops-nix - protect private keys
+secrets/keys/users/*.txt
+**/age/keys.txt

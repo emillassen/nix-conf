@@ -79,7 +79,7 @@
           "editor.defaultFormatter" = "jnoortheen.nix-ide";
         };
 
-        "[jsonc]" = { 
+        "[jsonc]" = {
           "editor.defaultFormatter" = "esbenp.prettier-vscode";
         };
 

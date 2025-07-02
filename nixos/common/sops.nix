@@ -14,7 +14,12 @@ let
   };
 in
 {
-  # sops-nix configuration
+  environment.systemPackages = with pkgs; [
+    age
+    sops
+  ];
+ 
+ # sops-nix configuration
   sops = {
     defaultSopsFormat = "yaml";
 

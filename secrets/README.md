@@ -8,7 +8,6 @@ This directory contains encrypted secrets managed by [sops](https://github.com/m
 secrets/
 ├── .sops.yaml          # sops configuration with creation rules
 ├── smb.yaml            # SMB/CIFS credentials
-├── manage-secrets.sh   # Helper script for secret management
 └── README.md           # This file
 ```
 

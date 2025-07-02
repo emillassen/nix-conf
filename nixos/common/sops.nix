@@ -2,7 +2,7 @@
   config,
   lib,
   pkgs,
-  ...,
+  ...
 }:
 let
   # Helper function to reduce boilerplate for SMB secrets
@@ -45,7 +45,7 @@ in
         runtimeInputs = with pkgs; [ coreutils ];
         text = ''
           echo "Validating sops secrets..."
-          
+
           # Check required SMB secrets
           for secret in smb_username smb_password smb_server_ip; do
             secret_path="/run/secrets/$secret"
@@ -53,16 +53,16 @@ in
               echo "ERROR: Secret $secret not readable at $secret_path"
               exit 1
             fi
-            
+
             # Check secret is not empty
             if [[ ! -s "$secret_path" ]]; then
               echo "ERROR: Secret $secret is empty"
               exit 1
             fi
-            
+
             echo "✓ Secret $secret is available and non-empty"
           done
-          
+
           echo "All secrets validated successfully!"
         '';
       });

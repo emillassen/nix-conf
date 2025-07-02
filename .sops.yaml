@@ -1,5 +1,5 @@
 keys:
-  - &emil age1xqp6yn25qype82s0yywgvqagltfwah3kgq9msx66np7v6mxklqyswx2le2
+  - &emil age130l3j3gmn49kzjynemnlqkm5hnaghtkcayl2vkr7y65vy59deq0qt8f5dg
 
 creation_rules:
   # SMB/CIFS credentials
@@ -7,7 +7,7 @@ creation_rules:
     key_groups:
     - age:
       - *emil
-  
+
   # System-wide secrets
   - path_regex: system\.yaml$
     key_groups:

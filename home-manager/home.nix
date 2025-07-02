@@ -52,6 +52,7 @@
   };
 
   home.packages = with pkgs; [
+    age
     amdgpu_top
     android-tools
     ansible
@@ -93,6 +94,7 @@
     s-tui
     sdrpp
     signal-desktop
+    sops
     spotify
     stress-ng
     thunderbird

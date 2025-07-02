@@ -102,13 +102,13 @@
             nativeBuildInputs = [ pkgs.sops ];
           } ''
             cd ${./.}/secrets
-            
+
             echo "Checking that all secret files are encrypted..."
             failed=0
-            
+
             for file in *.yaml; do
               [[ "$file" == "*.yaml" ]] && continue
-              
+
               if [[ "$file" != ".sops.yaml" ]]; then
                 echo "Checking $file..."
                 if ! sops -d "$file" >/dev/null 2>&1; then
@@ -119,7 +119,7 @@
                 fi
               fi
             done
-            
+
             if [[ $failed -eq 0 ]]; then
               echo "All secrets are properly encrypted!"
               touch $out
@@ -146,8 +146,6 @@
             # given the users in this list the right to specify additional substituters via:
             # 1. `nixConfig.substituers` in `flake.nix`
             { nix.settings.trusted-users = [ "emil" ]; }
-
-
           ];
         };
       };

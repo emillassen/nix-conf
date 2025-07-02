@@ -91,6 +91,46 @@
       # These are usually stuff you would upstream into home-manager
       homeManagerModules = import ./modules/home-manager;
 
+      # Flake checks for validation
+      checks = forAllSystems (system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+        in
+        {
+          # Validate that all secrets are properly encrypted
+          secrets-encrypted = pkgs.runCommand "check-secrets-encrypted" {
+            nativeBuildInputs = [ pkgs.sops ];
+          } ''
+            cd ${./.}/secrets
+            
+            echo "Checking that all secret files are encrypted..."
+            failed=0
+            
+            for file in *.yaml; do
+              [[ "$file" == "*.yaml" ]] && continue
+              
+              if [[ "$file" != ".sops.yaml" ]]; then
+                echo "Checking $file..."
+                if ! sops -d "$file" >/dev/null 2>&1; then
+                  echo "ERROR: $file is not properly encrypted or is corrupted"
+                  ((failed++))
+                else
+                  echo "✓ $file is properly encrypted"
+                fi
+              fi
+            done
+            
+            if [[ $failed -eq 0 ]]; then
+              echo "All secrets are properly encrypted!"
+              touch $out
+            else
+              echo "$failed secret(s) failed validation"
+              exit 1
+            fi
+          '';
+        }
+      );
+
       # NixOS configuration entrypoint
       # Available through 'nixos-rebuild --flake .#your-hostname'
       nixosConfigurations = {
@@ -107,31 +147,7 @@
             # 1. `nixConfig.substituers` in `flake.nix`
             { nix.settings.trusted-users = [ "emil" ]; }
 
-            # sops-nix configuration
-            {
-              sops = {
-                defaultSopsFile = ./secrets/secrets.yaml;
-                defaultSopsFormat = "yaml";
 
-                age = {
-                  keyFile = "/home/emil/.config/sops/age/keys.txt";
-                  generateKey = true;
-                };
-
-                secrets = {
-                  smb_username = {
-                    owner = "root";
-                    group = "root";
-                    mode = "0400";
-                  };
-                  smb_password = {
-                    owner = "root";
-                    group = "root";
-                    mode = "0400";
-                  };
-                };
-              };
-            }
           ];
         };
       };

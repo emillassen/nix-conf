@@ -26,6 +26,7 @@
     ./kde.nix
     ./common/steam.nix
     ./common/yubikey.nix
+    ./common/sops.nix
     ./common/cifs.nix
   ];
 

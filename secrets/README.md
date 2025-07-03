@@ -5,8 +5,8 @@ This directory contains encrypted secrets managed by [sops](https://github.com/m
 ## Directory Structure
 
 ```
-secrets/
 ├── .sops.yaml          # sops configuration with creation rules
+secrets/
 ├── smb.yaml            # SMB/CIFS credentials
 └── README.md           # This file
 ```

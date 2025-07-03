@@ -25,6 +25,7 @@ in
 
     age = {
       keyFile = "${config.users.users.emil.home}/.config/sops/age/keys.txt";
+      # Will generate a new key if it doesn't exist
       generateKey = true;
     };
 

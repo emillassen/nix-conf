@@ -46,6 +46,10 @@
     # Secrets management
     sops-nix.url = "github:Mic92/sops-nix";
     sops-nix.inputs.nixpkgs.follows = "nixpkgs";
+
+    # Pre-commit hooks
+    pre-commit-hooks.url = "github:cachix/pre-commit-hooks.nix";
+    pre-commit-hooks.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs =
@@ -58,6 +62,7 @@
       nixos-hardware,
       nix-vscode-extensions,
       sops-nix,
+      pre-commit-hooks,
       ...
     }@inputs:
     let
@@ -90,6 +95,19 @@
       # Reusable home-manager modules you might want to export
       # These are usually stuff you would upstream into home-manager
       homeManagerModules = import ./modules/home-manager;
+
+      # Development shells
+      devShells = forAllSystems (system: {
+        default = nixpkgs.legacyPackages.${system}.mkShell {
+          inherit (self.checks.${system}.pre-commit-check) shellHook;
+          buildInputs = self.checks.${system}.pre-commit-check.enabledPackages;
+
+          packages = with nixpkgs.legacyPackages.${system}; [
+            sops
+            age
+          ];
+        };
+      });
 
       # Flake checks for validation
       checks = forAllSystems (
@@ -132,6 +150,51 @@
                   exit 1
                 fi
               '';
+
+          # Pre-commit hooks check
+          pre-commit-check = pre-commit-hooks.lib.${system}.run {
+            src = ./.;
+            hooks = {
+              # Nix formatting
+              nixpkgs-fmt.enable = true;
+
+              # Nix linting
+              statix.enable = true;
+
+              # Dead code detection
+              deadnix.enable = true;
+
+              # Check for large files
+              check-added-large-files.enable = true;
+
+              # YAML formatting
+              prettier = {
+                enable = true;
+                types_or = [
+                  "yaml"
+                  "markdown"
+                ];
+              };
+
+              # Custom hook for sops files
+              sops-encrypted = {
+                enable = true;
+                name = "sops-encrypted";
+                entry = "${pkgs.writeShellScript "check-sops" ''
+                  for file in secrets/*.yaml; do
+                    [[ "$file" == "secrets/*.yaml" ]] && continue
+                    if [[ "$file" != *".sops.yaml" ]]; then
+                      if ! grep -q "sops:" "$file"; then
+                        echo "ERROR: $file appears unencrypted!"
+                        exit 1
+                      fi
+                    fi
+                  done
+                ''}";
+                files = "^secrets/.*\\.yaml$";
+              };
+            };
+          };
         }
       );
 

@@ -39,11 +39,8 @@
         auto-format = true;
         language-servers = [ "yaml-language-server" ];
         formatter = {
-          command = "prettier";
-          args = [
-            "--parser"
-            "yaml"
-          ];
+          command = "${pkgs.prettier}/bin/prettier";
+          args = [ "--parser" "yaml" ];
         };
       }
     ];

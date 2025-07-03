@@ -94,6 +94,9 @@
   #system.autoUpgrade.enable = true;
   #system.autoUpgrade.allowReboot = true;
 
+  # NixOS simple statefull firewall blocks incoming connections and other unexpected packets. It's enabled by default.
+  #networking.firewall.enable = false;
+
   # Enables firmware updates
   services.fwupd = {
     enable = true;
@@ -174,8 +177,8 @@
     emil = {
       isNormalUser = true;
       description = "Emil Lassen";
-      # mkpasswd -m sha-512
-      hashedPassword = "$6$DlWtQKGvf7B7Xb1h$r0mRQaLyvSWSf2VcvitX5uUIsHQoJfgNQDJcc30vtnh29WpZ1Xx0KMB7BJyTUGd0cntc2xdu4ZLd2KKyW/Pdc/";
+      # Password hash managed by sops-nix
+      hashedPasswordFile = config.sops.secrets.emil_password_hash.path;
       extraGroups = [
         "networkmanager"
         "wheel"

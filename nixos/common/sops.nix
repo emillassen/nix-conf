@@ -34,6 +34,14 @@ in
       smb_username = mkSmbSecret "smb_username";
       smb_password = mkSmbSecret "smb_password";
       smb_server_ip = mkSmbSecret "smb_server_ip";
+      
+      # System-level secrets
+      emil_password_hash = {
+        sopsFile = ../../secrets/system.yaml;
+        owner = "root";
+        group = "root";
+        mode = "0400";
+      };
     };
   };
 
@@ -54,6 +62,23 @@ in
 
           # Check required SMB secrets
           for secret in smb_username smb_password smb_server_ip; do
+            secret_path="/run/secrets/$secret"
+            if [[ ! -r "$secret_path" ]]; then
+              echo "ERROR: Secret $secret not readable at $secret_path"
+              exit 1
+            fi
+
+            # Check secret is not empty
+            if [[ ! -s "$secret_path" ]]; then
+              echo "ERROR: Secret $secret is empty"
+              exit 1
+            fi
+
+            echo "✓ Secret $secret is available and non-empty"
+          done
+
+          # Check system secrets
+          for secret in emil_password_hash; do
             secret_path="/run/secrets/$secret"
             if [[ ! -r "$secret_path" ]]; then
               echo "ERROR: Secret $secret not readable at $secret_path"

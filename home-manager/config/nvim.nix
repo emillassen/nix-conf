@@ -4,28 +4,28 @@
     enable = true;
     package = pkgs.neovim-unwrapped;
     extraConfig = ''
-    " General settings
-    set clipboard=unnamed,unnamedplus
-    set noswapfile nobackup
-    set number relativenumber
-    set noerrorbells
-    set list listchars=tab:>\ ,trail:-,nbsp:+
-    
-    " Search settings
-    set ignorecase smartcase
-    set incsearch hlsearch
-      
-    " Indentation (consider using vim-sleuth for auto-detection)
-    set tabstop=4 shiftwidth=4 expandtab smarttab
-      
-    " UI settings
-    set termguicolors
-    set scrolloff=8
-    set signcolumn=yes
-    set updatetime=50
-     
-    " Better splits
-    set splitbelow splitright
+      " General settings
+      set clipboard=unnamed,unnamedplus
+      set noswapfile nobackup
+      set number relativenumber
+      set noerrorbells
+      set list listchars=tab:>\ ,trail:-,nbsp:+
+
+      " Search settings
+      set ignorecase smartcase
+      set incsearch hlsearch
+        
+      " Indentation (consider using vim-sleuth for auto-detection)
+      set tabstop=4 shiftwidth=4 expandtab smarttab
+        
+      " UI settings
+      set termguicolors
+      set scrolloff=8
+      set signcolumn=yes
+      set updatetime=50
+       
+      " Better splits
+      set splitbelow splitright
     '';
 
     plugins = with pkgs.vimPlugins; [

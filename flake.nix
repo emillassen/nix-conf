@@ -92,42 +92,46 @@
       homeManagerModules = import ./modules/home-manager;
 
       # Flake checks for validation
-      checks = forAllSystems (system:
+      checks = forAllSystems (
+        system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
         in
         {
           # Validate that all secrets are properly encrypted
-          secrets-encrypted = pkgs.runCommand "check-secrets-encrypted" {
-            nativeBuildInputs = [ pkgs.sops ];
-          } ''
-            cd ${./.}/secrets
+          secrets-encrypted =
+            pkgs.runCommand "check-secrets-encrypted"
+              {
+                nativeBuildInputs = [ pkgs.sops ];
+              }
+              ''
+                cd ${./.}/secrets
 
-            echo "Checking that all secret files are encrypted..."
-            failed=0
+                echo "Checking that all secret files are encrypted..."
+                failed=0
 
-            for file in *.yaml; do
-              [[ "$file" == "*.yaml" ]] && continue
+                for file in *.yaml; do
+                  [[ "$file" == "*.yaml" ]] && continue
 
-              if [[ "$file" != ".sops.yaml" ]]; then
-                echo "Checking $file..."
-                if ! sops -d "$file" >/dev/null 2>&1; then
-                  echo "ERROR: $file is not properly encrypted or is corrupted"
-                  ((failed++))
+                  if [[ "$file" != ".sops.yaml" ]]; then
+                    echo "Checking $file..."
+                    if ! sops -d "$file" >/dev/null 2>&1; then
+                      echo "ERROR: $file is not properly encrypted or is corrupted"
+                      ((failed++))
+                    else
+                      echo "✓ $file is properly encrypted"
+                    fi
+                  fi
+                done
+
+                if [[ $failed -eq 0 ]]; then
+                  echo "All secrets are properly encrypted!"
+                  touch $out
                 else
-                  echo "✓ $file is properly encrypted"
+                  echo "$failed secret(s) failed validation"
+                  exit 1
                 fi
-              fi
-            done
-
-            if [[ $failed -eq 0 ]]; then
-              echo "All secrets are properly encrypted!"
-              touch $out
-            else
-              echo "$failed secret(s) failed validation"
-              exit 1
-            fi
-          '';
+              '';
         }
       );
 

@@ -42,7 +42,10 @@
         language-servers = [ "yaml-language-server" ];
         formatter = {
           command = "${pkgs.prettier}/bin/prettier";
-          args = [ "--parser" "yaml" ];
+          args = [
+            "--parser"
+            "yaml"
+          ];
         };
       }
       {
@@ -51,7 +54,10 @@
         language-servers = [ "marksman" ];
         formatter = {
           command = "${pkgs.prettier}/bin/prettier";
-          args = ["--parser" "markdown"];
+          args = [
+            "--parser"
+            "markdown"
+          ];
         };
       }
       {
@@ -60,7 +66,10 @@
         language-servers = [ "taplo" ];
         formatter = {
           command = "${pkgs.prettier}/bin/prettier";
-          args = ["--parser" "json"];
+          args = [
+            "--parser"
+            "json"
+          ];
         };
       }
     ];

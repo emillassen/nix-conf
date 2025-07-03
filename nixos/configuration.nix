@@ -1,12 +1,11 @@
 # This is your system's configuration file.
 # Use this to configure your system environment (it replaces /etc/nixos/configuration.nix)
-{
-  inputs,
-  outputs,
-  lib,
-  config,
-  pkgs,
-  ...
+{ inputs
+, outputs
+, lib
+, config
+, pkgs
+, ...
 }:
 {
   # You can import other NixOS modules here
@@ -56,36 +55,49 @@
 
   # This will add each flake input as a registry
   # To make nix3 commands consistent with your flake
-  nix.registry = (lib.mapAttrs (_: flake: { inherit flake; })) (
-    (lib.filterAttrs (_: lib.isType "flake")) inputs
-  );
-
-  # This will additionally add your inputs to the system's legacy channels
-  # Making legacy nix commands consistent as well, awesome!
-  nix.nixPath = [ "/etc/nix/path" ];
-  environment.etc = lib.mapAttrs' (name: value: {
-    name = "nix/path/${name}";
-    value.source = value.flake;
-  }) config.nix.registry;
-
-  nix.settings = {
-    experimental-features = "nix-command flakes";
-    # Disable 'warning : git tree 'nix-config folder' is dirty'
-    warn-dirty = false;
-    # Deduplicate and optimize nix store
-    auto-optimise-store = true;
+  nix = {
+    registry = (lib.mapAttrs (_: flake: { inherit flake; })) (
+      (lib.filterAttrs (_: lib.isType "flake")) inputs
+    );
+    # This will additionally add your inputs to the system's legacy channels
+    # Making legacy nix commands consistent as well, awesome!
+    nixPath = [ "/etc/nix/path" ];
+    settings = {
+      experimental-features = "nix-command flakes";
+      # Disable 'warning : git tree 'nix-config folder' is dirty'
+      warn-dirty = false;
+      # Deduplicate and optimize nix store
+      auto-optimise-store = true;
+    };
   };
+
+  environment.etc = lib.mapAttrs'
+    (name: value: {
+      name = "nix/path/${name}";
+      value.source = value.flake;
+    })
+    config.nix.registry;
 
   # Sets Host Name for the device
   networking.hostName = "fw13";
 
   # Bootloader
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
-
-  # Enable tmpfs for /tmp
-  boot.tmp.useTmpfs = true;
-  boot.tmp.tmpfsSize = "16G"; # Adjust size as needed
+  boot = {
+    loader = {
+      systemd-boot = {
+        enable = true;
+        memtest86.enable = true;
+      };
+      efi.canTouchEfiVariables = true;
+    };
+    # Enable tmpfs for /tmp
+    tmp = {
+      useTmpfs = true;
+      tmpfsSize = "16G"; # Adjust size as needed
+    };
+    # Enable latest linux kernel
+    kernelPackages = pkgs.linuxPackages_latest;
+  };
 
   # Enable zramswap
   #zramSwap.enable = true; # Disabled due to no swap on this host, have to reinstall first
@@ -97,40 +109,54 @@
   # NixOS simple statefull firewall blocks incoming connections and other unexpected packets. It's enabled by default.
   #networking.firewall.enable = false;
 
-  # Enables firmware updates
-  services.fwupd = {
-    enable = true;
-    #package = pkgs.fwupd;
-    extraRemotes = [ "lvfs-testing" ];
-  };
-
-  # Enable latest linux kernel
-  boot.kernelPackages = pkgs.linuxPackages_latest;
-
   # Enable networking
   networking.networkmanager.enable = true;
 
-  # Enable memtest86 in systemd-boot menu
-  boot.loader.systemd-boot.memtest86.enable = true;
-
   # Enable Bluetooth
-  hardware.bluetooth.enable = true;
-  hardware.bluetooth.powerOnBoot = true;
-
-  # Enable fingerprint sensor
-  services.fprintd.enable = true;
-
-  # Enables Mullvad
-  services.mullvad-vpn = {
-    enable = true;
-    package = pkgs.mullvad-vpn;
+  hardware = {
+    bluetooth = {
+      enable = true;
+      powerOnBoot = true;
+    };
+    # Enables RTL-SDR udev rules etc.
+    rtl-sdr.enable = true;
   };
 
-  # Enables KDE Connect
-  programs.kdeconnect.enable = true;
+  # Services
+  services = {
+    # Enables firmware updates
+    fwupd = {
+      enable = true;
+      #package = pkgs.fwupd;
+      extraRemotes = [ "lvfs-testing" ];
+    };
+    # Enable fingerprint sensor
+    fprintd.enable = true;
+    # Enables Mullvad
+    mullvad-vpn = {
+      enable = true;
+      package = pkgs.mullvad-vpn;
+    };
+    # Configure keymap in X11
+    xserver = {
+      # Enable the X11 windowing system. Required for GNOME, KDE, Hyprland etc.
+      enable = true;
+      xkb = {
+        layout = "dk";
+        variant = "";
+      };
+    };
+  };
 
-  # Enables RTL-SDR udev rules etc.
-  hardware.rtl-sdr.enable = true;
+  # Programs
+  programs = {
+    # Enables KDE Connect
+    kdeconnect.enable = true;
+    # Enable zsh
+    zsh.enable = true;
+    # Enable nh
+    nh.enable = true;
+  };
 
   # Packages to be installed systemwide
   #environment.systemPackages = with pkgs; [
@@ -154,23 +180,8 @@
     LC_TIME = "da_DK.UTF-8";
   };
 
-  # Configure keymap in X11
-  services.xserver.xkb = {
-    layout = "dk";
-    variant = "";
-  };
-
   # Configure console keymap
   console.keyMap = "dk-latin1";
-
-  # Enable zsh
-  programs.zsh.enable = true;
-
-  # Enable nh
-  programs.nh.enable = true;
-
-  # Enable the X11 windowing system. Required for GNOME, KDE, Hyprland etc.
-  services.xserver.enable = true;
 
   # Defines users, groups etc.
   users.users = {

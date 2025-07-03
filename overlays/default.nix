@@ -7,7 +7,7 @@
   # This one contains whatever you want to overlay
   # You can change versions, add patches, set compilation flags, anything really.
   # https://nixos.wiki/wiki/Overlays
-  modifications = final: prev: {
+  modifications = _final: _prev: {
     # example = prev.example.overrideAttrs (oldAttrs: rec {
     # ...
     # });
@@ -17,7 +17,7 @@
   # be accessible through 'pkgs.stable'
   stable-packages = final: _prev: {
     stable = import inputs.nixpkgs-stable {
-      system = final.system;
+      inherit (final) system;
       config.allowUnfree = true;
     };
   };

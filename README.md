@@ -1,6 +1,7 @@
 # My NixOS config using Flakes and Home Manager
 
 # Initial setup for a new device
+
 1. Boot from a USB stick with the latest NixOS release
 1. Change keyboard layout to match device and test that it is correct
 1. Logon to Wi-Fi
@@ -20,12 +21,14 @@
 1. `cdnix && git remote set-url origin git@github.com:emillassen/nix-conf.git`
 
 ## Manual changes
+
 1. Enroll fingerprints using `fprintd-enroll`
 1. Login to Nextcloud Desktop client
 1. `nvim ~/.config/Nextcloud/nextcloud.cfg`
 1. Paste `maxChunkSize=50000000` under `[General]`
 
 ### KDE changes
+
 1. Create KDE Wallet with empty password
 1. Right-click battery in system tray and tick show battery percentage
 1. Import window rules under Settings -> Window Management -> Window Rules
@@ -47,8 +50,10 @@
 1. Virtual Desktops -> Show animation when switching -> Cog -> Gap between desktops -> Horizontal & Vertical -> 0
 
 ### YubiKey Setup
+
 1. Download pub.asc from Bitwarden
-1. Run the following commands: 
+1. Run the following commands:
+
 ```
 cd ~/Downloads/
 gpg --keyid-format 0xlong --import pub.asc
@@ -59,8 +64,10 @@ chmod 0600 ~/.ssh/emillassen.pub
 ```
 
 ### Display color profile
+
 1. Download the .icc profile from https://www.notebookcheck.net/Framework-Laptop-13-5-Ryzen-7-7840U-review-So-much-better-than-the-Intel-version.756613.0.html
 1. Run the following commands:
+
 ```
 cd ~/Downloads/
 colormgr import-profile BOE_CQ_______NE135FBM_N41_03.icm
@@ -68,4 +75,5 @@ colormgr get-devices
 colormgr get-profiles
 colormgr device-add-profile `Device ID` `Profile ID`
 ```
+
 3. Go to Settings -> Color, select the new color profile, and enable it for all users

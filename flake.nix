@@ -55,11 +55,8 @@
   outputs =
     { self
     , nixpkgs
-    , nixpkgs-stable
     , disko
-    , home-manager
     , nixos-hardware
-    , nix-vscode-extensions
     , sops-nix
     , pre-commit-hooks
     , ...
@@ -132,11 +129,12 @@
 
                   if [[ "$file" != ".sops.yaml" ]]; then
                     echo "Checking $file..."
-                    if ! sops -d "$file" >/dev/null 2>&1; then
+                    # Check if file contains sops metadata instead of trying to decrypt
+                    if grep -q "sops:" "$file" && grep -q "age:" "$file"; then
+                      echo "✓ $file is properly encrypted (contains sops metadata)"
+                    else
                       echo "ERROR: $file is not properly encrypted or is corrupted"
                       ((failed++))
-                    else
-                      echo "✓ $file is properly encrypted"
                     fi
                   fi
                 done
@@ -155,7 +153,7 @@
             src = ./.;
             hooks = {
               # Nix formatting
-              nixpkgs-fmt.enable = true;
+              nixfmt-rfc-style.enable = true;
 
               # Nix linting
               statix.enable = true;

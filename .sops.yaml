@@ -5,11 +5,11 @@ creation_rules:
   # SMB/CIFS credentials
   - path_regex: smb\.yaml$
     key_groups:
-    - age:
-      - *emil
+      - age:
+          - *emil
 
   # System-wide secrets
   - path_regex: system\.yaml$
     key_groups:
-    - age:
-      - *emil
+      - age:
+          - *emil

@@ -2,9 +2,7 @@
   "nodes": {
     "disko": {
       "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ]
+        "nixpkgs": ["nixpkgs"]
       },
       "locked": {
         "lastModified": 1750903843,
@@ -56,10 +54,7 @@
     },
     "gitignore": {
       "inputs": {
-        "nixpkgs": [
-          "pre-commit-hooks",
-          "nixpkgs"
-        ]
+        "nixpkgs": ["pre-commit-hooks", "nixpkgs"]
       },
       "locked": {
         "lastModified": 1709087332,
@@ -77,9 +72,7 @@
     },
     "home-manager": {
       "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ]
+        "nixpkgs": ["nixpkgs"]
       },
       "locked": {
         "lastModified": 1751549056,
@@ -183,9 +176,7 @@
       "inputs": {
         "flake-compat": "flake-compat",
         "gitignore": "gitignore",
-        "nixpkgs": [
-          "nixpkgs"
-        ]
+        "nixpkgs": ["nixpkgs"]
       },
       "locked": {
         "lastModified": 1750779888,
@@ -215,9 +206,7 @@
     },
     "sops-nix": {
       "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ]
+        "nixpkgs": ["nixpkgs"]
       },
       "locked": {
         "lastModified": 1750119275,

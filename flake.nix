@@ -53,17 +53,16 @@
   };
 
   outputs =
-    {
-      self,
-      nixpkgs,
-      nixpkgs-stable,
-      disko,
-      home-manager,
-      nixos-hardware,
-      nix-vscode-extensions,
-      sops-nix,
-      pre-commit-hooks,
-      ...
+    { self
+    , nixpkgs
+    , nixpkgs-stable
+    , disko
+    , home-manager
+    , nixos-hardware
+    , nix-vscode-extensions
+    , sops-nix
+    , pre-commit-hooks
+    , ...
     }@inputs:
     let
       inherit (self) outputs;

@@ -3,40 +3,30 @@
   programs.neovim = {
     enable = true;
     package = pkgs.neovim-unwrapped;
-    extraConfig =
-      # vim
-      ''
-        "Use system clipboard
-        set clipboard=unnamed,unnamedplus
-
-        "Enable syntax
-        set syntax=on
-
-        "Tabs
-        set tabstop=4 "4 char-wide tab
-        set shiftwidth=4 smarttab
-        set expandtab "Use spaces
-
-        "Disable swapfile
-        set noswapfile
-
-        "Disable backupfile
-        set nobackup
-
-        "Line numbers
-        set number
-        set relativenumber
-
-        "Disable error bells
-        set noerrorbells
-
-        " Highlight trailing whitespaces
-        set list
-        set listchars=tab:>\ ,trail:-,nbsp:+
-
-        "Theme
-        colorscheme catppuccin-mocha
-      '';
+    extraConfig = ''
+    " General settings
+    set clipboard=unnamed,unnamedplus
+    set noswapfile nobackup
+    set number relativenumber
+    set noerrorbells
+    set list listchars=tab:>\ ,trail:-,nbsp:+
+    
+    " Search settings
+    set ignorecase smartcase
+    set incsearch hlsearch
+      
+    " Indentation (consider using vim-sleuth for auto-detection)
+    set tabstop=4 shiftwidth=4 expandtab smarttab
+      
+    " UI settings
+    set termguicolors
+    set scrolloff=8
+    set signcolumn=yes
+    set updatetime=50
+     
+    " Better splits
+    set splitbelow splitright
+    '';
 
     plugins = with pkgs.vimPlugins; [
       {
@@ -54,6 +44,9 @@
       {
         plugin = catppuccin-nvim;
         type = "lua";
+        config = ''
+          vim.cmd.colorscheme "catppuccin-mocha"
+        '';
       }
       {
         plugin = vim-fugitive;

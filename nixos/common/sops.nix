@@ -50,6 +50,7 @@ in
     description = "Validate sops secrets are accessible";
     wantedBy = [ "multi-user.target" ];
     after = [ "sops-nix.service" ];
+    requires = [ "sops-nix.service" ];
     serviceConfig = {
       Type = "oneshot";
       User = config.users.users.emil.name;
@@ -59,42 +60,38 @@ in
         runtimeInputs = with pkgs; [ coreutils ];
         text = ''
           echo "Validating sops secrets..."
-
-          # Check required SMB secrets
-          for secret in smb_username smb_password smb_server_ip; do
+          
+          failed=0
+          errors=()
+          
+          # Check all secrets in one loop
+          for secret in smb_username smb_password smb_server_ip emil_password_hash; do
             secret_path="/run/secrets/$secret"
+            
             if [[ ! -r "$secret_path" ]]; then
-              echo "ERROR: Secret $secret not readable at $secret_path"
-              exit 1
-            fi
-
-            # Check secret is not empty
-            if [[ ! -s "$secret_path" ]]; then
+              echo "ERROR: Secret $secret not readable"
+              errors+=("Secret $secret not readable")
+              ((failed++))
+            elif [[ ! -s "$secret_path" ]]; then
               echo "ERROR: Secret $secret is empty"
-              exit 1
+              errors+=("Secret $secret is empty")
+              ((failed++))
+            else
+              echo "✓ Secret $secret is available and non-empty"
             fi
-
-            echo "✓ Secret $secret is available and non-empty"
           done
-
-          # Check system secrets
-          for secret in emil_password_hash; do
-            secret_path="/run/secrets/$secret"
-            if [[ ! -r "$secret_path" ]]; then
-              echo "ERROR: Secret $secret not readable at $secret_path"
-              exit 1
-            fi
-
-            # Check secret is not empty
-            if [[ ! -s "$secret_path" ]]; then
-              echo "ERROR: Secret $secret is empty"
-              exit 1
-            fi
-
-            echo "✓ Secret $secret is available and non-empty"
-          done
-
-          echo "All secrets validated successfully!"
+          
+          # Report results
+          if [[ $failed -eq 0 ]]; then
+            echo "All secrets validated successfully!"
+          else
+            echo
+            echo "=== VALIDATION SUMMARY ==="
+            echo "Found $failed issue(s):"
+            printf '  - %s\n' "''${errors[@]}"
+            echo "Please fix these issues and try again."
+            exit 1
+          fi
         '';
       });
     };

@@ -7,6 +7,8 @@
       nixfmt-rfc-style
       yaml-language-server
       prettier
+      marksman
+      taplo
     ];
 
   programs.helix = {
@@ -41,6 +43,24 @@
         formatter = {
           command = "${pkgs.prettier}/bin/prettier";
           args = [ "--parser" "yaml" ];
+        };
+      }
+      {
+        name = "markdown";
+        auto-format = true;
+        language-servers = [ "marksman" ];
+        formatter = {
+          command = "${pkgs.prettier}/bin/prettier";
+          args = ["--parser" "markdown"];
+        };
+      }
+      {
+        name = "json";
+        auto-format = true;
+        language-servers = [ "taplo" ];
+        formatter = {
+          command = "${pkgs.prettier}/bin/prettier";
+          args = ["--parser" "json"];
         };
       }
     ];

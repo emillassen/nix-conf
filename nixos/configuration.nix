@@ -1,11 +1,12 @@
 # This is your system's configuration file.
 # Use this to configure your system environment (it replaces /etc/nixos/configuration.nix)
-{ inputs
-, outputs
-, lib
-, config
-, pkgs
-, ...
+{
+  inputs,
+  outputs,
+  lib,
+  config,
+  pkgs,
+  ...
 }:
 {
   # You can import other NixOS modules here
@@ -71,12 +72,10 @@
     };
   };
 
-  environment.etc = lib.mapAttrs'
-    (name: value: {
-      name = "nix/path/${name}";
-      value.source = value.flake;
-    })
-    config.nix.registry;
+  environment.etc = lib.mapAttrs' (name: value: {
+    name = "nix/path/${name}";
+    value.source = value.flake;
+  }) config.nix.registry;
 
   # Sets Host Name for the device
   networking.hostName = "fw13";

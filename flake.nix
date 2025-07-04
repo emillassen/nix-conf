@@ -53,13 +53,14 @@
   };
 
   outputs =
-    { self
-    , nixpkgs
-    , disko
-    , nixos-hardware
-    , sops-nix
-    , pre-commit-hooks
-    , ...
+    {
+      self,
+      nixpkgs,
+      disko,
+      nixos-hardware,
+      sops-nix,
+      pre-commit-hooks,
+      ...
     }@inputs:
     let
       inherit (self) outputs;

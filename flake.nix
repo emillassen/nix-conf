@@ -171,6 +171,9 @@
               # Check for trailing whitespace
               trim-trailing-whitespace.enable = true;
 
+              # Check for mixed line endings
+              mixed-line-endings.enable = true;
+
               # Check for case conflicts in filenames
               check-case-conflicts.enable = true;
 

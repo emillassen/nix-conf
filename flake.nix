@@ -165,6 +165,18 @@
               # Check for large files
               check-added-large-files.enable = true;
 
+              # Check for trailing whitespace
+              end-of-file-fixer.enable = true;
+
+              # Check for trailing whitespace
+              trim-trailing-whitespace.enable = true;
+
+              # Check for case conflicts in filenames
+              check-case-conflicts.enable = true;
+
+              # Check for merge conflicts
+              check-merge-conflicts.enable = true;
+
               # YAML formatting
               prettier = {
                 enable = true;
@@ -173,6 +185,9 @@
                   "markdown"
                 ];
               };
+
+              # Check for private keys
+              detect-private-keys.enable = true;
 
               # Custom hook for sops files
               sops-encrypted = {

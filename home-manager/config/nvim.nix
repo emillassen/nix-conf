@@ -14,16 +14,16 @@
       " Search settings
       set ignorecase smartcase
       set incsearch hlsearch
-        
+
       " Indentation (consider using vim-sleuth for auto-detection)
       set tabstop=4 shiftwidth=4 expandtab smarttab
-        
+
       " UI settings
       set termguicolors
       set scrolloff=8
       set signcolumn=yes
       set updatetime=50
-       
+
       " Better splits
       set splitbelow splitright
     '';

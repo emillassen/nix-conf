@@ -20,9 +20,8 @@
     # You can also split up your configuration and import pieces of it here:
     ./hardware-configuration.nix
     ./disks.nix
-    #../modules/nixos/upgrade-diff.nix
     ./common/pipewire.nix
-    #./gnome.nix
+    #./gnome.nix # Uncomment this to use Gnome instead of KDE
     ./kde.nix
     ./common/steam.nix
     ./common/yubikey.nix

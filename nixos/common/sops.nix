@@ -58,8 +58,8 @@ in
     requires = [ "sops-nix.service" ];
     serviceConfig = {
       Type = "oneshot";
-      User = root;
-      Group = root;
+      User = "root";
+      Group = "root";
       ExecStart = lib.getExe (
         pkgs.writeShellApplication {
           name = "validate-sops-secrets";

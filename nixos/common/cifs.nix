@@ -5,32 +5,6 @@
   ...
 }:
 let
-  # Common mount options for all SMB shares
-  mkSmbMount = share: {
-    device = "//${config.sops.placeholder.smb_server_ip}/${share}";
-    fsType = "cifs";
-    options =
-      let
-        automount_opts = "x-systemd.automount,noauto,x-systemd.idle-timeout=60,x-systemd.mount-timeout=5s";
-      in
-      [
-        automount_opts
-        "credentials=${config.sops.templates."smb-credentials".path}"
-        "uid=${toString config.users.users.emil.uid}"
-        "gid=${toString config.users.groups.users.gid}"
-        "forceuid"
-        "forcegid"
-        "vers=3.1.1"
-        "iocharset=utf8"
-        "file_mode=0664"
-        "dir_mode=0775"
-        "cache=strict"
-        "rsize=1048576"
-        "wsize=1048576"
-      ];
-  };
-
-  # List of shares to mount
   shares = [
     "appdata"
     "backups"
@@ -43,28 +17,62 @@ let
     "nextcloud"
     "series"
   ];
+
+  # Mount script that reads secrets at runtime
+  mountScript =
+    share:
+    pkgs.writeShellScript "mount-${share}" ''
+      SERVER_IP=$(cat ${config.sops.secrets.smb_server_ip.path})
+      exec ${pkgs.util-linux}/bin/mount -t cifs \
+        -o credentials=/run/secrets/rendered/smb-credentials,uid=${toString config.users.users.emil.uid},gid=${toString config.users.groups.users.gid},file_mode=0755,dir_mode=0755,vers=3.1.1 \
+        "//$SERVER_IP/${share}" "/mnt/${share}"
+    '';
+
+  # Unmount script
+  umountScript =
+    share:
+    pkgs.writeShellScript "umount-${share}" ''
+      exec ${pkgs.util-linux}/bin/umount "/mnt/${share}"
+    '';
 in
 {
-  # For mount.cifs, required unless domain name resolution is not needed.
+  # Install required packages
   environment.systemPackages = [ pkgs.cifs-utils ];
 
-  # Use sops-nix built-in template feature for SMB credentials
+  # SMB credentials template
   sops.templates."smb-credentials" = {
     content = ''
       username=${config.sops.placeholder.smb_username}
       password=${config.sops.placeholder.smb_password}
       domain=
     '';
-    owner = config.users.users.emil.name;
-    group = config.users.groups.users.name;
-    mode = "0400";
+    owner = "root";
+    group = "root";
+    mode = "0600";
   };
 
-  # Generate all mount points
-  fileSystems = lib.listToAttrs (
+  # Create mount points
+  systemd.tmpfiles.rules = map (
+    share: "d /mnt/${share} 0755 ${config.users.users.emil.name} users -"
+  ) shares;
+
+  # Create systemd services for each share
+  systemd.services = lib.listToAttrs (
     map (share: {
-      name = "/mnt/${share}";
-      value = mkSmbMount share;
+      name = "mount-${share}";
+      value = {
+        description = "Mount SMB share ${share}";
+        wantedBy = [ "multi-user.target" ];
+        after = [ "network-online.target" ];
+        wants = [ "network-online.target" ];
+
+        serviceConfig = {
+          Type = "oneshot";
+          RemainAfterExit = true;
+          ExecStart = "${mountScript share}";
+          ExecStop = "${umountScript share}";
+        };
+      };
     }) shares
   );
 }

@@ -205,6 +205,12 @@
     options = "--delete-older-than 30d";
   };
 
+  # Optimises the nix store every week
+  nix.optimise = {
+    automatic = true;
+    dates = [ "weekly" ];
+  };
+
   # https://nixos.wiki/wiki/FAQ/When_do_I_update_stateVersion
   system.stateVersion = "25.05";
 }

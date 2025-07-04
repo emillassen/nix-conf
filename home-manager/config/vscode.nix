@@ -60,6 +60,9 @@
         "telemetry.feedback.enabled" = false;
         "redhat.telemetry.enabled" = false;
         "gitlens.telemetry.enabled" = false;
+        "extensions.ignoreRecommendations" = true;
+        "workbench.tips.enabled" = false;
+        "workbench.welcomePage.walkthroughs.openOnInstall" = false;
 
         # Disable automatic updates and hide release notes
         "extensions.autoCheckUpdates" = false;

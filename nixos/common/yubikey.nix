@@ -15,11 +15,6 @@
     enableSSHSupport = true;
   };
 
-  # Set SSH_AUTH_SOCK as a session variable instead of shell init
-  environment.sessionVariables = {
-    SSH_AUTH_SOCK = "$(${pkgs.gnupg}/bin/gpgconf --list-dirs agent-ssh-socket)";
-  };
-
   # Initialize GPG agent once at login
   systemd.user.services.gpg-agent-init = {
     description = "Initialize GnuPG agent";

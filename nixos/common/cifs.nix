@@ -18,22 +18,27 @@ let
     "series"
   ];
 
-  # Mount script that reads secrets at runtime
-  mountScript =
-    share:
-    pkgs.writeShellScript "mount-${share}" ''
-      SERVER_IP=$(cat ${config.sops.secrets.smb_server_ip.path})
-      exec ${pkgs.util-linux}/bin/mount -t cifs \
-        -o credentials=/run/secrets/rendered/smb-credentials,uid=${toString config.users.users.emil.uid},gid=${toString config.users.groups.users.gid},file_mode=0755,dir_mode=0755,vers=3.1.1 \
-        "//$SERVER_IP/${share}" "/mnt/${share}"
-    '';
-
-  # Unmount script
-  umountScript =
-    share:
-    pkgs.writeShellScript "umount-${share}" ''
-      exec ${pkgs.util-linux}/bin/umount "/mnt/${share}"
-    '';
+  # Common mount options for all SMB shares
+  mkSmbMount = share: {
+    device = "//192.168.1.30/${share}"; # Hardcoded IP like your old config
+    fsType = "cifs";
+    options = [
+      # Systemd automount options
+      "x-systemd.automount"
+      "noauto"
+      "x-systemd.idle-timeout=60"
+      "x-systemd.mount-timeout=5s"
+      # SMB options
+      "credentials=/run/secrets/rendered/smb-credentials"
+      "uid=1000"
+      "gid=100"
+      "forceuid"
+      "forcegid"
+      "file_mode=0755"
+      "dir_mode=0755"
+      "vers=3.1.1"
+    ];
+  };
 in
 {
   # Install required packages
@@ -51,28 +56,14 @@ in
     mode = "0600";
   };
 
-  # Create mount points
-  systemd.tmpfiles.rules = map (
-    share: "d /mnt/${share} 0755 ${config.users.users.emil.name} users -"
-  ) shares;
-
-  # Create systemd services for each share
-  systemd.services = lib.listToAttrs (
+  # Generate all mount points using fileSystems
+  fileSystems = lib.listToAttrs (
     map (share: {
-      name = "mount-${share}";
-      value = {
-        description = "Mount SMB share ${share}";
-        wantedBy = [ "multi-user.target" ];
-        after = [ "network-online.target" ];
-        wants = [ "network-online.target" ];
-
-        serviceConfig = {
-          Type = "oneshot";
-          RemainAfterExit = true;
-          ExecStart = "${mountScript share}";
-          ExecStop = "${umountScript share}";
-        };
-      };
+      name = "/mnt/${share}";
+      value = mkSmbMount share;
     }) shares
   );
+
+  # Ensure mount points exist
+  systemd.tmpfiles.rules = map (share: "d /mnt/${share} 0755 emil users -") shares;
 }

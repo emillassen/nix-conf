@@ -53,28 +53,22 @@
     };
   };
 
-  # This will add each flake input as a registry
-  # To make nix3 commands consistent with your flake
+  # Nix settings
   nix = {
-    registry = (lib.mapAttrs (_: flake: { inherit flake; })) (
-      (lib.filterAttrs (_: lib.isType "flake")) inputs
-    );
-    # This will additionally add your inputs to the system's legacy channels
-    # Making legacy nix commands consistent as well, awesome!
-    nixPath = [ "/etc/nix/path" ];
+    # Registry to make nix3 commands consistent with your flake
+    registry = lib.mapAttrs (_: flake: { inherit flake; }) inputs;
+    # Nix settings
     settings = {
-      experimental-features = "nix-command flakes";
+      experimental-features = [
+        "nix-command"
+        "flakes"
+      ];
       # Disable 'warning : git tree 'nix-config folder' is dirty'
       warn-dirty = false;
       # Deduplicate and optimize nix store
       auto-optimise-store = true;
     };
   };
-
-  environment.etc = lib.mapAttrs' (name: value: {
-    name = "nix/path/${name}";
-    value.source = value.flake;
-  }) config.nix.registry;
 
   # Sets Host Name for the device
   networking.hostName = "fw13";
@@ -203,12 +197,6 @@
     automatic = true;
     dates = "weekly";
     options = "--delete-older-than 30d";
-  };
-
-  # Optimises the nix store every week
-  nix.optimise = {
-    automatic = true;
-    dates = [ "weekly" ];
   };
 
   # https://nixos.wiki/wiki/FAQ/When_do_I_update_stateVersion

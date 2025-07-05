@@ -20,7 +20,7 @@ let
 
   # Common mount options for all SMB shares
   mkSmbMount = share: {
-    device = "//192.168.1.30/${share}"; # Hardcoded IP like your old config
+    device = "//192.168.1.30/${share}";
     fsType = "cifs";
     options = [
       # Systemd automount options

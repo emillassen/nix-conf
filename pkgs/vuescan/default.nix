@@ -1,6 +1,6 @@
-# From https://github.com/NixOS/nixpkgs/issues/217996#issuecomment-1476011005
-# replace src = ... with src =.vuex64.tgz if using local file
+# Based on https://github.com/NixOS/nixpkgs/issues/217996#issuecomment-1476011005
 {
+  lib,
   stdenv,
   fetchurl,
   gnutar,
@@ -11,6 +11,7 @@
   libgudev,
   makeDesktopItem,
 }:
+
 let
   pname = "vuescan";
   version = "9.8.46.11";
@@ -74,4 +75,12 @@ stdenv.mkDerivation {
     mkdir -p $out/share/applications/
     ln -s ${desktopItem}/share/applications/* $out/share/applications
   '';
+
+  meta = with lib; {
+    description = "A computer program for image scanning, especially of photographs, including negatives.";
+    homepage = "https://www.hamrick.com/";
+    license = licenses.unfree;
+    maintainers = with maintainers; [ Hamrick ];
+    platforms = [ "x86_64-linux" ];
+  };
 }

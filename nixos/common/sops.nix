@@ -33,7 +33,6 @@ in
       # SMB/CIFS credentials from dedicated file
       smb_username = mkSmbSecret "smb_username";
       smb_password = mkSmbSecret "smb_password";
-      smb_server_ip = mkSmbSecret "smb_server_ip";
 
       # System-level secrets
       emil_password_hash = {
@@ -71,7 +70,7 @@ in
             errors=()
 
             # Check all secrets in one loop
-            for secret in smb_username smb_password smb_server_ip emil_password_hash; do
+            for secret in smb_username smb_password emil_password_hash; do
               secret_path="/run/secrets/$secret"
 
               if [[ ! -r "$secret_path" ]]; then

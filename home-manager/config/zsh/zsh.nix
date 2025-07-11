@@ -33,10 +33,10 @@
           myip = "curl ip.wtf/moo";
           pupdate = "pocket-up";
           pocket-up = "pupdate -s -p /run/media/$(whoami)/Pocket/";
-          ns = "sudo nixos-rebuild switch --flake ~/Documents/nix-conf#fw13";
-          nsu = "sudo nixos-rebuild switch --upgrade --flake ~/Documents/nix-conf#fw13";
-          nix-clean = "sudo nix-collect-garbage -d && nix-collect-garbage -d && sudo nix-store --optimise";
-          flake-up = "nix flake update --flake ~/Documents/nix-conf/";
+          ns = "sudo nixos-rebuild switch --flake $NH_FLAKE#fw13";
+          nsu = "sudo nixos-rebuild switch --upgrade --flake $NH_FLAKE#fw13";
+          nix-clean = "sudo nix-collect-garbage -d && sudo nix-store --optimise";
+          flake-up = "nix flake update --flake $NH_FLAKE";
         };
       };
     };

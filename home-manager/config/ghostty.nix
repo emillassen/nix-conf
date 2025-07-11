@@ -3,12 +3,12 @@
   programs.ghostty = {
     enable = true;
     package = pkgs.ghostty;
-    enableZshIntegration = true;
     settings = {
       #https://ghostty.org/docs/config/reference
       theme = "catppuccin-mocha";
       font-family = "Hack Nerd Font Mono";
       font-size = 10;
+      font-ligatures = true;
       cursor-style = "block";
       scrollback-limit = 100000;
       window-height = 70;

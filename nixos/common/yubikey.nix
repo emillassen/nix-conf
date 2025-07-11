@@ -1,14 +1,34 @@
-{ pkgs, ... }:
+{
+  pkgs,
+  config,
+  lib,
+  ...
+}:
+let
+  gpg-connect-agent = lib.getExe' config.programs.gnupg.package "gpg-connect-agent";
+  gpgconf = lib.getExe' config.programs.gnupg.package "gpgconf";
+in
 {
   environment.systemPackages = with pkgs; [
-    gnupg
     yubikey-manager
     yubikey-personalization
-    yubikey-touch-detector
-    libfido2
-    pam_u2f
-    pinentry
+    pinentry-qt # Works best with KDE, 'pinentry' for all flavours
+    gnupg
   ];
+
+  # Detects whenever a YubiKey is waiting for your touch.
+  programs.yubikey-touch-detector = {
+    enable = true;
+    libnotify = true; # Show desktop notifications using libnotify
+  };
+
+  services = {
+    udev.packages = [ pkgs.yubikey-personalization ];
+    pcscd.enable = true;
+  };
+
+  # Disabled since we aren't using yubikeys for user auths
+  #security.pam.u2f.enable = true;
 
   programs.gnupg.agent = {
     enable = true;
@@ -22,9 +42,10 @@
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
-      ExecStart = "${pkgs.gnupg}/bin/gpg-connect-agent /bye";
+      ExecStart = ''
+        ${gpg-connect-agent} /bye
+        export SSH_AUTH_SOCK=$(${gpgconf} --list-dirs agent-ssh-socket)
+      '';
     };
   };
-
-  services.pcscd.enable = true;
 }

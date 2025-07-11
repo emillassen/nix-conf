@@ -14,7 +14,7 @@
 
 let
   pname = "vuescan";
-  version = "9.8.46.11";
+  version = "9.8.46.13";
   desktopItem = makeDesktopItem {
     name = "VueScan";
     desktopName = "VueScan";
@@ -41,7 +41,7 @@ stdenv.mkDerivation {
 
   src = fetchurl {
     url = "https://www.hamrick.com/files/vuex6498.tgz";
-    hash = "sha256-KgzquExYr5HOdKcfm0Ghlnsw+KnCl50QRsCmVMKs628=";
+    hash = "sha256-sDwAtQUbrkwwKODtHPtzx1fonPsdMxpZB1iUiVb+bV0=";
   };
 
   # Stripping breaks the program
@@ -59,18 +59,16 @@ stdenv.mkDerivation {
     libgudev
   ];
 
-  unpackPhase = ''
-    tar xfz $src
-  '';
+  sourceRoot = "VueScan";
 
   installPhase = ''
-    install -m755 -D VueScan/vuescan $out/bin/vuescan
+    install -m755 -D vuescan $out/bin/vuescan
 
     mkdir -p $out/share/icons/hicolor/scalable/apps/
-    cp VueScan/vuescan.svg $out/share/icons/hicolor/scalable/apps/vuescan.svg
+    cp vuescan.svg $out/share/icons/hicolor/scalable/apps/vuescan.svg
 
     mkdir -p $out/lib/udev/rules.d/
-    cp VueScan/vuescan.rul $out/lib/udev/rules.d/60-vuescan.rules
+    cp vuescan.rul $out/lib/udev/rules.d/60-vuescan.rules
 
     mkdir -p $out/share/applications/
     ln -s ${desktopItem}/share/applications/* $out/share/applications

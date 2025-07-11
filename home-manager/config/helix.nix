@@ -34,14 +34,14 @@
         name = "nix";
         auto-format = true;
         language-servers = [ "nixd" ];
-        formatter.command = "${pkgs.nixfmt-rfc-style}/bin/nixfmt";
+        formatter.command = pkgs.lib.getExe pkgs.nixfmt-rfc-style;
       }
       {
         name = "yaml";
         auto-format = true;
         language-servers = [ "yaml-language-server" ];
         formatter = {
-          command = "${pkgs.prettier}/bin/prettier";
+          command = pkgs.lib.getExe pkgs.prettier;
           args = [
             "--parser"
             "yaml"
@@ -53,7 +53,7 @@
         auto-format = true;
         language-servers = [ "marksman" ];
         formatter = {
-          command = "${pkgs.prettier}/bin/prettier";
+          command = pkgs.lib.getExe pkgs.prettier;
           args = [
             "--parser"
             "markdown"
@@ -63,9 +63,9 @@
       {
         name = "json";
         auto-format = true;
-        language-servers = [ "taplo" ];
+        language-servers = [ "prettier" ];
         formatter = {
-          command = "${pkgs.prettier}/bin/prettier";
+          command = pkgs.lib.getExe pkgs.prettier;
           args = [
             "--parser"
             "json"

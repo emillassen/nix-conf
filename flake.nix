@@ -196,6 +196,7 @@
                   "yaml"
                   "markdown"
                 ];
+                excludes = [ "^secrets/.*" ];
               };
 
               # Check for private keys

@@ -71,6 +71,7 @@
     ffmpeg
     filebot
     firefox
+    gemini-cli
     gimp
     inkscape
     iperf

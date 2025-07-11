@@ -27,7 +27,7 @@ let
       "x-systemd.automount"
       "noauto"
       "x-systemd.idle-timeout=60"
-      "x-systemd.mount-timeout=5s"
+      "x-systemd.mount-timeout=15s"
       # SMB options
       "credentials=/run/secrets/rendered/smb-credentials"
       "uid=1000"

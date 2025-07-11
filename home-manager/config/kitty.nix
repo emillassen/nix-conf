@@ -3,13 +3,17 @@
   programs.kitty = {
     enable = true;
     package = pkgs.kitty;
-    font.name = "Hack Nerd Font Mono";
-    font.size = 10.0;
+    font = {
+      name = "Hack Nerd Font Mono";
+      size = 10.0;
+    };
     themeFile = "Catppuccin-Mocha";
     settings = {
+      font_ligatures = "enabled";
+      shell_integration = "enabled";
       term = "xterm-kitty";
-      cursor = "none";
       cursor_shape = "block";
+      cursor_blink_interval = 0.5;
       scrollback_lines = 100000;
       enable_audio_bell = "no";
       update_check_interval = 0;

@@ -112,7 +112,6 @@ sops -d smb.yaml
 
 - `smb_username` - SMB/CIFS username for NAS access
 - `smb_password` - SMB/CIFS password for NAS access
-- `smb_server_ip` - SMB/CIFS server IP address for NAS access
 
 ## Troubleshooting
 

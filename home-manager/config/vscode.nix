@@ -13,13 +13,13 @@
   home.packages =
     with pkgs;
     lib.mkAfter [
-      ansible-lint
-      claude-code
-      nixd
-      nixfmt-rfc-style
-      pre-commit
-      python3Full
-      yamllint
+      ansible-lint # Ansible playbook linter
+      claude-code # Claude AI coding assistant CLI
+      nixd # Nix language server
+      nixfmt-rfc-style # Nix code formatter (RFC style)
+      pre-commit # Git pre-commit hook framework
+      python3Full # Full Python 3 installation with libraries
+      yamllint # YAML linter
     ];
 
   programs.vscode = {

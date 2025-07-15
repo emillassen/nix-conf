@@ -3,12 +3,12 @@
   home.packages =
     with pkgs;
     lib.mkAfter [
-      nixd
-      nixfmt-rfc-style
-      yaml-language-server
-      prettier
-      marksman
-      taplo
+      nixd # Nix language server
+      nixfmt-rfc-style # Nix code formatter (RFC style)
+      yaml-language-server # YAML language server
+      prettier # Code formatter for multiple languages
+      marksman # Markdown language server
+      taplo # TOML language server and formatter
     ];
 
   programs.helix = {

@@ -5,7 +5,7 @@
       enable = true;
       package = pkgs.git;
       userName = "Emil Lassen";
-      userEmail = "155289+emillassen@users.noreply.github.com";
+      userEmail = "emil@emillassen.com";
 
       # GPG signing
       signing = {

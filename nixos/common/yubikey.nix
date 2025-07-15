@@ -10,10 +10,10 @@ let
 in
 {
   environment.systemPackages = with pkgs; [
-    yubikey-manager
-    yubikey-personalization
-    pinentry-qt # Works best with KDE, 'pinentry' for all flavours
-    gnupg
+    yubikey-manager # YubiKey management tool and library
+    yubikey-personalization # YubiKey personalization tool
+    pinentry-qt # Qt-based PIN entry dialog (works best with KDE)
+    gnupg # GNU Privacy Guard for encryption and signing
   ];
 
   # Detects whenever a YubiKey is waiting for your touch.

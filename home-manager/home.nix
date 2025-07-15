@@ -72,7 +72,7 @@
     filebot
     firefox
     gemini-cli
-    gimp
+    #gimp
     inkscape
     iperf
     iw

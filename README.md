@@ -21,6 +21,7 @@
 3. `git clone https://github.com/emillassen/nix-conf.git`
 4. `cdnix && git remote set-url origin git@github.com:emillassen/nix-conf.git`
 5. Enroll fingerprints using `fprintd-enroll`
+6. Run `./scripts/setup-yubikey.sh` to automate the YubiKey SSH setup process.
 
 ### KDE changes
 
@@ -43,20 +44,6 @@
 1. Settings -> Window Management -> Desktop Effects -> Screed Edge -> Untick
 1. Virtual Desktops -> Create 3 -> (Main, IT, Misc)
 1. Virtual Desktops -> Show animation when switching -> Cog -> Gap between desktops -> Horizontal & Vertical -> 0
-
-### YubiKey Setup
-
-1. Download pub.asc from Bitwarden
-1. Run the following commands:
-
-```
-cd ~/Downloads/
-gpg --keyid-format 0xlong --import pub.asc
-gpg --keyid-format 0xlong --card-status
-KEY_ID=0x0000000000000000 (the sec# key)
-ssh-add -L | awk  '{print $1 " " $2 " emil@emillassen.com"}' | tee ~/.ssh/emillassen.pub
-chmod 0600 ~/.ssh/emillassen.pub
-```
 
 ### Display color profile
 

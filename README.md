@@ -8,7 +8,7 @@
 4. `cd /tmp`
 5. `git clone https://github.com/emillassen/nix-conf.git`
 6. `cd nix-conf`
-7. Run `./scripts/setup-age-key.sh` to fetch your age key from Bitwarden.
+7. Run `./scripts/pre-install-secrets.sh` to fetch your age key from Bitwarden and place it in the target system.
 8. `sudo nix --experimental-features "nix-command flakes" run github:nix-community/disko -- --mode disko /tmp/nix-conf/nixos/disks.nix`
 9. `sudo nixos-install --root /mnt --flake /tmp/nix-conf#fw13 --no-root-passwd`
 10. Select `y` to everything
@@ -21,7 +21,8 @@
 3. `git clone https://github.com/emillassen/nix-conf.git`
 4. `cdnix && git remote set-url origin git@github.com:emillassen/nix-conf.git`
 5. Enroll fingerprints using `fprintd-enroll`
-6. Run `./scripts/setup-yubikey.sh` to automate the YubiKey SSH setup process.
+6. Run `./scripts/setup-yubikey.sh` to automate the YubiKey setup process.
+7. Run `sudo nixos-rebuild switch` to finalize the setup.
 
 ### KDE changes
 

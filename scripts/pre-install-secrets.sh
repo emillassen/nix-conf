@@ -2,17 +2,9 @@
 
 set -euo pipefail
 
-# Check if Bitwarden CLI is installed
-if ! command -v bw &> /dev/null; then
-    echo "Bitwarden CLI (bw) is not installed. Please install it first."
-    exit 1
-fi
-
-# Check if jq is installed
-if ! command -v jq &> /dev/null; then
-    echo "jq is not installed. Please install it first."
-    exit 1
-fi
+# Run the script in a nix-shell with the required packages
+nix-shell -p bitwarden-cli jq --run "$(cat <<'EOF'
+set -euo pipefail
 
 # Log in to Bitwarden
 echo "Logging in to Bitwarden..."
@@ -32,13 +24,15 @@ if [[ -z "$AGE_KEY" ]]; then
     exit 1
 fi
 
-# Create the sops directory if it doesn't exist
-SOPS_DIR="$HOME/.config/sops/age"
+# Create the sops directory on the target system
+SOPS_DIR="/mnt/home/emil/.config/sops/age"
 mkdir -p "$SOPS_DIR"
 
-# Save the key to the file
+# Save the key to the file on the target system
 KEY_FILE="$SOPS_DIR/keys.txt"
 echo "$AGE_KEY" > "$KEY_FILE"
 chmod 600 "$KEY_FILE"
 
-echo "Successfully saved age key to $KEY_FILE"
+echo "Successfully saved age key to $KEY_FILE on the target system."
+EOF
+)"

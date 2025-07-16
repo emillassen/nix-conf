@@ -1,6 +1,6 @@
 # My NixOS config using Flakes and Home Manager
 
-# Initial setup for a new device
+## Initial installation on a new device
 
 1. Boot from a USB stick with the latest NixOS release
 1. Change keyboard layout to match device and test that it is correct
@@ -15,17 +15,14 @@
 1. `sudo nixos-install --root /mnt --flake /tmp/nix-conf#fw13 --no-root-passwd`
 1. Select `y` to everything
 1. Restart and remove the USB stick
+
+## First boot setup
+
 1. Logon to Wi-Fi
 1. `cd ~/Documents`
 1. `git clone https://github.com/emillassen/nix-conf.git`
 1. `cdnix && git remote set-url origin git@github.com:emillassen/nix-conf.git`
-
-## Manual changes
-
 1. Enroll fingerprints using `fprintd-enroll`
-1. Login to Nextcloud Desktop client
-1. `nvim ~/.config/Nextcloud/nextcloud.cfg`
-1. Paste `maxChunkSize=50000000` under `[General]`
 
 ### KDE changes
 

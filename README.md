@@ -169,49 +169,6 @@ This repository contains my personal [NixOS](https://nixos.org/) configuration u
    sudo nixos-rebuild switch
    ```
 
-## 🔧 Usage
-
-### Applying Changes
-
-The configuration lives in `~/Documents/nix-conf`. To apply changes:
-
-```bash
-cd ~/Documents/nix-conf
-
-# Rebuild NixOS configuration
-sudo nixos-rebuild switch
-
-# Rebuild Home Manager configuration
-home-manager switch --flake .
-```
-
-### Managing Secrets
-
-This setup uses SOPS for secrets management:
-
-```bash
-# Edit secrets (automatically encrypts)
-sops secrets/smb.yaml
-
-# View secrets
-sops -d secrets/smb.yaml
-
-# Add new secrets file
-echo "new_secret: value" > secrets/new-file.yaml
-sops -e -i secrets/new-file.yaml
-```
-
-### Development Environment
-
-A development shell is available with secrets management tools:
-
-```bash
-# Enter development shell
-nix develop
-
-# Available tools: sops, age, and more
-```
-
 ## 🎨 Post-Install Configuration
 
 ### KDE Plasma Customization
@@ -290,42 +247,6 @@ YubiKey provides:
 
 Run `./scripts/setup-yubikey.sh` to configure (requires pre-configured YubiKey).
 
-### Backup Strategy
-
-Important items to backup:
-
-- `~/.config/sops/age/keys.txt` (age private key)
-- YubiKey recovery codes
-- Bitwarden master password
-- Git SSH keys
-
-## 🛠️ Customization
-
-### Adding Applications
-
-1. **System-wide packages**: Add to `nixos/configuration.nix`
-2. **User packages**: Add to `home-manager/home.nix`
-3. **Custom packages**: Create in `pkgs/` directory
-
-### Desktop Environment
-
-Switch between desktop environments:
-
-```bash
-# Enable KDE (default)
-# In nixos/configuration.nix: import ./kde.nix
-
-# Enable GNOME
-# In nixos/configuration.nix: import ./gnome.nix
-```
-
-### Custom Modules
-
-Add reusable modules to:
-
-- `modules/nixos/` for system-level modules
-- `modules/home-manager/` for user-level modules
-
 ## 🤝 Development
 
 ### Pre-commit Hooks
@@ -344,7 +265,7 @@ This repository includes pre-commit hooks for:
 nix fmt
 
 # Check flake
-nix flake check
+nix flake check -v
 
 # Run pre-commit hooks manually
 pre-commit run --all-files

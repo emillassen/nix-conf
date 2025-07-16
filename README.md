@@ -364,26 +364,6 @@ ls -la ~/.config/sops/age/keys.txt
 cd secrets && sops -d smb.yaml
 ```
 
-**Build failures**:
-
-```bash
-# Clean build cache
-sudo nix-collect-garbage -d
-
-# Rebuild with verbose output
-sudo nixos-rebuild switch --show-trace
-```
-
-**YubiKey not recognized**:
-
-```bash
-# Check YubiKey detection
-ykman info
-
-# Restart services
-sudo systemctl restart pcscd
-```
-
 ## 📚 Resources
 
 ### Documentation

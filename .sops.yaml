@@ -13,3 +13,8 @@ creation_rules:
     key_groups:
       - age:
           - *emil
+  # LUKS key
+  - path_regex: luks\.yaml$
+    key_groups:
+      - age:
+          - *emil

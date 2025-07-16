@@ -3,26 +3,24 @@
 ## Initial installation on a new device
 
 1. Boot from a USB stick with the latest NixOS release
-1. Change keyboard layout to match device and test that it is correct
-1. Logon to Wi-Fi
-1. `cd /tmp`
-1. `git clone https://github.com/emillassen/nix-conf.git`
-1. `cd nix-conf/nixos`
-1. `nano -L /tmp/secret.key`
-1. Enter the desired password for LUKS encryption and save the file
-1. `cat /tmp/secret.key` to make sure that the output matches your desired password and that it is without any trailing linebreaks
-1. `sudo nix --experimental-features "nix-command flakes" run github:nix-community/disko -- --mode disko /tmp/nix-conf/nixos/disks.nix`
-1. `sudo nixos-install --root /mnt --flake /tmp/nix-conf#fw13 --no-root-passwd`
-1. Select `y` to everything
-1. Restart and remove the USB stick
+2. Change keyboard layout to match device and test that it is correct
+3. Logon to Wi-Fi
+4. `cd /tmp`
+5. `git clone https://github.com/emillassen/nix-conf.git`
+6. `cd nix-conf`
+7. Run `./scripts/setup-age-key.sh` to fetch your age key from Bitwarden.
+8. `sudo nix --experimental-features "nix-command flakes" run github:nix-community/disko -- --mode disko /tmp/nix-conf/nixos/disks.nix`
+9. `sudo nixos-install --root /mnt --flake /tmp/nix-conf#fw13 --no-root-passwd`
+10. Select `y` to everything
+11. Restart and remove the USB stick
 
 ## First boot setup
 
 1. Logon to Wi-Fi
-1. `cd ~/Documents`
-1. `git clone https://github.com/emillassen/nix-conf.git`
-1. `cdnix && git remote set-url origin git@github.com:emillassen/nix-conf.git`
-1. Enroll fingerprints using `fprintd-enroll`
+2. `cd ~/Documents`
+3. `git clone https://github.com/emillassen/nix-conf.git`
+4. `cdnix && git remote set-url origin git@github.com:emillassen/nix-conf.git`
+5. Enroll fingerprints using `fprintd-enroll`
 
 ### KDE changes
 

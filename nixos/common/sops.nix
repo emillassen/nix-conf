@@ -17,6 +17,8 @@ in
   environment.systemPackages = with pkgs; [
     age
     sops
+    bitwarden-cli
+    jq
   ];
 
   # sops-nix configuration
@@ -26,7 +28,7 @@ in
     age = {
       keyFile = "${config.users.users.emil.home}/.config/sops/age/keys.txt";
       # Will generate a new key if it doesn't exist
-      generateKey = true;
+      generateKey = false;
     };
 
     secrets = {
@@ -37,6 +39,14 @@ in
       # System-level secrets
       emil_password_hash = {
         sopsFile = ../../secrets/system.yaml;
+        owner = "root";
+        group = "root";
+        mode = "0400";
+        # Ensure this secret is available during early boot
+        neededForUsers = true;
+      };
+      luks_key = {
+        sopsFile = ../../secrets/luks.yaml;
         owner = "root";
         group = "root";
         mode = "0400";

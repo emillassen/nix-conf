@@ -19,9 +19,9 @@
 1. Logon to Wi-Fi
 2. `cd ~/Documents`
 3. `git clone https://github.com/emillassen/nix-conf.git`
-4. `cdnix && git remote set-url origin git@github.com:emillassen/nix-conf.git`
+4. `cd ~/Documents/nix-conf && git remote set-url origin git@github.com:emillassen/nix-conf.git`
 5. Enroll fingerprints using `fprintd-enroll`
-6. Run `./scripts/setup-yubikey.sh` to automate the YubiKey setup process.
+6. Run `./scripts/setup-yubikey.sh` to automate the YubiKey setup process. Note that this script assumes your YubiKey is already configured to provide an SSH key via the GPG agent.
 7. Run `sudo nixos-rebuild switch` to finalize the setup.
 
 ### KDE changes

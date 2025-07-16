@@ -3,7 +3,7 @@
 set -euo pipefail
 
 # Run the script in a nix-shell with the required packages
-nix-shell -p bitwarden-cli jq --run "$(cat <<'EOF'
+nix-shell -p bitwarden-cli jq sops git --run "$(cat <<'EOF'
 set -euo pipefail
 
 # Log in to Bitwarden
@@ -24,6 +24,10 @@ if [[ -z "$AGE_KEY" ]]; then
     exit 1
 fi
 
+# Create a temporary directory for the age key
+AGE_KEY_DIR=$(mktemp -d)
+echo "$AGE_KEY" > "$AGE_KEY_DIR/key.txt"
+
 # Create the sops directory on the target system
 SOPS_DIR="/mnt/home/emil/.config/sops/age"
 mkdir -p "$SOPS_DIR"
@@ -34,5 +38,15 @@ echo "$AGE_KEY" > "$KEY_FILE"
 chmod 600 "$KEY_FILE"
 
 echo "Successfully saved age key to $KEY_FILE on the target system."
+
+# Decrypt the luks key for disko
+echo "Decrypting LUKS key for disko..."
+sops --age-key-file "$AGE_KEY_DIR/key.txt" -d /tmp/nix-conf/secrets/luks.yaml | jq -r .luks_key > /tmp/secret.key
+chmod 600 /tmp/secret.key
+
+echo "Successfully decrypted LUKS key to /tmp/secret.key"
+
+# Clean up temporary age key directory
+rm -rf "$AGE_KEY_DIR"
 EOF
 )"

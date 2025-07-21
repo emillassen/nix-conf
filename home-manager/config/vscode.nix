@@ -5,9 +5,7 @@
   ...
 }:
 {
-  nixpkgs.overlays = [
-    inputs.nix-vscode-extensions.overlays.default
-  ];
+  nixpkgs.overlays = [ inputs.nix-vscode-extensions.overlays.default ];
 
   # Packages that are used by VSCode and/or the extensions
   home.packages =

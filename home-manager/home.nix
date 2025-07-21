@@ -58,7 +58,9 @@
     anydesk # Remote desktop application
     bat # cat replacement with syntax highlighting
     bottom # System monitor (btm command)
-    (btop.override { rocmSupport = true; }) # Interactive process viewer with AMD GPU support
+    (btop.override {
+      rocmSupport = true;
+    }) # Interactive process viewer with AMD GPU support
     calibre # E-book management application
     chirp # Radio programming software
     chromium # Open-source web browser

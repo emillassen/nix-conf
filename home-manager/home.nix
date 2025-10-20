@@ -74,7 +74,7 @@
     filebot # TV show and movie file renaming tool
     firefox # Web browser
     gemini-cli # Gemini protocol client
-    #gimp                # Image editing software (disabled)
+    #gimp # Image editing software (disabled)
     inkscape # Vector graphics editor
     iperf # Network performance testing tool
     iw # Wireless configuration utility
@@ -94,7 +94,7 @@
     pupdate # Pupdate tool
     remmina # Remote desktop client
     s-tui # Stress testing and monitoring tool
-    sdrpp # Software-defined radio application
+    #sdrpp # Software-defined radio application (broken)
     signal-desktop # Signal messenger desktop client
     spotify # Music streaming service
     stress-ng # System stress testing tool

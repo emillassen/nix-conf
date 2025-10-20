@@ -16,7 +16,7 @@
       nixd # Nix language server
       nixfmt-rfc-style # Nix code formatter (RFC style)
       pre-commit # Git pre-commit hook framework
-      python3Full # Full Python 3 installation with libraries
+      #python3Full # Full Python 3 installation with libraries
       yamllint # YAML linter
     ];
 
@@ -29,7 +29,7 @@
       # Use vscode-marketplace for extensions from nix-vscode-extensions (newest)
       # Use vscode-extensions for extensions from nixpkgs
       extensions = with pkgs; [
-        vscode-marketplace.anthropic.claude-code
+        #vscode-marketplace.anthropic.claude-code
         vscode-marketplace.catppuccin.catppuccin-vsc
         vscode-marketplace.catppuccin.catppuccin-vsc-icons
         vscode-marketplace.eamodio.gitlens

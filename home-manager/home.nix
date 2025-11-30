@@ -61,6 +61,7 @@
     (btop.override {
       rocmSupport = true;
     }) # Interactive process viewer with AMD GPU support
+    blisp # In-System-Programming (ISP) tool & library
     calibre # E-book management application
     chirp # Radio programming software
     chromium # Open-source web browser
@@ -94,7 +95,7 @@
     pupdate # Pupdate tool
     remmina # Remote desktop client
     s-tui # Stress testing and monitoring tool
-    #sdrpp # Software-defined radio application (broken)
+    sdrpp # Software-defined radio application
     signal-desktop # Signal messenger desktop client
     spotify # Music streaming service
     stress-ng # System stress testing tool

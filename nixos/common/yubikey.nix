@@ -5,37 +5,36 @@
   ...
 }:
 let
+  # Determine the paths for gpg executables
   gpg-connect-agent = lib.getExe' config.programs.gnupg.package "gpg-connect-agent";
   gpgconf = lib.getExe' config.programs.gnupg.package "gpgconf";
 in
 {
+  # Packages managed directly in the environment
   environment.systemPackages = with pkgs; [
-    yubikey-manager # YubiKey management tool and library
-    yubikey-personalization # YubiKey personalization tool
-    pinentry-qt # Qt-based PIN entry dialog (works best with KDE)
-    gnupg # GNU Privacy Guard for encryption and signing
+    pinentry-qt # Qt-based PIN entry dialog
+    gnupg # GNU Privacy Guard
   ];
 
-  # Detects whenever a YubiKey is waiting for your touch.
-  programs.yubikey-touch-detector = {
-    enable = true;
-    libnotify = true; # Show desktop notifications using libnotify
+  # Centralized configuration for programs
+  programs = {
+    # Enables yubikey-manager, pcscd, and necessary udev rules
+    yubikey-manager.enable = true;
+
+    # YubiKey touch notification service
+    yubikey-touch-detector = {
+      enable = true;
+      libnotify = true; # Show desktop notifications
+    };
+
+    # GnuPG agent setup
+    gnupg.agent = {
+      enable = true;
+      enableSSHSupport = true;
+    };
   };
 
-  services = {
-    udev.packages = [ pkgs.yubikey-personalization ];
-    pcscd.enable = true;
-  };
-
-  # Disabled since we aren't using yubikeys for user auths
-  #security.pam.u2f.enable = true;
-
-  programs.gnupg.agent = {
-    enable = true;
-    enableSSHSupport = true;
-  };
-
-  # Initialize GPG agent once at login
+  # Initialize GPG agent once at login for SSH and GPG operations
   systemd.user.services.gpg-agent-init = {
     description = "Initialize GnuPG agent";
     wantedBy = [ "default.target" ];

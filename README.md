@@ -176,7 +176,6 @@ This repository contains my personal [NixOS](https://nixos.org/) configuration u
 After installation, manually configure KDE:
 
 1. **System Settings**:
-
    - Create KDE Wallet with empty password
    - Display → Scale → 125%
    - Display → Color Profile → Framework 13 ICC profile
@@ -184,12 +183,10 @@ After installation, manually configure KDE:
    - Appearance → Icons → Papirus
 
 2. **System Tray**:
-
    - Right-click battery → Show battery percentage
    - Configure other applets as needed
 
 3. **Input Devices**:
-
    - Touchpad → Invert scroll direction
    - Touchpad → Two-finger right-click
    - Touchpad → Adjust scrolling speed

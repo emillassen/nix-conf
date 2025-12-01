@@ -8,6 +8,7 @@ let
   # Helper function to reduce boilerplate for SMB secrets
   mkSmbSecret = name: {
     sopsFile = ../../secrets/smb.yaml;
+    key = name;
     owner = config.users.users.emil.name;
     group = config.users.groups.users.name;
     mode = "0400";

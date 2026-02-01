@@ -18,6 +18,7 @@
     ./config/zsh/zsh.nix
     ./config/vscode.nix
     ./config/helix.nix
+    ./config/games.nix
     #./config/gnome/gnomesettings.nix # Keeps resetting settings
     #./config/gnome/catppuccin.nix # Broken atm
     #./config/nextcloud.nix # Broken in gnome
@@ -82,7 +83,7 @@
     kcc # Kindle Comic Converter
     krita # Digital painting application
     lazygit # Git terminal UI
-    lgogdownloader # GOG.com game downloader
+    #lgogdownloader # GOG.com game downloader
     libation # Audible audiobook manager
     libreoffice # Office suite
     mediainfo-gui # Media file information viewer
@@ -91,6 +92,7 @@
     ncdu # Disk usage analyzer with ncurses interface
     nerd-fonts.hack # Hack font with programming symbols
     nextcloud-client # Nextcloud desktop sync client
+    opencode # Open source coding agent
     pciutils # PCI utilities (lspci, etc.)
     pupdate # Pupdate tool
     remmina # Remote desktop client

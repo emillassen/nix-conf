@@ -14,7 +14,7 @@
       ansible-lint # Ansible playbook linter
       claude-code # Claude AI coding assistant CLI
       nixd # Nix language server
-      nixfmt-rfc-style # Nix code formatter (RFC style)
+      nixfmt # Nix code formatter (RFC style)
       pre-commit # Git pre-commit hook framework
       #python3Full # Full Python 3 installation with libraries
       yamllint # YAML linter
@@ -72,7 +72,7 @@
         "workbench.enableExperiments" = false;
 
         # Nix formatting
-        "nix.formatterPath" = "${pkgs.nixfmt-rfc-style}/bin/nixfmt";
+        "nix.formatterPath" = "${pkgs.nixfmt}/bin/nixfmt";
         "nix.enableLanguageServer" = true;
         "nix.serverPath" = "${pkgs.nixd}/bin/nixd";
         "[nix]" = {

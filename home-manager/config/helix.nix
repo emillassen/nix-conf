@@ -4,7 +4,7 @@
     with pkgs;
     lib.mkAfter [
       nixd # Nix language server
-      nixfmt-rfc-style # Nix code formatter (RFC style)
+      nixfmt # Nix code formatter (RFC style)
       yaml-language-server # YAML language server
       prettier # Code formatter for multiple languages
       marksman # Markdown language server
@@ -34,7 +34,7 @@
         name = "nix";
         auto-format = true;
         language-servers = [ "nixd" ];
-        formatter.command = pkgs.lib.getExe pkgs.nixfmt-rfc-style;
+        formatter.command = pkgs.lib.getExe pkgs.nixfmt;
       }
       {
         name = "yaml";

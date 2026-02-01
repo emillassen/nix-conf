@@ -14,7 +14,7 @@
 
 let
   pname = "vuescan";
-  version = "9.8.49.13";
+  version = "9.8.49.25";
   desktopItem = makeDesktopItem {
     name = "VueScan";
     desktopName = "VueScan";
@@ -40,8 +40,8 @@ stdenv.mkDerivation {
   name = "${pname}-${version}";
 
   src = fetchurl {
-    url = "https://github.com/emillassen/binary-mirror/releases/download/vuex64-9.8.49.13/vuex64-9.8.49.13.tgz";
-    hash = "sha256-2nBDY56VFxOylVALy4OaePMwtfqg9ZjnHmH+58tyv5o=";
+    url = "https://github.com/emillassen/binary-mirror/releases/download/vuex64-9.8.49.25/vuex64-9.8.49.25.tgz";
+    hash = "sha256-4Z3GqDCZZ1cCeh6WMl0S13rM72szebyuormiCN49dm8=";
   };
 
   # Stripping breaks the program

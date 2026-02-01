@@ -250,7 +250,7 @@ Run `./scripts/setup-yubikey.sh` to configure (requires pre-configured YubiKey).
 
 This repository includes pre-commit hooks for:
 
-- **Nix formatting** (nixfmt-rfc-style)
+- **Nix formatting** (nixfmt)
 - **Linting** (statix, deadnix)
 - **Secret validation** (sops encryption check)
 - **File validation** (trailing whitespace, large files)

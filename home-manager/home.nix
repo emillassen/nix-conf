@@ -12,11 +12,12 @@
 
     # You can also split up your configuration and import pieces of it here:
     ./config/git.nix # Needed for home-manager to work
-    ./config/kitty.nix
+    #./config/kitty.nix
     ./config/ghostty.nix
-    ./config/nvim.nix
+    ./config/nixvim.nix
     ./config/zsh/zsh.nix
     ./config/vscode.nix
+    ./config/zed-editor.nix
     ./config/helix.nix
     ./config/games.nix
     #./config/gnome/gnomesettings.nix # Keeps resetting settings
@@ -92,6 +93,7 @@
     ncdu # Disk usage analyzer with ncurses interface
     nerd-fonts.hack # Hack font with programming symbols
     nextcloud-client # Nextcloud desktop sync client
+    nvme-cli # NVM-Express user space tooling for Linux
     opencode # Open source coding agent
     pciutils # PCI utilities (lspci, etc.)
     pupdate # Pupdate tool

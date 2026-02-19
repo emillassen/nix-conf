@@ -7,7 +7,7 @@
   autoPatchelfHook,
   glibc,
   gtk3,
-  xorg,
+  libsm,
   libgudev,
   makeDesktopItem,
 }:
@@ -55,7 +55,7 @@ stdenv.mkDerivation {
   buildInputs = [
     glibc
     gtk3
-    xorg.libSM
+    libsm
     libgudev
   ];
 

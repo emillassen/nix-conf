@@ -50,6 +50,10 @@
     # Pre-commit hooks
     pre-commit-hooks.url = "github:cachix/pre-commit-hooks.nix";
     pre-commit-hooks.inputs.nixpkgs.follows = "nixpkgs";
+
+    # Nixvim - Neovim configuration with Nix
+    nixvim.url = "github:nix-community/nixvim";
+    nixvim.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs =
@@ -163,7 +167,7 @@
             src = ./.;
             hooks = {
               # Nix formatting
-              nixfmt-rfc-style.enable = true;
+              nixfmt.enable = true;
 
               # Nix linting
               statix.enable = true;

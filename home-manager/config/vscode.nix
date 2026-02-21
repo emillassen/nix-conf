@@ -29,7 +29,7 @@
       # Use vscode-marketplace for extensions from nix-vscode-extensions (newest)
       # Use vscode-extensions for extensions from nixpkgs
       extensions = with pkgs; [
-        #vscode-marketplace.anthropic.claude-code
+        vscode-marketplace.anthropic.claude-code
         vscode-marketplace.catppuccin.catppuccin-vsc
         vscode-marketplace.catppuccin.catppuccin-vsc-icons
         vscode-marketplace.eamodio.gitlens

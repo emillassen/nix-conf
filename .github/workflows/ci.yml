@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v14
+
+      - name: Setup Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v8
+
+      - name: Run flake checks
+        run: nix flake check -v --show-trace --keep-going
+
+      - name: Build NixOS configuration
+        run: |
+          nix build .#nixosConfigurations.fw13.config.system.build.toplevel \
+            --print-build-logs \
+            --show-trace
+
+      - name: Check flake health
+        uses: DeterminateSystems/flake-checker-action@v9

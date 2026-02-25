@@ -27,7 +27,7 @@ jobs:
         uses: DeterminateSystems/nix-installer-action@v14
 
       - name: Setup Magic Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@v8
+        uses: DeterminateSystems/magic-nix-cache-action@v13
 
       - name: Run flake checks
         run: nix flake check -v --show-trace --keep-going
@@ -47,7 +47,7 @@ jobs:
         uses: DeterminateSystems/nix-installer-action@v14
 
       - name: Setup Magic Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@v8
+        uses: DeterminateSystems/magic-nix-cache-action@v13
 
       - name: Build NixOS configuration
         run: |

@@ -6,9 +6,19 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Cancel old runs when new commits are pushed
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
-  check-and-build:
+  checks:
+    name: Flake checks
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -22,11 +32,25 @@ jobs:
       - name: Run flake checks
         run: nix flake check -v --show-trace --keep-going
 
+      - name: Check flake health
+        uses: DeterminateSystems/flake-checker-action@v12
+
+  build:
+    name: Build NixOS configuration
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v14
+
+      - name: Setup Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v8
+
       - name: Build NixOS configuration
         run: |
           nix build .#nixosConfigurations.fw13.config.system.build.toplevel \
             --print-build-logs \
             --show-trace
-
-      - name: Check flake health
-        uses: DeterminateSystems/flake-checker-action@v12

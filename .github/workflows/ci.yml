@@ -29,4 +29,4 @@ jobs:
             --show-trace
 
       - name: Check flake health
-        uses: DeterminateSystems/flake-checker-action@v9
+        uses: DeterminateSystems/flake-checker-action@v12

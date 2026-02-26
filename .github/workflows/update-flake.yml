@@ -30,10 +30,10 @@ jobs:
       - name: Update flake.lock
         uses: DeterminateSystems/update-flake-lock@v28
         with:
+          token: ${{ secrets.GH_TOKEN_FOR_UPDATES }}
           pr-title: "chore: update flake.lock"
           pr-labels: |
             dependencies
             automated
+          pr-assignees: emillassen
           commit-msg: "chore: update flake inputs"
-          # This will create a PR with the updated flake.lock
-          # The CI workflow will automatically test the build

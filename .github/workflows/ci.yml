@@ -25,19 +25,21 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v21
-
-      - name: Setup Magic Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@v13
-
-      - name: Run flake checks
-        run: nix flake check -v --show-trace --keep-going
-
       - name: Check flake health
         uses: DeterminateSystems/flake-checker-action@v12
         with:
           nixpkgs-keys: nixpkgs,nixpkgs-stable
+
+      - name: Install Nix
+        uses: DeterminateSystems/determinate-nix-action@v3
+
+      - name: Setup Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v13
+        with:
+          use-flakehub: false
+
+      - name: Run flake checks
+        run: nix flake check -v --show-trace --keep-going
 
   build:
     name: Build NixOS configuration
@@ -50,10 +52,12 @@ jobs:
           persist-credentials: false
 
       - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v21
+        uses: DeterminateSystems/determinate-nix-action@v3
 
       - name: Setup Magic Nix Cache
         uses: DeterminateSystems/magic-nix-cache-action@v13
+        with:
+          use-flakehub: false
 
       - name: Build NixOS configuration
         run: |

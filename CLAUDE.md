@@ -51,6 +51,15 @@ sudo nix-collect-garbage -d && nix-store --optimise
 
 **Secrets** in `secrets/` are SOPS-encrypted with age. The age key lives at `~/.config/sops/age/keys.txt`. Decrypted secrets mount to `/run/secrets/` at boot.
 
+## CI/CD
+
+Two GitHub Actions workflows in `.github/workflows/`:
+
+- **`ci.yml`** — Runs on push to `main`, PRs, and manual dispatch. Two parallel jobs: `checks` (flake-checker + `nix flake check`) and `build` (builds the `fw13` NixOS configuration).
+- **`update-flake.yml`** — Weekly (Sunday midnight UTC) or manual. Runs `nix flake update` and opens a PR via `update-flake-lock`. Uses a PAT (`GH_TOKEN_FOR_UPDATES`) to trigger CI on the PR.
+
+Actions used: `determinate-nix-action@v3` (Nix installation), `magic-nix-cache-action@v13` (GHA caching, FlakeHub disabled), `flake-checker-action@v12` (nixpkgs input health), `update-flake-lock@v28` (automated PRs).
+
 ## Key Patterns
 
 - The flake uses `nixpkgs-unstable` as the primary channel with `nixpkgs-stable` (25.11) available via `pkgs.stable` overlay.

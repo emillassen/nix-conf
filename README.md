@@ -268,6 +268,23 @@ nix flake check -v
 pre-commit run --all-files
 ```
 
+## 🔄 CI/CD
+
+Two GitHub Actions workflows automate validation and dependency updates.
+
+### CI (`ci.yml`)
+
+Runs on every push to `main`, on pull requests, and on manual dispatch. Two jobs run in parallel:
+
+- **Flake checks** — validates that nixpkgs inputs are recent and well-sourced ([Flake Checker](https://github.com/DeterminateSystems/flake-checker-action)), then runs `nix flake check` which executes the pre-commit hooks
+- **Build** — builds the full `fw13` NixOS configuration to verify it evaluates without errors
+
+Both jobs use [Determinate Nix](https://github.com/DeterminateSystems/determinate-nix-action) for Nix installation and [Magic Nix Cache](https://github.com/DeterminateSystems/magic-nix-cache-action) to cache store paths in the GitHub Actions cache between runs.
+
+### Update Flake Inputs (`update-flake.yml`)
+
+Runs weekly on Sunday at midnight UTC (or manual dispatch). Uses [update-flake-lock](https://github.com/DeterminateSystems/update-flake-lock) to run `nix flake update`, commit the changes, and open a PR. A PAT is used so that the PR triggers CI automatically.
+
 ## 📋 Troubleshooting
 
 ### Common Issues

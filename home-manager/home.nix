@@ -95,6 +95,7 @@
     nerd-fonts.hack # Hack font with programming symbols
     nextcloud-client # Nextcloud desktop sync client
     nvme-cli # NVM-Express user space tooling for Linux
+    orca-slicer # G-code generator for 3D printers.
     opencode # Open source coding agent
     pciutils # PCI utilities (lspci, etc.)
     pupdate # Pupdate tool

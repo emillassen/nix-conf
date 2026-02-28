@@ -58,6 +58,7 @@
     android-tools # Android SDK tools (adb, fastboot, etc.)
     ansible # IT automation and configuration management
     anydesk # Remote desktop application
+    bambu-studio # PC Software for BambuLab's 3D printers
     bat # cat replacement with syntax highlighting
     bottom # System monitor (btm command)
     (btop.override {

@@ -5,7 +5,6 @@
   ...
 }:
 let
-  # Helper function to reduce boilerplate for SMB secrets
   mkSmbSecret = name: {
     sopsFile = ../../secrets/smb.yaml;
     key = name;
@@ -22,28 +21,23 @@ in
     jq
   ];
 
-  # sops-nix configuration
   sops = {
     defaultSopsFormat = "yaml";
 
     age = {
       keyFile = "${config.users.users.emil.home}/.config/sops/age/keys.txt";
-      # Will generate a new key if it doesn't exist
       generateKey = false;
     };
 
     secrets = {
-      # SMB/CIFS credentials from dedicated file
       smb_username = mkSmbSecret "smb_username";
       smb_password = mkSmbSecret "smb_password";
 
-      # System-level secrets
       emil_password_hash = {
         sopsFile = ../../secrets/system.yaml;
         owner = "root";
         group = "root";
         mode = "0400";
-        # Ensure this secret is available during early boot
         neededForUsers = true;
       };
       luks_key = {
@@ -51,13 +45,11 @@ in
         owner = "root";
         group = "root";
         mode = "0400";
-        # Ensure this secret is available during early boot
         neededForUsers = true;
       };
     };
   };
 
-  # Validation service to check secrets are properly decrypted
   systemd.services.sops-secrets-validation = {
     description = "Validate sops secrets are accessible";
     wantedBy = [ "multi-user.target" ];
@@ -75,39 +67,18 @@ in
           name = "validate-sops-secrets";
           runtimeInputs = with pkgs; [ coreutils ];
           text = ''
-            echo "Validating sops secrets..."
-
             failed=0
-            errors=()
-
-            # Check all secrets in one loop
             for secret in smb_username smb_password emil_password_hash; do
               secret_path="/run/secrets/$secret"
-
               if [[ ! -r "$secret_path" ]]; then
-                echo "ERROR: Secret $secret not readable"
-                errors+=("Secret $secret not readable")
+                echo "ERROR: $secret not readable"
                 ((failed++))
               elif [[ ! -s "$secret_path" ]]; then
-                echo "ERROR: Secret $secret is empty"
-                errors+=("Secret $secret is empty")
+                echo "ERROR: $secret is empty"
                 ((failed++))
-              else
-                echo "✓ Secret $secret is available and non-empty"
               fi
             done
-
-            # Report results
-            if [[ $failed -eq 0 ]]; then
-              echo "All secrets validated successfully!"
-            else
-              echo
-              echo "=== VALIDATION SUMMARY ==="
-              echo "Found $failed issue(s):"
-              printf '  - %s\n' "''${errors[@]}"
-              echo "Please fix these issues and try again."
-              exit 1
-            fi
+            exit "$failed"
           '';
         }
       );

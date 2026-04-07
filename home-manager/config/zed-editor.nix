@@ -8,9 +8,9 @@
   home.packages =
     with pkgs;
     lib.mkAfter [
-      ansible-lint # Ansible playbook linter
-      nixd # Nix language server
-      nixfmt # Nix code formatter (RFC style)
+      ansible-lint
+      nixd
+      nixfmt
     ];
 
   programs.zed-editor = {

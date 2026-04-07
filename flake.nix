@@ -126,7 +126,6 @@
           pkgs = nixpkgs.legacyPackages.${system};
         in
         {
-          # Validate that all secrets are properly encrypted
           secrets-encrypted =
             pkgs.runCommand "check-secrets-encrypted"
               {
@@ -134,66 +133,39 @@
               }
               ''
                 cd ${./.}/secrets
-
-                echo "Checking that all secret files are encrypted..."
                 failed=0
 
                 for file in *.yaml; do
                   [[ "$file" == "*.yaml" ]] && continue
+                  [[ "$file" == ".sops.yaml" ]] && continue
 
-                  if [[ "$file" != ".sops.yaml" ]]; then
-                    echo "Checking $file..."
-                    # Check if file contains sops metadata instead of trying to decrypt
-                    if grep -q "sops:" "$file" && grep -q "age:" "$file"; then
-                      echo "✓ $file is properly encrypted (contains sops metadata)"
-                    else
-                      echo "ERROR: $file is not properly encrypted or is corrupted"
-                      ((failed++))
-                    fi
+                  if ! (grep -q "sops:" "$file" && grep -q "age:" "$file"); then
+                    echo "ERROR: $file is not encrypted"
+                    ((failed++))
                   fi
                 done
 
                 if [[ $failed -eq 0 ]]; then
-                  echo "All secrets are properly encrypted!"
                   touch $out
                 else
-                  echo "$failed secret(s) failed validation"
                   exit 1
                 fi
               '';
 
-          # Pre-commit hooks check
           pre-commit-check = pre-commit-hooks.lib.${system}.run {
             src = ./.;
             hooks = {
-              # Nix formatting
               nixfmt.enable = true;
-
-              # Nix linting
               statix.enable = true;
-
-              # Dead code detection
               deadnix.enable = true;
-
-              # Check for large files
               check-added-large-files.enable = true;
-
-              # Check for trailing whitespace
               end-of-file-fixer.enable = true;
-
-              # Check for trailing whitespace
               trim-trailing-whitespace.enable = true;
-
-              # Check for mixed line endings
               mixed-line-endings.enable = true;
-
-              # Check for case conflicts in filenames
               check-case-conflicts.enable = true;
-
-              # Check for merge conflicts
               check-merge-conflicts.enable = true;
+              detect-private-keys.enable = true;
 
-              # YAML formatting
               prettier = {
                 enable = true;
                 types_or = [
@@ -203,10 +175,6 @@
                 excludes = [ "^secrets/.*" ];
               };
 
-              # Check for private keys
-              detect-private-keys.enable = true;
-
-              # Custom hook for sops files
               sops-encrypted = {
                 enable = true;
                 name = "sops-encrypted";

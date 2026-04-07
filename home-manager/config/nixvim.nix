@@ -7,60 +7,48 @@
   programs.nixvim = {
     enable = true;
 
-    # General settings
     clipboard = {
       register = "unnamedplus";
       providers.wl-copy.enable = true;
     };
 
     opts = {
-      # File handling
       swapfile = false;
       backup = false;
 
-      # Line numbers
       number = true;
       relativenumber = true;
 
-      # UI settings
       termguicolors = true;
       scrolloff = 8;
       signcolumn = "yes";
       updatetime = 50;
 
-      # Search settings
       ignorecase = true;
       smartcase = true;
       incsearch = true;
       hlsearch = true;
 
-      # Indentation
       tabstop = 4;
       shiftwidth = 4;
       expandtab = true;
       smarttab = true;
 
-      # Better splits
       splitbelow = true;
       splitright = true;
 
-      # Show whitespace characters
       list = true;
       listchars = "tab:> ,trail:-,nbsp:+";
 
-      # Disable error bells
       errorbells = false;
     };
 
-    # Color scheme
     colorschemes.catppuccin = {
       enable = true;
       settings.flavour = "mocha";
     };
 
-    # Plugins
     plugins = {
-      # Treesitter for better syntax highlighting
       treesitter = {
         enable = true;
         settings = {
@@ -70,15 +58,12 @@
         };
       };
 
-      # Git integration
       fugitive.enable = true;
 
-      # Show keybindings
       which-key = {
         enable = true;
       };
 
-      # Start screen
       alpha = {
         enable = true;
         settings = {
@@ -222,7 +207,6 @@
       };
     };
 
-    # Keymaps
     keymaps = [
       {
         mode = "n";

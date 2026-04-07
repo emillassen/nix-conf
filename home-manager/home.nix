@@ -74,6 +74,7 @@
     duf # Disk usage analyzer
     easyeffects # Audio effects for PipeWire
     fastfetch # System information tool
+    freecad # Opensource CAD
     ffmpeg # Multimedia framework for video/audio processing
     filebot # TV show and movie file renaming tool
     firefox # Web browser

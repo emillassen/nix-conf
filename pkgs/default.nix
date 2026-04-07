@@ -4,4 +4,5 @@
 pkgs: {
   # example = pkgs.callPackage ./example { };
   vuescan = pkgs.callPackage ./vuescan { inherit (pkgs) lib; };
+  devilutionx = pkgs.callPackage ./devilutionx { };
 }

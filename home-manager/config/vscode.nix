@@ -11,21 +11,20 @@
   home.packages =
     with pkgs;
     lib.mkAfter [
-      ansible-lint # Ansible playbook linter
-      claude-code # Claude AI coding assistant CLI
-      nixd # Nix language server
-      nixfmt # Nix code formatter (RFC style)
-      pre-commit # Git pre-commit hook framework
-      #python3Full # Full Python 3 installation with libraries
-      yamllint # YAML linter
+      ansible-lint
+      claude-code
+      nixd
+      nixfmt
+      pre-commit
+      #python3Full
+      yamllint
     ];
 
   programs.vscode = {
     enable = true;
-    package = pkgs.vscode; # Could also use VSCodium for better privacy
+    package = pkgs.vscode;
     profiles.default = {
 
-      # Extensions
       # Use vscode-marketplace for extensions from nix-vscode-extensions (newest)
       # Use vscode-extensions for extensions from nixpkgs
       extensions = with pkgs; [
@@ -48,9 +47,7 @@
         vscode-marketplace.usernamehw.errorlens
       ];
 
-      # User settings
       userSettings = {
-        # Disable telemetry
         "telemetry.telemetryLevel" = "off";
         "telemetry.feedback.enabled" = false;
         "redhat.telemetry.enabled" = false;
@@ -58,17 +55,13 @@
         "extensions.ignoreRecommendations" = true;
         "workbench.tips.enabled" = false;
         "workbench.welcomePage.walkthroughs.openOnInstall" = false;
+        "workbench.enableExperiments" = false;
 
-        # Disable automatic updates and hide release notes
         "extensions.autoCheckUpdates" = false;
         "extensions.autoUpdate" = false;
         "update.showReleaseNotes" = false;
         "update.mode" = "none";
 
-        # Privacy settings
-        "workbench.enableExperiments" = false;
-
-        # Nix formatting
         "nix.formatterPath" = "${pkgs.nixfmt}/bin/nixfmt";
         "nix.enableLanguageServer" = true;
         "nix.serverPath" = "${pkgs.nixd}/bin/nixd";
@@ -81,7 +74,6 @@
           "editor.defaultFormatter" = "esbenp.prettier-vscode";
         };
 
-        # General settings
         "editor.fontFamily" = "Hack Nerd Font Mono";
         "editor.fontSize" = 14;
         "editor.formatOnSave" = true;
@@ -92,22 +84,18 @@
           120
         ];
 
-        # Theme
         "workbench.colorTheme" = "Catppuccin Mocha";
         "workbench.iconTheme" = "catppuccin-mocha";
 
-        # Git integration
         "git.autofetch" = false;
         "git.confirmSync" = false;
         "git.enableSmartCommit" = true;
 
-        # Terminal integration
         "terminal.integrated.fontFamily" = "Hack Nerd Font Mono";
         "terminal.integrated.fontSize" = 14;
         "terminal.integrated.defaultProfile.linux" = "zsh";
       };
 
-      # Keybindings
       keybindings = [
         {
           key = "ctrl+shift+f";

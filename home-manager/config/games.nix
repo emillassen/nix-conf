@@ -7,7 +7,11 @@
   home.packages =
     with pkgs;
     lib.mkAfter [
-      wesnoth # Battle for Wesnoth, a free, turn-based strategy game with a fantasy theme
+      devilutionx # Diablo build for modern operating systems
+      # nix-shell -p innoextract
+      # innoextract -I DIABDAT.MPQ -I hellfire.mpq -I hfmonk.mpq -I hfmusic.mpq -I hfvoice.mpq 'setup_diablo_1.09_hellfire_v4_(78466).exe' && mv hellfire/h*.mpq ./ && rmdir hellfire
+      # mv DIABDAT.MPQ hellfire.mpq hfmonk.mpq hfmusic.mpq hfvoice.mpq ~/.local/share/diasurgical/devilution/
+      #wesnoth # Battle for Wesnoth, a free, turn-based strategy game with a fantasy theme
       #openra # Open Source real-time strategy game engine for early Westwood games such as Command & Conquer: Red Alert
       #openrct2 # Open source re-implementation of RollerCoaster Tycoon 2 (original game required)
       #openttd # Open source clone of the Microprose game "Transport Tycoon Deluxe"
@@ -17,6 +21,8 @@
       #zeroad-unwrapped # Free, open-source game of ancient warfare
       #endless-sky # Sandbox-style space exploration game similar to Elite, Escape Velocity, or Star Control
       #widelands # Widelands is a free, open source real-time strategy game with singleplayer campaigns and a multiplayer mode. The game was inspired by Settlers II
-      fheroes2 # A recreation of Heroes of Might and Magic II game engine. Run `nix-shell -p innoextract` then `innoextract setup.exe` from GOG and then `mv DATA MAPS MUSIC SOUND HEROES2/ANIM ~/.local/share/fheroes2`
+      fheroes2 # A recreation of Heroes of Might and Magic II game engine.
+      # nix-shell -p innoextract then innoextract setup.exe
+      # mv DATA MAPS MUSIC SOUND HEROES2/ANIM ~/.local/share/fheroes2
     ];
 }

@@ -108,7 +108,6 @@
     stress-ng # System stress testing tool
     thunderbird # Email client
     usbutils # USB utilities (lsusb, etc.)
-    vcmi # Heroes of Might and Magic 3 engine
     vuescan # Scanner software (from /nix-conf/pkgs)
     wavemon # Wireless network monitoring tool
     wget # File downloader

@@ -24,5 +24,6 @@
       fheroes2 # A recreation of Heroes of Might and Magic II game engine.
       # nix-shell -p innoextract then innoextract setup.exe
       # mv DATA MAPS MUSIC SOUND HEROES2/ANIM ~/.local/share/fheroes2
+      #vcmi # Heroes of Might and Magic 3 engine
     ];
 }

@@ -1,0 +1,87 @@
+name: Update DevilutionX
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 0 * * 0"
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  update-devilutionx:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install Nix
+        uses: DeterminateSystems/determinate-nix-action@v3
+
+      - name: Setup Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v13
+        with:
+          use-flakehub: false
+
+      - name: Check for DevilutionX updates
+        id: update
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN_FOR_UPDATES }}
+        run: |
+          CURRENT_REV=$(awk '/src = fetchFromGitHub/{found=1} found && /rev = "/{match($0, /rev = "([^"]+)"/, a); print a[1]; exit}' pkgs/devilutionx/default.nix)
+          LATEST=$(curl -sf -H "Authorization: token $GITHUB_TOKEN" \
+            "https://api.github.com/repos/diasurgical/devilutionX/commits/master")
+          REV=$(echo "$LATEST" | jq -r '.sha')
+          DATE=$(echo "$LATEST" | jq -r '.commit.committer.date' | cut -dT -f1)
+          MESSAGE=$(echo "$LATEST" | jq -r '.commit.message' | head -1)
+          if [ "$REV" = "$CURRENT_REV" ]; then
+            echo "Already up to date"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "rev=$REV" >> "$GITHUB_OUTPUT"
+          echo "short_rev=${REV:0:7}" >> "$GITHUB_OUTPUT"
+          echo "date=$DATE" >> "$GITHUB_OUTPUT"
+          echo "message=$MESSAGE" >> "$GITHUB_OUTPUT"
+
+      - name: Update package
+        if: steps.update.outputs.changed == 'true'
+        run: |
+          HASH=$(nix-prefetch-github --rev "${{ steps.update.outputs.rev }}" diasurgical devilutionX | jq -r '.hash')
+          VERSION="unstable-${{ steps.update.outputs.date }}-${{ steps.update.outputs.short_rev }}"
+          awk -v new_rev="${{ steps.update.outputs.rev }}" \
+              -v new_hash="$HASH" \
+              -v new_version="$VERSION" '
+            /version = "/ {
+              sub(/version = "[^"]*"/, "version = \"" new_version "\"")
+            }
+            /src = fetchFromGitHub/ { in_src = 1 }
+            in_src && /rev = "/ {
+              sub(/rev = "[^"]*"/, "rev = \"" new_rev "\"")
+            }
+            in_src && /hash = "/ {
+              sub(/hash = "[^"]*"/, "hash = \"" new_hash "\"")
+              in_src = 0
+            }
+            { print }
+          ' pkgs/devilutionx/default.nix > pkgs/devilutionx/default.nix.tmp \
+            && mv pkgs/devilutionx/default.nix.tmp pkgs/devilutionx/default.nix
+
+      - name: Create Pull Request
+        if: steps.update.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GH_TOKEN_FOR_UPDATES }}
+          commit-message: "chore: update devilutionx to ${{ steps.update.outputs.short_rev }}"
+          branch: update-devilutionx
+          title: "chore: update devilutionx to ${{ steps.update.outputs.date }}"
+          body: |
+            Updates DevilutionX to [`${{ steps.update.outputs.short_rev }}`](https://github.com/diasurgical/devilutionX/commit/${{ steps.update.outputs.rev }}).
+            > ${{ steps.update.outputs.message }}
+          labels: |
+            dependencies
+            automated
+          assignees: emillassen

@@ -24,7 +24,7 @@
 let
   asio = fetchzip {
     url = "https://github.com/diasurgical/asio/archive/4bcf552fcea3e1ae555dde2ab33bc9fa6770da4d.tar.gz";
-    hash = "sha256-MhCPqe7YyoPWLpTu55UWNM1bmOX3TNL24FFSsBIohCM=";
+    hash = "sha256-MhCPqe7YyoPWLpTu55UWNM1bmOX3TNL24FFSsBIohCM";
   };
 
   libsmackerdec = fetchzip {
@@ -64,13 +64,13 @@ in
 
 stdenv.mkDerivation {
   pname = "devilutionx";
-  version = "1.6.0-unstable-2026-04-03";
+  version = "unstable-2026-05-09-b1299d5";
 
   src = fetchFromGitHub {
     owner = "diasurgical";
     repo = "devilutionX";
-    rev = "005e7dcc233cc9734831ef4d37da2a7270da1584";
-    hash = "sha256-XPM7mTpiEop3HK7YoLi5JYUjki1ga3b4unnxqgslUR8=";
+    rev = "b1299d56492239d06c071de4154a3417f3e65aad";
+    hash = "sha256-PaYGD0VnzKa3CPc8j1dZOQmxKikeal+nBCnEQxgSJIA=";
   };
 
   postPatch = ''

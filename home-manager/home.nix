@@ -95,6 +95,7 @@
     ncdu # Disk usage analyzer with ncurses interface
     nerd-fonts.hack # Hack font with programming symbols
     nextcloud-client # Nextcloud desktop sync client
+    nix-prefetch # Prefetch any fetcher function call, e.g. a package source
     nvme-cli # NVM-Express user space tooling for Linux
     orca-slicer # G-code generator for 3D printers.
     opencode # Open source coding agent

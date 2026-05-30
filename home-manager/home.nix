@@ -51,6 +51,7 @@
       EDITOR = "nvim";
       NH_FLAKE = "/home/emil/Documents/nix-conf";
     };
+    enableNixpkgsReleaseCheck = false;
   };
 
   home.packages = with pkgs; [

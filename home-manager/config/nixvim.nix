@@ -9,6 +9,8 @@
 
     nixpkgs.source = inputs.nixpkgs;
 
+    version.enableNixpkgsReleaseCheck = false;
+
     clipboard = {
       register = "unnamedplus";
       providers.wl-copy.enable = true;

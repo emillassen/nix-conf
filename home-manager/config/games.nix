@@ -21,9 +21,9 @@
       #zeroad-unwrapped # Free, open-source game of ancient warfare
       #endless-sky # Sandbox-style space exploration game similar to Elite, Escape Velocity, or Star Control
       #widelands # Widelands is a free, open source real-time strategy game with singleplayer campaigns and a multiplayer mode. The game was inspired by Settlers II
-      fheroes2 # A recreation of Heroes of Might and Magic II game engine.
+      #fheroes2 # A recreation of Heroes of Might and Magic II game engine.
       # nix-shell -p innoextract then innoextract setup.exe
       # mv DATA MAPS MUSIC SOUND HEROES2/ANIM ~/.local/share/fheroes2
-      vcmi # Heroes of Might and Magic 3 engine
+      #vcmi # Heroes of Might and Magic 3 engine
     ];
 }

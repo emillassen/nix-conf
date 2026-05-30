@@ -7,6 +7,8 @@
   programs.nixvim = {
     enable = true;
 
+    nixpkgs.source = inputs.nixpkgs;
+
     clipboard = {
       register = "unnamedplus";
       providers.wl-copy.enable = true;

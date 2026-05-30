@@ -150,6 +150,9 @@
     nh.enable = true;
   };
 
+  # Framework 13 fan control
+  hardware.fw-fanctrl.enable = true;
+
   # Packages to be installed systemwide
   #environment.systemPackages = with pkgs; [
   #];

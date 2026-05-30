@@ -58,11 +58,11 @@ Two GitHub Actions workflows in `.github/workflows/`:
 - **`ci.yml`** — Runs on push to `main`, PRs, and manual dispatch. Two parallel jobs: `checks` (flake-checker + `nix flake check`) and `build` (builds the `fw13` NixOS configuration).
 - **`update-flake.yml`** — Weekly (Sunday midnight UTC) or manual. Runs `nix flake update` and opens a PR via `update-flake-lock`. Uses a PAT (`GH_TOKEN_FOR_UPDATES`) to trigger CI on the PR.
 
-Actions used: `determinate-nix-action@v3` (Nix installation), `magic-nix-cache-action@v13` (GHA caching, FlakeHub disabled), `flake-checker-action@v12` (nixpkgs input health), `update-flake-lock@v28` (automated PRs).
+Actions used: `determinate-nix-action@v3` (Nix installation), `magic-nix-cache-action@v14` (GHA caching, FlakeHub disabled), `flake-checker-action@v12` (nixpkgs input health), `update-flake-lock@v28` (automated PRs).
 
 ## Key Patterns
 
-- The flake uses `nixpkgs-unstable` as the primary channel with `nixpkgs-stable` (25.11) available via `pkgs.stable` overlay.
+- The flake uses `nixpkgs-unstable` as the primary channel with `nixpkgs-stable` (26.05) available via `pkgs.stable` overlay.
 - Pre-commit hooks are configured in the flake: nixfmt, statix, deadnix, prettier, sops encryption validation.
 - Catppuccin Mocha is the system-wide theme (editors, terminal, git delta).
 - User is `emil`, home at `/home/emil`. Zsh is the default shell.

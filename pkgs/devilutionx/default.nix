@@ -64,13 +64,13 @@ in
 
 stdenv.mkDerivation {
   pname = "devilutionx";
-  version = "unstable-2026-05-31-2a2d7fb";
+  version = "unstable-2026-06-05-bd4ed47";
 
   src = fetchFromGitHub {
     owner = "diasurgical";
     repo = "devilutionX";
-    rev = "2a2d7fb3d1273252442e4580a5ea2c6fbe6141f2";
-    hash = "sha256-FJ8w8wt0Tk7PdZbZc71NpYlAJgLXC3KW32+6ke4WTVA=";
+    rev = "bd4ed470a82434ee1ca0e4e6c7092e414795a63e";
+    hash = "";
   };
 
   postPatch = ''

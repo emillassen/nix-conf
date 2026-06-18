@@ -82,23 +82,29 @@
   # Bootloader
   boot = {
     loader = {
+      timeout = 0;
       systemd-boot = {
         enable = true;
         memtest86.enable = true;
       };
       efi.canTouchEfiVariables = true;
     };
-    # Don't echo asterisks while typing the LUKS passphrase at boot
-    # (password-echo: "yes" = show chars, "masked" = asterisks (default), "no" = nothing)
-    initrd.luks.devices."crypted".crypttabExtraOpts = [ "password-echo=no" ];
+    initrd = {
+      # Use systemd in the initrd so Plymouth (and the themed LUKS prompt) start early
+      systemd.enable = true;
+      # Don't echo asterisks while typing the LUKS passphrase at boot
+      # (password-echo: "yes" = show chars, "masked" = asterisks (default), "no" = nothing)
+      luks.devices."crypted".crypttabExtraOpts = [ "password-echo=no" ];
+      # Plymouth wants a quiet boot to look clean
+      verbose = false;
+    };
     # Graphical boot splash + LUKS password screen (themed via ./common/catppuccin.nix)
     plymouth.enable = true;
-    # Plymouth wants a quiet boot to look clean
     consoleLogLevel = 0;
-    initrd.verbose = false;
     kernelParams = [
       "quiet"
-      "udev.log_level=3"
+      "rd.udev.log_level=3"
+      "rd.systemd.show_status=auto"
     ];
     # Enable tmpfs for /tmp
     tmp = {

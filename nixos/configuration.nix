@@ -88,6 +88,18 @@
       };
       efi.canTouchEfiVariables = true;
     };
+    # Don't echo asterisks while typing the LUKS passphrase at boot
+    # (password-echo: "yes" = show chars, "masked" = asterisks (default), "no" = nothing)
+    initrd.luks.devices."crypted".crypttabExtraOpts = [ "password-echo=no" ];
+    # Graphical boot splash + LUKS password screen (themed via ./common/catppuccin.nix)
+    plymouth.enable = true;
+    # Plymouth wants a quiet boot to look clean
+    consoleLogLevel = 0;
+    initrd.verbose = false;
+    kernelParams = [
+      "quiet"
+      "udev.log_level=3"
+    ];
     # Enable tmpfs for /tmp
     tmp = {
       useTmpfs = true;

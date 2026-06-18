@@ -17,5 +17,9 @@
 
     # Virtual console / TTY colors.
     tty.enable = true;
+
+    # Boot splash / LUKS password screen (boot.plymouth enabled in ../configuration.nix).
+    # Uses the global flavor (mocha) above; this target has no accent option.
+    plymouth.enable = true;
   };
 }

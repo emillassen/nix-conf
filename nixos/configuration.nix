@@ -86,6 +86,8 @@
       systemd-boot = {
         enable = true;
         memtest86.enable = true;
+        # Cap stored generations so the 2G ESP doesn't fill up with old kernels/initrds
+        configurationLimit = 10;
       };
       efi.canTouchEfiVariables = true;
     };
@@ -140,6 +142,8 @@
 
   # Services
   services = {
+    # Periodic TRIM for the SSD (LUKS allowDiscards is set in disks.nix)
+    fstrim.enable = true;
     # Enables firmware updates
     fwupd = {
       enable = true;

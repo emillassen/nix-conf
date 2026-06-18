@@ -1,6 +1,11 @@
 # This is your home-manager configuration file
 # Use this to configure your home environment (it replaces ~/.config/nixpkgs/home.nix)
-{ outputs, pkgs, ... }:
+{
+  inputs,
+  outputs,
+  pkgs,
+  ...
+}:
 {
   # You can import other home-manager modules here
   imports = [
@@ -35,6 +40,7 @@
 
       # You can also add overlays exported from other flakes:
       # neovim-nightly-overlay.overlays.default
+      inputs.llm-agents.overlays.default # AI coding agents -> pkgs.llm-agents.*
     ];
     # Configure your nixpkgs instance
     config = {
@@ -59,7 +65,7 @@
     android-tools # Android SDK tools (adb, fastboot, etc.)
     ansible # IT automation and configuration management
     anydesk # Remote desktop application
-    bambu-studio # PC Software for BambuLab's 3D printers
+    #bambu-studio # PC Software for BambuLab's 3D printers
     bat # cat replacement with syntax highlighting
     bottom # System monitor (btm command)
     (btop.override {
@@ -79,7 +85,6 @@
     ffmpeg # Multimedia framework for video/audio processing
     filebot # TV show and movie file renaming tool
     firefox # Web browser
-    gemini-cli # Gemini protocol client
     #gimp # Image editing software (disabled)
     inkscape # Vector graphics editor
     iperf # Network performance testing tool
@@ -99,7 +104,6 @@
     nix-prefetch # Prefetch any fetcher function call, e.g. a package source
     nvme-cli # NVM-Express user space tooling for Linux
     orca-slicer # G-code generator for 3D printers.
-    opencode # Open source coding agent
     pciutils # PCI utilities (lspci, etc.)
     pupdate # Pupdate tool
     remmina # Remote desktop client
@@ -118,6 +122,11 @@
     wl-clipboard # Wayland clipboard utilities
     yacreader # Comic book reader
     yt-dlp # YouTube video downloader
+
+    # AI coding agents from numtide/llm-agents.nix (via the overlay above)
+    # (claude-code is declared in config/vscode.nix as a VSCode dependency)
+    llm-agents.opencode # Open source coding agent
+    llm-agents.gemini-cli # Google Gemini CLI agent
   ];
 
   # Required to autoload fonts from packages installed via Home Manager

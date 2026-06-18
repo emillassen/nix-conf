@@ -41,7 +41,7 @@
       enableGitIntegration = true;
       options = {
         side-by-side = true;
-        syntax-theme = "Catppuccin-mocha";
+        syntax-theme = "Catppuccin Mocha";
       };
     };
 

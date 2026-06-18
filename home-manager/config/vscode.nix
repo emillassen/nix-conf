@@ -12,7 +12,7 @@
     with pkgs;
     lib.mkAfter [
       ansible-lint
-      claude-code
+      llm-agents.claude-code # CLI backing the claude-code VSCode extension
       nixd
       nixfmt
       pre-commit

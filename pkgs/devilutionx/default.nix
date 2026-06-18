@@ -64,13 +64,13 @@ in
 
 stdenv.mkDerivation {
   pname = "devilutionx";
-  version = "unstable-2026-05-31-2a2d7fb";
+  version = "unstable-2026-06-10-b85bc28";
 
   src = fetchFromGitHub {
     owner = "diasurgical";
     repo = "devilutionX";
-    rev = "2a2d7fb3d1273252442e4580a5ea2c6fbe6141f2";
-    hash = "sha256-FJ8w8wt0Tk7PdZbZc71NpYlAJgLXC3KW32+6ke4WTVA=";
+    rev = "b85bc285f540eab5aed181f5b7437be6a348bb51";
+    hash = "sha256-O9DOOeABf7ilyNA+Rk1Hq7Zs1RHOC55T/tE4JQYhLno=";
   };
 
   postPatch = ''
@@ -122,7 +122,12 @@ stdenv.mkDerivation {
     description = "Diablo build for modern operating systems";
     license = lib.licenses.sustainableUse;
     mainProgram = "devilutionx";
-    maintainers = [ ];
+    maintainers = [
+      {
+        name = "Emil Lassen";
+        github = "emillassen";
+      }
+    ];
     platforms = lib.platforms.linux;
   };
 }

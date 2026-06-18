@@ -68,6 +68,8 @@ in
           runtimeInputs = with pkgs; [ coreutils ];
           text = ''
             failed=0
+            # luks_key is intentionally excluded: it's consumed pre-boot by disko/initrd,
+            # not via /run/secrets, so it's never present here to validate.
             for secret in smb_username smb_password emil_password_hash; do
               secret_path="/run/secrets/$secret"
               if [[ ! -r "$secret_path" ]]; then

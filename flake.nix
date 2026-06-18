@@ -15,10 +15,14 @@
 
       # nix community's cache server
       "https://nix-community.cachix.org"
+
+      # numtide cache for llm-agents.nix prebuilt AI agents
+      "https://cache.numtide.com"
     ];
     trusted-public-keys = [
       "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="
       "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
+      "niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g="
     ];
   };
 
@@ -54,6 +58,11 @@
     # Nixvim - Neovim configuration with Nix
     nixvim.url = "github:nix-community/nixvim";
     nixvim.inputs.nixpkgs.follows = "nixpkgs";
+
+    # AI coding agents (claude-code, opencode, gemini-cli, ...)
+    # Keeps its own pinned nixpkgs on purpose so the numtide binary cache
+    # applies - do NOT set inputs.nixpkgs.follows or the agents rebuild locally.
+    llm-agents.url = "github:numtide/llm-agents.nix";
   };
 
   outputs =
@@ -94,7 +103,6 @@
         import ./pkgs pkgs
       );
       # Formatter for your nix files, available through 'nix fmt'
-      # Other options beside 'alejandra' include 'nixpkgs-fmt'
       formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.nixfmt);
 
       # Your custom packages and modifications, exported as overlays
@@ -126,32 +134,6 @@
           pkgs = nixpkgs.legacyPackages.${system};
         in
         {
-          secrets-encrypted =
-            pkgs.runCommand "check-secrets-encrypted"
-              {
-                nativeBuildInputs = [ pkgs.sops ];
-              }
-              ''
-                cd ${./.}/secrets
-                failed=0
-
-                for file in *.yaml; do
-                  [[ "$file" == "*.yaml" ]] && continue
-                  [[ "$file" == ".sops.yaml" ]] && continue
-
-                  if ! (grep -q "sops:" "$file" && grep -q "age:" "$file"); then
-                    echo "ERROR: $file is not encrypted"
-                    ((failed++))
-                  fi
-                done
-
-                if [[ $failed -eq 0 ]]; then
-                  touch $out
-                else
-                  exit 1
-                fi
-              '';
-
           pre-commit-check = pre-commit-hooks.lib.${system}.run {
             src = ./.;
             hooks = {

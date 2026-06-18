@@ -8,7 +8,7 @@
       yaml-language-server
       prettier
       marksman
-      taplo
+      vscode-langservers-extracted # provides vscode-json-language-server
     ];
 
   programs.helix = {
@@ -63,7 +63,7 @@
       {
         name = "json";
         auto-format = true;
-        language-servers = [ "prettier" ];
+        language-servers = [ "vscode-json-language-server" ];
         formatter = {
           command = pkgs.lib.getExe pkgs.prettier;
           args = [

@@ -67,6 +67,11 @@
       warn-dirty = false;
       # Deduplicate and optimize nix store
       auto-optimise-store = true;
+      # Binary cache for numtide/llm-agents.nix (prebuilt AI agents)
+      extra-substituters = [ "https://cache.numtide.com" ];
+      extra-trusted-public-keys = [
+        "niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g="
+      ];
     };
   };
 

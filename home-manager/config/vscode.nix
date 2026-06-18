@@ -29,8 +29,8 @@
       # Use vscode-extensions for extensions from nixpkgs
       extensions = with pkgs; [
         vscode-marketplace.anthropic.claude-code
-        vscode-marketplace.catppuccin.catppuccin-vsc
-        vscode-marketplace.catppuccin.catppuccin-vsc-icons
+        # catppuccin-vsc + catppuccin-vsc-icons are provided by the Catppuccin
+        # module (config/catppuccin.nix)
         vscode-marketplace.eamodio.gitlens
         vscode-marketplace.esbenp.prettier-vscode
         vscode-marketplace.github.vscode-github-actions
@@ -84,8 +84,8 @@
           120
         ];
 
-        "workbench.colorTheme" = "Catppuccin Mocha";
-        "workbench.iconTheme" = "catppuccin-mocha";
+        # workbench.colorTheme + iconTheme are set by Catppuccin
+        # (config/catppuccin.nix)
 
         "git.autofetch" = false;
         "git.confirmSync" = false;

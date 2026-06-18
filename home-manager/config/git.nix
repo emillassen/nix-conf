@@ -41,7 +41,7 @@
       enableGitIntegration = true;
       options = {
         side-by-side = true;
-        syntax-theme = "Catppuccin Mocha";
+        # syntax-theme is set by Catppuccin (config/catppuccin.nix)
       };
     };
 

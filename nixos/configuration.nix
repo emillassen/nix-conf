@@ -27,6 +27,7 @@
     ./common/yubikey.nix
     ./common/sops.nix
     ./common/cifs.nix
+    ./common/catppuccin.nix
   ];
 
   home-manager = {

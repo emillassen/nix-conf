@@ -5,7 +5,7 @@
     package = pkgs.ghostty;
     settings = {
       #https://ghostty.org/docs/config/reference
-      theme = "Catppuccin Mocha";
+      # theme is set by Catppuccin (config/catppuccin.nix)
       font-family = "Hack Nerd Font Mono";
       font-size = 10;
       cursor-style = "block";

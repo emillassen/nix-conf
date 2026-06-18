@@ -59,6 +59,10 @@
     nixvim.url = "github:nix-community/nixvim";
     nixvim.inputs.nixpkgs.follows = "nixpkgs";
 
+    # Catppuccin theming for NixOS and Home Manager
+    catppuccin.url = "github:catppuccin/nix";
+    catppuccin.inputs.nixpkgs.follows = "nixpkgs";
+
     # AI coding agents (claude-code, opencode, gemini-cli, ...)
     # Keeps its own pinned nixpkgs on purpose so the numtide binary cache
     # applies - do NOT set inputs.nixpkgs.follows or the agents rebuild locally.
@@ -189,6 +193,7 @@
             disko.nixosModules.disko
             nixos-hardware.nixosModules.framework-13-7040-amd
             sops-nix.nixosModules.sops
+            inputs.catppuccin.nixosModules.catppuccin
 
             # given the users in this list the right to specify additional substituters via:
             # 1. `nixConfig.substituers` in `flake.nix`

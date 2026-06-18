@@ -14,7 +14,7 @@
   programs.helix = {
     enable = true;
     settings = {
-      theme = "catppuccin_mocha";
+      # theme is set by Catppuccin (config/catppuccin.nix)
       editor = {
         line-number = "relative";
         cursorline = true;

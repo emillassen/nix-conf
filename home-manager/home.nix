@@ -14,9 +14,11 @@
 
     # Or modules exported from other flakes (such as nix-colors):
     # inputs.nix-colors.homeManagerModules.default
+    inputs.catppuccin.homeModules.catppuccin
 
     # You can also split up your configuration and import pieces of it here:
     ./config/git.nix # Needed for home-manager to work
+    ./config/catppuccin.nix
     #./config/kitty.nix
     ./config/ghostty.nix
     ./config/nixvim.nix
@@ -66,11 +68,9 @@
     ansible # IT automation and configuration management
     anydesk # Remote desktop application
     #bambu-studio # PC Software for BambuLab's 3D printers
-    bat # cat replacement with syntax highlighting
+    # bat, btop and lazygit are configured as programs in config/catppuccin.nix
+    # so Catppuccin can theme them.
     bottom # System monitor (btm command)
-    (btop.override {
-      rocmSupport = true;
-    }) # Interactive process viewer with AMD GPU support
     blisp # In-System-Programming (ISP) tool & library
     calibre # E-book management application
     chirp # Radio programming software
@@ -91,7 +91,6 @@
     iw # Wireless configuration utility
     kcc # Kindle Comic Converter
     krita # Digital painting application
-    lazygit # Git terminal UI
     #lgogdownloader # GOG.com game downloader
     libation # Audible audiobook manager
     libreoffice # Office suite

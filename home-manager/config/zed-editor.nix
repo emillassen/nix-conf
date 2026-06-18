@@ -30,7 +30,7 @@
 
     # https://zed.dev/docs/reference/all-settings
     userSettings = {
-      theme = "Catppuccin Mocha";
+      # theme is set by Catppuccin (config/catppuccin.nix)
       icon_theme = "Catppuccin Mocha";
       buffer_font_family = "Hack Nerd Font Mono";
       buffer_font_size = 14;

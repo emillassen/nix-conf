@@ -29,7 +29,7 @@ let
       "x-systemd.idle-timeout=60"
       "x-systemd.mount-timeout=15s"
       # SMB options
-      "credentials=/run/secrets/rendered/smb-credentials"
+      "credentials=${config.sops.templates."smb-credentials".path}"
       "uid=1000"
       "gid=100"
       "forceuid"

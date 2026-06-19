@@ -1,9 +1,7 @@
-{ pkgs, ... }:
-{
+_: {
   programs = {
     git = {
       enable = true;
-      package = pkgs.git;
 
       # GPG signing
       signing = {

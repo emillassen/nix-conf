@@ -111,7 +111,6 @@
     signal-desktop # Signal messenger desktop client
     spotify # Music streaming service
     stress-ng # System stress testing tool
-    thunderbird # Email client
     usbutils # USB utilities (lsusb, etc.)
     vuescan # Scanner software (from /nix-conf/pkgs)
     wavemon # Wireless network monitoring tool

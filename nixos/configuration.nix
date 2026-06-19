@@ -117,8 +117,8 @@
     kernelPackages = pkgs.linuxPackages_latest;
   };
 
-  # Enable zramswap
-  #zramSwap.enable = true; # Disabled due to no swap on this host, have to reinstall first
+  # Compressed RAM-backed swap (no disk partition required).
+  zramSwap.enable = true;
 
   # Enables automatic upgrades
   #system.autoUpgrade.enable = true;
@@ -153,18 +153,15 @@
     # Enable fingerprint sensor
     fprintd.enable = true;
     # Enables Mullvad
-    mullvad-vpn = {
-      enable = true;
-      package = pkgs.mullvad-vpn;
-    };
-    # Configure keymap in X11
-    xserver = {
-      # Enable the X11 windowing system. Required for GNOME, KDE, Hyprland etc.
-      enable = true;
-      xkb = {
-        layout = "dk";
-        variant = "";
-      };
+    mullvad-vpn.enable = true;
+    # Keyboard layout. Plasma runs on Wayland (SDDM Wayland), so the full X
+    # server isn't enabled; xkb here still feeds SDDM and the Plasma default.
+    xserver.xkb = {
+      layout = "dk";
+      # nodeadkeys: ~ ` ^ ´ emit literally instead of acting as dead keys
+      # (composing accents). Ghostty swallows dead-key sequences, so a bare
+      # layout makes ~ untypable in the terminal.
+      variant = "nodeadkeys";
     };
   };
 
@@ -174,8 +171,14 @@
     kdeconnect.enable = true;
     # Enable zsh
     zsh.enable = true;
-    # Enable nh
-    nh.enable = true;
+    # Enable nh and let it handle store cleanup (store-aware GC).
+    nh = {
+      enable = true;
+      clean = {
+        enable = true;
+        extraArgs = "--keep-since 30d --keep 10";
+      };
+    };
   };
 
   # Framework 13 fan control
@@ -223,12 +226,7 @@
     };
   };
 
-  # Cleans up generations every week
-  nix.gc = {
-    automatic = true;
-    dates = "weekly";
-    options = "--delete-older-than 30d";
-  };
+  # Generation cleanup is handled by programs.nh.clean (see above).
 
   # https://nixos.wiki/wiki/FAQ/When_do_I_update_stateVersion
   system.stateVersion = "26.05";

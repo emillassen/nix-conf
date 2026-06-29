@@ -66,7 +66,7 @@
     amdgpu_top # AMD GPU monitoring tool
     android-tools # Android SDK tools (adb, fastboot, etc.)
     ansible # IT automation and configuration management
-    #anydesk # Remote desktop application
+    anydesk # Remote desktop application
     #bambu-studio # PC Software for BambuLab's 3D printers
     # bat, btop and lazygit are configured as programs in config/catppuccin.nix
     # so Catppuccin can theme them.

@@ -50,7 +50,13 @@ jobs:
       - name: Update package
         if: steps.update.outputs.changed == 'true'
         run: |
-          HASH=$(nix-prefetch-github --rev "${{ steps.update.outputs.rev }}" diasurgical devilutionX | jq -r '.hash')
+          set -o pipefail
+          # nix-prefetch-github is not on the runner's PATH, so run it via nix
+          HASH=$(nix run nixpkgs#nix-prefetch-github -- --rev "${{ steps.update.outputs.rev }}" diasurgical devilutionX | jq -r '.hash')
+          if [ -z "$HASH" ] || [ "$HASH" = "null" ]; then
+            echo "ERROR: failed to prefetch hash for ${{ steps.update.outputs.rev }}" >&2
+            exit 1
+          fi
           VERSION="unstable-${{ steps.update.outputs.date }}-${{ steps.update.outputs.short_rev }}"
           awk -v new_rev="${{ steps.update.outputs.rev }}" \
               -v new_hash="$HASH" \

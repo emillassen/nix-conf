@@ -196,7 +196,7 @@
             inputs.catppuccin.nixosModules.catppuccin
 
             # given the users in this list the right to specify additional substituters via:
-            # 1. `nixConfig.substituers` in `flake.nix`
+            # 1. `nixConfig.substituters` in `flake.nix`
             { nix.settings.trusted-users = [ "emil" ]; }
           ];
         };

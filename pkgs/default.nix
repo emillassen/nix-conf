@@ -3,7 +3,7 @@
 # build them with nix build .#package-name, or bring them into your shell with nix shell .#package-name
 pkgs: {
   # example = pkgs.callPackage ./example { };
-  drtv-links = pkgs.callPackage ./drtv-links { };
+  drtv-dl = pkgs.callPackage ./drtv-dl { };
   vuescan = pkgs.callPackage ./vuescan { };
   devilutionx = pkgs.callPackage ./devilutionx { };
 }

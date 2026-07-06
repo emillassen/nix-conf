@@ -5,7 +5,7 @@ Usage: drtv-dl [-d DIR] [-l] URL [extra yt-dlp options...]
 Download every episode of a DRTV (dr.dk/drtv) series or season, named so
 Jellyfin picks them up:
 
-  Series Name/Season 10/Series Name S10E05 - Episode Title.mkv
+  Series Name/Season 10/Series Name - S10E05 - Episode Title.mkv
 
 Options:
   -d DIR   root of your TV library (default: current directory)
@@ -58,8 +58,14 @@ if [[ "$links_only" == 1 ]]; then
   exec yt-dlp --flat-playlist --print webpage_url "$url" "$@"
 fi
 
+# DRTV episode titles repeat the series name ("Gurli Gris: Slemme skildpadde");
+# strip that prefix from episode/title, but only when it matches the series
+# exactly (the backreference), so unrelated colons in titles are left alone.
 exec yt-dlp \
   --embed-metadata \
   --sub-langs all --embed-subs \
-  --output "$dest/%(series)s/Season %(season_number)02d/%(series)s S%(season_number)02dE%(episode_number)02d - %(episode)s.%(ext)s" \
+  --concurrent-fragments 6 \
+  --parse-metadata '%(series)s|%(episode)s:^(?P<series>.+)\|(?P=series): (?P<episode>.+)$' \
+  --parse-metadata '%(series)s|%(title)s:^(?P<series>.+)\|(?P=series): (?P<title>.+)$' \
+  --output "$dest/%(series)s/Season %(season_number)02d/%(series)s - S%(season_number)02dE%(episode_number)02d - %(episode)s.%(ext)s" \
   "$url" "$@"

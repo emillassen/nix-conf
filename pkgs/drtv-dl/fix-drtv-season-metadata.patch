@@ -1,0 +1,18 @@
+DRTVSeasonIE already extracts series/season_number for each episode entry,
+but emits them as plain '_type: url' entries, which discard all extra fields
+when the episode is resolved. 'url_transparent' merges them into the final
+info dict, so %(series)s and %(season_number)s work in output templates.
+The episode extractor itself can't provide them: the season/show object is
+missing from the episode webpage's embedded JSON.
+
+--- a/yt_dlp/extractor/drtv.py
++++ b/yt_dlp/extractor/drtv.py
+@@ -335,7 +335,7 @@ class DRTVSeasonIE(InfoExtractor):
+         data = self._download_json(SERIES_API % f'/saeson/{display_id}_{season_id}', display_id)
+
+         entries = [{
+-            '_type': 'url',
++            '_type': 'url_transparent',
+             'url': f'https://www.dr.dk/drtv{episode["path"]}',
+             'ie_key': DRTVIE.ie_key(),
+             'title': episode.get('title'),

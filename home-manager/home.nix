@@ -62,6 +62,7 @@
     curl # Command-line tool for transferring data
     delfin # Jellyfin client
     discord # Voice and text chat application
+    drtv-dl # Download DRTV series for Jellyfin via yt-dlp (from /nix-conf/pkgs)
     duf # Disk usage analyzer
     easyeffects # Audio effects for PipeWire
     fastfetch # System information tool

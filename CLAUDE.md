@@ -4,71 +4,88 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-A NixOS flake-based configuration for a Framework 13 7040 AMD laptop (host: `fw13`). Single-host setup with Home Manager integrated as a NixOS module.
+A NixOS flake configuration for a Framework 13 7040 AMD laptop (host `fw13`, 32GB RAM, Radeon 780M iGPU), running KDE Plasma 6 on Wayland. Single host, single user (`emil`, zsh, home at `/home/emil`). Home Manager is integrated as a NixOS module and shares the system nixpkgs instance (`home-manager.useGlobalPkgs = true`). `README.md` has a feature overview.
 
 ## Build and Development Commands
 
 ```bash
-# Rebuild and switch (nh is enabled, NH_FLAKE env var points here)
+# Rebuild and switch (nh is enabled; NH_FLAKE is set system-wide via programs.nh.flake)
 nh os switch
 
-# Or the standard way
+# The standard way
 sudo nixos-rebuild switch --flake /home/emil/Documents/nix-conf#fw13
 
-# Format all Nix files
+# Format all Nix files. The formatter is nixfmt-tree (treefmt+nixfmt), which walks
+# the tree itself — plain nixfmt breaks under `nix fmt` on Nix >= 2.25.
 nix fmt
 
-# Run flake checks (pre-commit hooks + secrets validation)
+# Main validation gate: pre-commit hooks + full evaluation of the fw13 system.
+# CI is disabled (see below), so always run this locally before committing.
 nix flake check -v
 
 # Update flake inputs
 nix flake update
 
-# Enter dev shell (provides sops, age, plus the pre-commit hook packages)
+# Dev shell: sops, age, pre-commit tooling (also installs the git hooks)
 nix develop
 
 # Edit encrypted secrets (smb.yaml, system.yaml, luks.yaml)
 sops secrets/smb.yaml
 
-# Garbage collect
-sudo nix-collect-garbage -d && nix-store --optimise
+# Store/generation cleanup is automated (programs.nh.clean: --keep-since 30d --keep 10);
+# manual equivalent:
+nh clean all
+
+# Custom packages can be built directly
+nix build .#devilutionx
 ```
+
+Zsh abbreviations on the host: `ns`/`nsu` (rebuild/upgrade), `nix-clean`, `flake-up`.
 
 ## Architecture
 
-**flake.nix** is the entry point. It defines one NixOS configuration (`fw13`) that composes:
+**flake.nix** is the entry point. Outputs: `nixosConfigurations.fw13`, `packages` (from `pkgs/`), `formatter` (nixfmt-tree), `overlays`, `devShells`, `checks` (pre-commit), plus empty `nixosModules`/`homeManagerModules` stubs (`modules/` is placeholder). `systems` is Linux-only (x86_64 + aarch64).
 
-- `nixos/configuration.nix` — Main system config. Imports hardware config, disk layout, desktop environment, and common modules. Home Manager is imported here as a NixOS module (not standalone).
-- `nixos/common/` — Shared system modules: `pipewire.nix` (audio), `sops.nix` (secrets), `yubikey.nix` (GPG/SSH auth), `cifs.nix` (NAS mounts), `steam.nix` (gaming).
-- `nixos/kde.nix` / `nixos/gnome.nix` — Desktop environments (KDE is active; `gnome.nix` import is commented out in `configuration.nix`).
-- `nixos/disks.nix` — Disko declarative disk layout (LUKS-encrypted ext4).
+Inputs: nixpkgs (nixos-unstable), nixpkgs-stable (26.05), disko, home-manager, nixos-hardware, nix-vscode-extensions, sops-nix, pre-commit-hooks, nixvim, catppuccin, llm-agents. Every input follows the main nixpkgs **except `llm-agents`**, which keeps its own pinned nixpkgs on purpose so the numtide binary cache applies — do not add `follows` to it.
 
-**home-manager/home.nix** is the Home Manager entry point for user `emil`. Per-application configs live in `home-manager/config/` (git, ghostty, kitty, nixvim, zsh, vscode, zed-editor, helix, games, nextcloud, and `gnome/` for GNOME settings + Catppuccin). Several imports are currently disabled in `home.nix` (kitty, the `gnome/` configs, and nextcloud — see comments marking them as broken/resetting).
+- `nixos/configuration.nix` — Main system config. Imports hardware config, disks, KDE, and the `common/` modules, and wires in Home Manager. All nixpkgs overlays and config (allowUnfree) live **here** and serve both system and HM: `additions` (pkgs/), `modifications` (empty), `stable-packages` (`pkgs.stable`), `nix-vscode-extensions` (`pkgs.vscode-marketplace.*`), `llm-agents` (`pkgs.llm-agents.*`).
+- `nixos/common/` — `pipewire.nix` (audio), `sops.nix` (secrets, see below), `yubikey.nix` (GPG agent + SSH support, yubikey-manager, touch detector), `cifs.nix` (NAS automounts at `/mnt/<share>` from 192.168.1.30, credentials via a sops template), `steam.nix` (+ gamemode, proton-ge), `catppuccin.nix` (system theming: SDDM, TTY, Plymouth).
+- `nixos/kde.nix` — active desktop (Plasma 6, SDDM on Wayland, autologin). `nixos/gnome.nix` exists but its import is commented out in `configuration.nix`.
+- `nixos/disks.nix` — Disko layout: GPT, 2G ESP, LUKS (`crypted`, discards allowed) with ext4 root. `passwordFile = /tmp/secret.key` is only used at install time.
+- System notables: systemd initrd + Plymouth (themed LUKS prompt, `password-echo=no`), latest kernel, zram swap, tmpfs `/tmp` (16G), systemd-boot capped at 10 generations, fwupd (+ lvfs-testing), fprintd, Mullvad, fw-fanctrl, rtl-sdr, Danish locale and `dk`/`nodeadkeys` layout. `system.stateVersion = "26.05"` — do not bump it.
 
-**Modules** (`modules/nixos/`, `modules/home-manager/`) are placeholder stubs for reusable modules you might export — both are currently empty.
+**home-manager/home.nix** is the HM entry point for `emil`. Per-app configs in `home-manager/config/`: git (+ delta, gh, GPG signing), catppuccin, ghostty, nixvim, zsh (+ starship, zsh-abbr), vscode, zed-editor, helix, games. Disabled imports (see comments in `home.nix`): `kitty.nix`, `gnome/gnomesettings.nix`, `gnome/catppuccin.nix`, `nextcloud.nix` — the gnome ones are moot under KDE but kept valid.
 
-**Overlays** (`overlays/default.nix`) provide a `stable` package set from nixpkgs-stable (`pkgs.stable`), an `additions` overlay that pulls in everything from `pkgs/`, and an (empty) `modifications` overlay for package overrides/patches.
+**pkgs/** — custom packages, exposed via the `additions` overlay and the `packages` output:
 
-**Custom packages** live in `pkgs/` — `vuescan` (scanner software) and `devilutionx` (Diablo engine, built from a pinned upstream commit). `pkgs/default.nix` wires them up; `pkgs/devilutionx/update.sh` refreshes the pinned revision.
+- `vuescan` — unfree scanner binary fetched from a personal mirror (github.com/emillassen/binary-mirror releases), autoPatchelf'd; the release tag/URL interpolates `version`.
+- `devilutionx` — built from a pinned upstream master commit with vendored dependency pins (`FETCHCONTENT_SOURCE_DIR_*`); refresh with `pkgs/devilutionx/update.sh`.
 
-**Secrets** in `secrets/` are SOPS-encrypted with age: `smb.yaml` (NAS/CIFS credentials), `system.yaml` (`emil` password hash), and `luks.yaml` (LUKS key). The age key lives at `~/.config/sops/age/keys.txt`; secret declarations live in `nixos/common/sops.nix`. Decrypted secrets mount to `/run/secrets/` at boot. `.sops.yaml` holds the age recipient and per-file creation rules.
+## Secrets (sops-nix + age)
 
-**Bootstrap scripts** in `scripts/` pull credentials from Bitwarden during install: `pre-install-secrets.sh` (fetches the age key) and `setup-yubikey.sh` (provisions YubiKey material). These require the `bw` CLI.
+- `.sops.yaml` — single age recipient and per-file creation rules. The age key lives at `~/.config/sops/age/keys.txt` (`generateKey = false`; fetched from Bitwarden at install time by `scripts/pre-install-secrets.sh`; `scripts/setup-yubikey.sh` provisions YubiKey material — both need the `bw` CLI).
+- `smb.yaml` → `smb_username`/`smb_password`, decrypted to `/run/secrets/`, consumed through a sops template as CIFS credentials.
+- `system.yaml` → `emil_password_hash` (`neededForUsers = true`), decrypted to `/run/secrets-for-users/`.
+- `luks.yaml` → LUKS key, **intentionally not declared** in `sops.nix`: it is only used at install time by disko, so it never lands on the running system.
+- A `sops-secrets-validation` oneshot service checks at boot that secrets are readable; paths are derived from `config.sops.secrets.<name>.path` (the location differs for `neededForUsers` secrets).
+- The `sops-encrypted` pre-commit hook blocks committing unencrypted files under `secrets/`. More detail in `secrets/README.md`.
 
-## CI/CD
+## CI/CD — present but intentionally disabled
 
-Three GitHub Actions workflows in `.github/workflows/`:
+Three workflows exist in `.github/workflows/`, but **all three are manually disabled** — the owner doesn't use them currently. Do not assume CI validates anything, and do not re-enable them unless asked; local `nix flake check` is the gate.
 
-- **`ci.yml`** — Runs on push to `main`, PRs, and manual dispatch. Two parallel jobs: `checks` (flake-checker + `nix flake check`) and `build` (builds the `fw13` NixOS configuration).
-- **`update-flake.yml`** — Weekly (Sunday midnight UTC) or manual. Runs `nix flake update` and opens a PR via `update-flake-lock`. Uses a PAT (`GH_TOKEN_FOR_UPDATES`) to trigger CI on the PR.
-- **`update-devilutionx.yml`** — Weekly (Sunday midnight UTC) or manual. Checks upstream `diasurgical/devilutionX` for a new `master` commit, re-prefetches the hash, rewrites `pkgs/devilutionx/default.nix`, and opens a PR.
+- `ci.yml` — flake-checker + `nix flake check`, plus a full `fw13` toplevel build (push to main / PRs / dispatch).
+- `update-flake.yml` — weekly `nix flake update` PR via update-flake-lock (PAT `GH_TOKEN_FOR_UPDATES`).
+- `update-devilutionx.yml` — weekly upstream check; prefetches via `nix run nixpkgs#nix-prefetch-github` (with pipefail and an empty-hash guard), rewrites `pkgs/devilutionx/default.nix`, opens a PR.
 
-Actions used: `determinate-nix-action@v3` (Nix installation), `magic-nix-cache-action@v14` (GHA caching, FlakeHub disabled), `flake-checker-action@v12` (nixpkgs input health), `update-flake-lock@v28` (automated flake PRs), `peter-evans/create-pull-request@v8` (devilutionx PRs).
+Actions used: checkout@v7, determinate-nix-action@v3, magic-nix-cache-action@v14 (FlakeHub off), flake-checker-action@v12, update-flake-lock@v28, peter-evans/create-pull-request@v8.
 
-## Key Patterns
+## Key Patterns & Gotchas
 
-- The flake uses `nixpkgs-unstable` as the primary channel with `nixpkgs-stable` (26.05) available via `pkgs.stable` overlay.
-- Pre-commit hooks are configured in the flake: nixfmt, statix, deadnix, prettier, sops encryption validation.
-- Catppuccin Mocha is the system-wide theme (editors, terminal, git delta).
-- User is `emil`, home at `/home/emil`. Zsh is the default shell.
-- The `NH_FLAKE` environment variable is set to this repo path for the `nh` CLI tool.
+- **Never set `nixpkgs.*` options (overlays/config) inside Home Manager modules** — with `useGlobalPkgs` that is a hard eval error. Add overlays in `nixos/configuration.nix` instead.
+- Catppuccin Mocha comes from the catppuccin flake. HM sets `autoEnable = true`, so every enabled HM program is themed automatically — don't set per-app themes by hand (bat/btop/lazygit are enabled as HM programs precisely so they get themed). System targets (SDDM/TTY/Plymouth) are enrolled explicitly with `autoEnable = false`.
+- nixvim deliberately evaluates its own nixpkgs instance (`programs.nixvim.nixpkgs.source = inputs.nixpkgs`).
+- dconf values in `gnome/gnomesettings.nix` must be real Nix types (bool/float) — strings like `"true"` are rejected by GSettings and silently fall back to defaults.
+- Pre-commit hooks (defined in flake.nix, run by `nix flake check` and on commit): nixfmt, statix, deadnix, prettier (yaml/markdown, excluding `secrets/`), sops-encrypted, plus standard hygiene hooks. The root `.pre-commit-config.yaml` is a gitignored symlink generated by the dev shell.
+- Git: commits are GPG-signed by default (key on a YubiKey — a touch may be required). SSH remote operations also need the YubiKey; the `gh` CLI is authenticated and is the reliable path for GitHub API/HTTPS operations. Commit style: short imperative subject lines (see `git log`).
+- `pkgs.stable` = nixpkgs 26.05; the primary channel is nixos-unstable.

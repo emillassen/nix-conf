@@ -17,7 +17,7 @@ secrets/
 
 ### 1. Age Key Setup
 
-`sops.age.generateKey = false` in `nixos/common/sops.nix` — the age key is **not** generated on first boot. It must be provisioned before the system can decrypt anything (in particular `emil_password_hash` and `luks_key`, which are `neededForUsers = true` and required during a fresh install).
+`sops.age.generateKey = false` in `nixos/common/sops.nix` — the age key is **not** generated on first boot. It must be provisioned before the system can decrypt anything (in particular `emil_password_hash`, which is `neededForUsers = true` and required during a fresh install).
 
 For a fresh install, `scripts/pre-install-secrets.sh` fetches the key from Bitwarden (a secure note named `fw13-age-key`) and:
 
@@ -122,8 +122,8 @@ sops -d smb.yaml
 ## Current Secrets
 
 - `smb_username` / `smb_password` (`smb.yaml`) - SMB/CIFS credentials for NAS access
-- `emil_password_hash` (`system.yaml`) - Hashed login password for the `emil` user, required at boot for user creation
-- `luks_key` (`luks.yaml`) - LUKS disk encryption key, used pre-boot/by disko during install
+- `emil_password_hash` (`system.yaml`) - Hashed login password for the `emil` user, required at boot for user creation (decrypted to `/run/secrets-for-users/` because of `neededForUsers`)
+- `luks_key` (`luks.yaml`) - LUKS disk encryption key, only used at install time (`scripts/pre-install-secrets.sh` decrypts it for disko); intentionally not declared in `sops.nix`, so it is never placed on the running system
 
 ## Troubleshooting
 

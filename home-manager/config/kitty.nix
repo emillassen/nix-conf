@@ -7,9 +7,8 @@
       name = "Hack Nerd Font Mono";
       size = 10.0;
     };
-    themeFile = "Catppuccin-Mocha";
+    # theme is set by Catppuccin (config/catppuccin.nix)
     settings = {
-      font_ligatures = "enabled";
       shell_integration = "enabled";
       term = "xterm-kitty";
       cursor_shape = "block";

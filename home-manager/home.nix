@@ -2,7 +2,6 @@
 # Use this to configure your home environment (it replaces ~/.config/nixpkgs/home.nix)
 {
   inputs,
-  outputs,
   pkgs,
   ...
 }:
@@ -32,24 +31,9 @@
     #./config/nextcloud.nix # Broken in gnome
   ];
 
-  nixpkgs = {
-    # You can add overlays here
-    overlays = [
-      # Add overlays your own flake exports (from overlays and pkgs dir):
-      outputs.overlays.additions
-      outputs.overlays.modifications
-      outputs.overlays.stable-packages
-
-      # You can also add overlays exported from other flakes:
-      # neovim-nightly-overlay.overlays.default
-      inputs.llm-agents.overlays.default # AI coding agents -> pkgs.llm-agents.*
-    ];
-    # Configure your nixpkgs instance
-    config = {
-      # Disable if you don't want unfree packages
-      allowUnfree = true;
-    };
-  };
+  # Overlays and nixpkgs config (allowUnfree etc.) come from the system-level
+  # nixpkgs instance — home-manager.useGlobalPkgs is enabled in
+  # nixos/configuration.nix, so nixpkgs.* options must not be set here.
 
   home = {
     username = "emil";
@@ -57,7 +41,7 @@
     sessionVariables = {
       VISUAL = "nvim";
       EDITOR = "nvim";
-      NH_FLAKE = "/home/emil/Documents/nix-conf";
+      # NH_FLAKE is set system-wide via programs.nh.flake (nixos/configuration.nix)
     };
     enableNixpkgsReleaseCheck = false;
   };

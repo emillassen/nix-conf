@@ -40,13 +40,10 @@ in
         mode = "0400";
         neededForUsers = true;
       };
-      luks_key = {
-        sopsFile = ../../secrets/luks.yaml;
-        owner = "root";
-        group = "root";
-        mode = "0400";
-        neededForUsers = true;
-      };
+      # luks_key (secrets/luks.yaml) is deliberately NOT declared here: it's only
+      # consumed at install time (scripts/pre-install-secrets.sh decrypts it for
+      # disko). Declaring it would needlessly place the plaintext LUKS key in
+      # /run/secrets on every boot.
     };
   };
 
@@ -68,16 +65,29 @@ in
           runtimeInputs = with pkgs; [ coreutils ];
           text = ''
             failed=0
-            # luks_key is intentionally excluded: it's consumed pre-boot by disko/initrd,
-            # not via /run/secrets, so it's never present here to validate.
-            for secret in smb_username smb_password emil_password_hash; do
-              secret_path="/run/secrets/$secret"
+            # luks_key is intentionally excluded: it's only used at install time,
+            # so it's never present here to validate (see the sops.secrets comment).
+            # The paths are taken from the sops-nix config because they differ per
+            # secret: neededForUsers secrets (emil_password_hash) live under
+            # /run/secrets-for-users, the rest under /run/secrets.
+            # Note: writeShellApplication runs with `set -e`, so the counter must be
+            # incremented with an arithmetic *assignment* — `((failed++))` returns
+            # a non-zero status when failed is 0 and would abort the whole script.
+            for secret_path in ${
+              lib.escapeShellArgs (
+                map (name: config.sops.secrets.${name}.path) [
+                  "smb_username"
+                  "smb_password"
+                  "emil_password_hash"
+                ]
+              )
+            }; do
               if [[ ! -r "$secret_path" ]]; then
-                echo "ERROR: $secret not readable"
-                ((failed++))
+                echo "ERROR: $secret_path not readable"
+                failed=$((failed + 1))
               elif [[ ! -s "$secret_path" ]]; then
-                echo "ERROR: $secret is empty"
-                ((failed++))
+                echo "ERROR: $secret_path is empty"
+                failed=$((failed + 1))
               fi
             done
             exit "$failed"

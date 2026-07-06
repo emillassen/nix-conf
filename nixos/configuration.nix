@@ -31,6 +31,10 @@
   ];
 
   home-manager = {
+    # Reuse the system nixpkgs instance (with the overlays/config below) instead
+    # of evaluating a second private instance — faster rebuilds, and one single
+    # place (this file) for overlays and allowUnfree.
+    useGlobalPkgs = true;
     extraSpecialArgs = { inherit inputs outputs; };
     users = {
       emil = import ../home-manager/home.nix;
@@ -47,6 +51,11 @@
 
       # You can also add overlays exported from other flakes:
       # neovim-nightly-overlay.overlays.default
+
+      # VSCode marketplace extensions -> pkgs.vscode-marketplace.*
+      inputs.nix-vscode-extensions.overlays.default
+      # AI coding agents -> pkgs.llm-agents.*
+      inputs.llm-agents.overlays.default
     ];
     # Configure your nixpkgs instance
     config = {
@@ -174,6 +183,8 @@
     # Enable nh and let it handle store cleanup (store-aware GC).
     nh = {
       enable = true;
+      # Sets the NH_FLAKE environment variable for all sessions.
+      flake = "/home/emil/Documents/nix-conf";
       clean = {
         enable = true;
         extraArgs = "--keep-since 30d --keep 10";

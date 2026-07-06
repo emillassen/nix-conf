@@ -3,7 +3,6 @@
   lib,
   stdenv,
   fetchurl,
-  gnutar,
   autoPatchelfHook,
   glibc,
   gtk3,
@@ -13,8 +12,6 @@
 }:
 
 let
-  pname = "vuescan";
-  version = "9.8.49.25";
   desktopItem = makeDesktopItem {
     name = "VueScan";
     desktopName = "VueScan";
@@ -36,21 +33,19 @@ let
     exec = "vuescan";
   };
 in
-stdenv.mkDerivation {
-  name = "${pname}-${version}";
+stdenv.mkDerivation rec {
+  pname = "vuescan";
+  version = "9.8.49.25";
 
   src = fetchurl {
-    url = "https://github.com/emillassen/binary-mirror/releases/download/vuex64-9.8.49.25/vuex64-9.8.49.25.tgz";
+    url = "https://github.com/emillassen/binary-mirror/releases/download/vuex64-${version}/vuex64-${version}.tgz";
     hash = "sha256-4Z3GqDCZZ1cCeh6WMl0S13rM72szebyuormiCN49dm8=";
   };
 
   # Stripping breaks the program
   dontStrip = true;
 
-  nativeBuildInputs = [
-    gnutar
-    autoPatchelfHook
-  ];
+  nativeBuildInputs = [ autoPatchelfHook ];
 
   buildInputs = [
     glibc
@@ -74,11 +69,17 @@ stdenv.mkDerivation {
     ln -s ${desktopItem}/share/applications/* $out/share/applications
   '';
 
-  meta = with lib; {
-    description = "A computer program for image scanning, especially of photographs, including negatives.";
+  meta = {
+    description = "Program for image scanning, especially of photographs, including negatives";
     homepage = "https://www.hamrick.com/";
-    license = licenses.unfree;
-    maintainers = with maintainers; [ Hamrick ];
+    license = lib.licenses.unfree;
+    mainProgram = "vuescan";
+    maintainers = [
+      {
+        name = "Emil Lassen";
+        github = "emillassen";
+      }
+    ];
     platforms = [ "x86_64-linux" ];
   };
 }

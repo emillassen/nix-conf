@@ -1,11 +1,11 @@
 {
   lib,
   pkgs,
-  inputs,
   ...
 }:
 {
-  nixpkgs.overlays = [ inputs.nix-vscode-extensions.overlays.default ];
+  # The nix-vscode-extensions overlay (pkgs.vscode-marketplace.*) is applied to
+  # the shared system nixpkgs instance in nixos/configuration.nix.
 
   # Packages that are used by VSCode and/or the extensions
   home.packages =

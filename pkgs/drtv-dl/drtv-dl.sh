@@ -1,16 +1,22 @@
 usage() {
   cat <<'EOF'
-Usage: drtv-dl [-d DIR] [-l] URL... [extra yt-dlp options...]
+Usage: drtv-dl [-d DIR] [-l] [-r] URL... [extra yt-dlp options...]
 
 Download every episode of one or more DRTV (dr.dk/drtv) series or seasons,
 named so Jellyfin picks them up:
 
   Series Name/Season 10/Series Name - S10E05 - Episode Title.mkv
 
+Episodes whose file already exists on disk are skipped up front via a cheap
+playlist scan (one API request per season) instead of being re-extracted
+one webpage at a time on every run.
+
 Options:
   -d DIR   root of your TV library (default: current directory)
   -l       don't download; print the episode links instead, one per line
            (e.g. drtv-dl -l URL > links.txt)
+  -r       recheck every episode with yt-dlp even if its file exists
+           (use if files were renamed and the fast skip misjudges them)
   -h       show this help
 
 Several URLs can be given; anything that isn't a DRTV URL is passed
@@ -21,10 +27,12 @@ EOF
 
 dest="."
 links_only=0
-while getopts ":d:lh" opt; do
+recheck=0
+while getopts ":d:lrh" opt; do
   case "$opt" in
     d) dest="$OPTARG" ;;
     l) links_only=1 ;;
+    r) recheck=1 ;;
     h) usage ;;
     *) usage 1 ;;
   esac
@@ -36,6 +44,7 @@ shift $((OPTIND - 1))
 # (/drtv/serie/gurli-gris_7190). Bare-ID URLs like /drtv/serie/7190
 # redirect there in a browser, so resolve them the same way first.
 args=()
+playlist_urls=()
 for url in "$@"; do
   if [[ "$url" =~ ^https?://(www\.)?dr\.dk/drtv/(serie|saeson)/[0-9]+/?$ ]]; then
     resolved="$(curl -fsSL -o /dev/null -w '%{url_effective}' "$url" 2>/dev/null)" || resolved=""
@@ -54,6 +63,7 @@ for url in "$@"; do
         "yt-dlp may not recognise it - use the URL from your browser's address bar" >&2
     fi
   fi
+  [[ "$url" =~ ^https?://(www\.)?dr\.dk/drtv/(serie|saeson)/[^/]+_[0-9]+/?$ ]] && playlist_urls+=("$url")
   args+=("$url")
 done
 
@@ -61,14 +71,79 @@ if [[ "$links_only" == 1 ]]; then
   exec yt-dlp --flat-playlist --print webpage_url "${args[@]}"
 fi
 
+outtmpl="$dest/%(series)s/Season %(season_number)02d/%(series)s - S%(season_number)02dE%(episode_number)02d - %(episode)s.%(ext)s"
+
 # DRTV episode titles repeat the series name ("Gurli Gris: Slemme skildpadde");
 # strip that prefix from episode/title, but only when it matches the series
 # exactly (the backreference), so unrelated colons in titles are left alone.
-exec yt-dlp \
+meta_args=(
+  --parse-metadata '%(series)s|%(episode)s:^(?P<series>.+)\|(?P=series): (?P<episode>.+)$'
+  --parse-metadata '%(series)s|%(title)s:^(?P<series>.+)\|(?P=series): (?P<title>.+)$'
+)
+
+# Re-running on a series normally re-extracts every episode (webpage + stream
+# data) just to learn its filename and say "has already been downloaded" - and
+# then re-runs the Metadata postprocessor on the existing file. To skip all of
+# that without keeping a persistent archive file, scan the season playlists
+# flat (the season API response already carries series/season/episode fields,
+# so --print filename yields the real output path with only the extension
+# unknown), and feed the episodes whose file already exists to yt-dlp as a
+# throwaway --download-archive: yt-dlp matches archive ids against the URL
+# slug before extraction, so those episodes cost no requests at all. The
+# archive is deleted afterwards - the files on disk stay the source of truth.
+skip_args=()
+if [[ "$recheck" == 0 && ${#playlist_urls[@]} -gt 0 ]]; then
+  season_urls=()
+  serie_urls=()
+  for url in "${playlist_urls[@]}"; do
+    if [[ "$url" == */drtv/serie/* ]]; then
+      serie_urls+=("$url")
+    else
+      season_urls+=("$url")
+    fi
+  done
+  # A flat scan of a series stops at its seasons, so expand those first.
+  if [[ ${#serie_urls[@]} -gt 0 ]]; then
+    while IFS= read -r line; do
+      [[ "$line" == http* ]] && season_urls+=("$line")
+    done < <(yt-dlp --ignore-errors --flat-playlist --print url "${serie_urls[@]}" 2>/dev/null || true)
+  fi
+
+  if [[ ${#season_urls[@]} -gt 0 ]]; then
+    archive="$(mktemp)"
+    trap 'rm -f "$archive"' EXIT
+    scanned=0
+    present=0
+    while IFS= read -r id && IFS= read -r name; do
+      scanned=$((scanned + 1))
+      base="${name%.NA}"
+      for f in "$base".*; do
+        [[ -e "$f" ]] || continue
+        # a real download has a single-token extension; leftovers like
+        # .part/.ytdl/.f<id>.mp4 from aborted runs must not count as done
+        ext="${f#"$base".}"
+        [[ "$ext" == *.* ]] && continue
+        printf 'drtv %s\n' "$id" >>"$archive"
+        present=$((present + 1))
+        break
+      done
+    done < <(yt-dlp --ignore-errors --flat-playlist "${meta_args[@]}" \
+      --output "$outtmpl" --print id --print filename "${season_urls[@]}" 2>/dev/null || true)
+    if [[ "$scanned" -gt 0 ]]; then
+      echo "drtv-dl: $present of $scanned episodes already on disk; skipping those" >&2
+      skip_args=(--download-archive "$archive")
+    else
+      echo "drtv-dl: warning: playlist scan found no episodes; checking everything" >&2
+    fi
+  fi
+fi
+
+# no exec: the trap above must clean up the throwaway archive afterwards
+yt-dlp \
   --embed-metadata \
   --sub-langs all --embed-subs \
   --concurrent-fragments 6 \
-  --parse-metadata '%(series)s|%(episode)s:^(?P<series>.+)\|(?P=series): (?P<episode>.+)$' \
-  --parse-metadata '%(series)s|%(title)s:^(?P<series>.+)\|(?P=series): (?P<title>.+)$' \
-  --output "$dest/%(series)s/Season %(season_number)02d/%(series)s - S%(season_number)02dE%(episode_number)02d - %(episode)s.%(ext)s" \
+  "${meta_args[@]}" \
+  "${skip_args[@]}" \
+  --output "$outtmpl" \
   "${args[@]}"

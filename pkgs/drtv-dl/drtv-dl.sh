@@ -2,10 +2,11 @@ usage() {
   cat <<'EOF'
 Usage: drtv-dl [-d DIR] [-l] [-r] URL... [extra yt-dlp options...]
 
-Download every episode of one or more DRTV (dr.dk/drtv) series or seasons,
+Download one or more DRTV (dr.dk/drtv) series, seasons or films,
 named so Jellyfin picks them up:
 
   Series Name/Season 10/Series Name - S10E05 - Episode Title.mkv
+  Film Name (1968)/Film Name (1968).mkv
 
 Episodes whose file already exists on disk are skipped up front via a cheap
 playlist scan (one API request per season) instead of being re-extracted
@@ -71,14 +72,31 @@ if [[ "$links_only" == 1 ]]; then
   exec yt-dlp --flat-playlist --print webpage_url "${args[@]}"
 fi
 
-outtmpl="$dest/%(series)s/Season %(season_number)02d/%(series)s - S%(season_number)02dE%(episode_number)02d - %(episode)s.%(ext)s"
+# One template serves both layouts. Films (/drtv/program/ URLs) carry no
+# series/season/episode fields, so every %(field&...|)s piece conditioned on
+# them renders empty and only the movie_name parts (synthesised below) remain:
+#
+#   episode:  Series/Season 01/Series - S01E05 - Episode.mkv
+#   film:     Film Name (1968)//Film Name (1968).mkv
+#
+# The season directory must remain its own literal path segment (slashes
+# inside %(...&...)s replacements are sanitised into "⧸"), so the film path
+# keeps an empty component; "//" collapses and the file lands one level up.
+outtmpl="$dest/%(series,movie_name)s/%(season_number&Season {:02d}|)s/%(series&{} - |)s%(season_number&S{:02d}|)s%(episode_number&E{:02d}|)s%(series& - |)s%(movie_name,episode,title)s.%(ext)s"
 
 # DRTV episode titles repeat the series name ("Gurli Gris: Slemme skildpadde");
 # strip that prefix from episode/title, but only when it matches the series
 # exactly (the backreference), so unrelated colons in titles are left alone.
+# The last two rules build movie_name = "Title (Year)" for films, keyed on
+# series being absent (it renders as the NA placeholder), with the year
+# dropped when DR doesn't provide one. Every regex ends in an always-matching
+# |.* branch: unmatched named groups are simply skipped, whereas a failed
+# match would print a "Could not interpret" warning per rule and item.
 meta_args=(
-  --parse-metadata '%(series)s|%(episode)s:^(?P<series>.+)\|(?P=series): (?P<episode>.+)$'
-  --parse-metadata '%(series)s|%(title)s:^(?P<series>.+)\|(?P=series): (?P<title>.+)$'
+  --parse-metadata '%(series)s|%(episode)s:^(?:(?P<series>.+)\|(?P=series): (?P<episode>.+)|.*)$'
+  --parse-metadata '%(series)s|%(title)s:^(?:(?P<series>.+)\|(?P=series): (?P<title>.+)|.*)$'
+  --parse-metadata '%(series)s|%(title)s:^(?:NA\|(?P<movie_name>.+)|.*)$'
+  --parse-metadata '%(series)s|%(title)s (%(release_year)s):^(?:NA\|(?P<movie_name>.+ \(\d{4}\))|.*)$'
 )
 
 # Re-running on a series normally re-extracts every episode (webpage + stream

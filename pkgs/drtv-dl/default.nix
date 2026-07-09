@@ -1,5 +1,6 @@
-# Wrapper around yt-dlp that downloads DRTV series/seasons with
-# Jellyfin-friendly names (Series/Season 01/Series - S01E01 - Title.ext).
+# Wrapper around yt-dlp that downloads DRTV series/seasons/films with
+# Jellyfin-friendly names (Series/Season 01/Series - S01E01 - Title.ext,
+# films as Film (Year)/Film (Year).ext).
 {
   writeShellApplication,
   yt-dlp,

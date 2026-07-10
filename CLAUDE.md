@@ -58,7 +58,7 @@ Inputs: nixpkgs (nixos-unstable), nixpkgs-stable (26.05), disko, home-manager, n
 
 **pkgs/** — custom packages, exposed via the `additions` overlay and the `packages` output:
 
-- `drtv-dl` — yt-dlp wrapper downloading DRTV series/seasons/films with Jellyfin naming (`Series/Season 01/Series - S01E01 - Title.mkv`); carries a one-line yt-dlp patch (`DRTVSeasonIE` entries `url` → `url_transparent`) so series/season metadata reaches the output template, and skips episodes already on disk via a flat playlist scan fed to a throwaway `--download-archive`. Reads URLs from a `drtv-series.txt` in the library root when given none.
+- `drtv-dl` — yt-dlp wrapper downloading DRTV series/seasons/films with Jellyfin naming (`Series/Season 01/Series - S01E01 - Title.ext`); carries a one-line yt-dlp patch (`DRTVSeasonIE` entries `url` → `url_transparent`) so series/season metadata reaches the output template, and skips episodes already on disk via a flat playlist scan fed to a throwaway `--download-archive`. Reads URLs from a `drtv-series.txt` in the library root when given none.
 - `vuescan` — unfree scanner binary fetched from a personal mirror (github.com/emillassen/binary-mirror releases), autoPatchelf'd; the release tag/URL interpolates `version`.
 - `devilutionx` — built from a pinned upstream master commit with vendored dependency pins (`FETCHCONTENT_SOURCE_DIR_*`); refresh with `pkgs/devilutionx/update.sh`.
 

@@ -7,8 +7,8 @@ Usage: drtv-dl [-d DIR] [-l] [-n] [-r] [URL...] [extra yt-dlp options...]
 Download one or more DRTV (dr.dk/drtv) series, seasons or films,
 named so Jellyfin picks them up:
 
-  Series Name/Season 10/Series Name - S10E05 - Episode Title.mkv
-  Film Name (1968)/Film Name (1968).mkv
+  Series Name/Season 10/Series Name - S10E05 - Episode Title.ext
+  Film Name (1968)/Film Name (1968).ext
 
 Episodes whose file already exists on disk are skipped up front via a cheap
 playlist scan (one API request per season) instead of being re-extracted
@@ -146,8 +146,8 @@ fi
 # series/season/episode fields, so every %(field&...|)s piece conditioned on
 # them renders empty and only the movie_name parts (synthesised below) remain:
 #
-#   episode:  Series/Season 01/Series - S01E05 - Episode.mkv
-#   film:     Film Name (1968)//Film Name (1968).mkv
+#   episode:  Series/Season 01/Series - S01E05 - Episode.ext
+#   film:     Film Name (1968)//Film Name (1968).ext
 #
 # The season directory must remain its own literal path segment (slashes
 # inside %(...&...)s replacements are sanitised into "⧸"), so the film path

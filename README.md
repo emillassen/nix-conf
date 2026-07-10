@@ -34,7 +34,7 @@ Development:
 Applications:
 
 - Productivity: LibreOffice, Nextcloud
-- Media: mpv, Spotify, Calibre, YACReader
+- Media: mpv, Spotify, Calibre, YACReader, drtv-dl (DRTV downloads with Jellyfin naming)
 - Communication: Discord, Signal
 - System monitoring: btop, fastfetch, s-tui
 
@@ -66,7 +66,7 @@ Applications:
 │       └── steam.nix         # Gaming
 ├── modules/                  # Reusable NixOS / Home Manager modules
 ├── overlays/default.nix      # Custom package overlays
-├── pkgs/                     # Custom packages (vuescan, devilutionx)
+├── pkgs/                     # Custom packages (drtv-dl, vuescan, devilutionx)
 ├── secrets/                  # Encrypted secrets (SOPS)
 └── scripts/                  # Installation and setup scripts
 ```

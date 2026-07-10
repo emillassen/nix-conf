@@ -1,4 +1,6 @@
 usage() {
+  # requested help goes to stdout; usage errors go to stderr
+  [[ "${1:-0}" == 0 ]] || exec >&2
   cat <<'EOF'
 Usage: drtv-dl [-d DIR] [-l] [-n] [-r] [URL...] [extra yt-dlp options...]
 
@@ -32,7 +34,9 @@ Options:
   -h       show this help
 
 Several URLs can be given; anything that isn't a DRTV URL is passed
-straight to yt-dlp.
+straight to yt-dlp. Options must come before the first URL: anything
+after it is passed through, so a trailing -n reaches yt-dlp (where it
+means --netrc) instead of enabling check mode.
 EOF
   exit "${1:-0}"
 }
@@ -86,9 +90,13 @@ args=()
 playlist_urls=()
 for url in "$@"; do
   if [[ "$url" =~ ^https?://(www\.)?dr\.dk/drtv/(serie|saeson)/[0-9]+/?$ ]]; then
-    resolved="$(curl -fsSL -o /dev/null -w '%{url_effective}' "$url" 2>/dev/null)" || resolved=""
+    # One GET serves both detection paths: -w appends the post-redirect URL
+    # after the body, and the body is kept for the canonical-<link> fallback
+    # used when the server answers 200 with the SPA page instead of redirecting.
+    page="$(curl -fsSL -w '\n%{url_effective}' "$url" 2>/dev/null)" || page=""
+    resolved="${page##*$'\n'}"
+    page="${page%$'\n'*}"
     if [[ ! "$resolved" =~ _[0-9]+/?$ ]]; then
-      page="$(curl -fsSL "$url" 2>/dev/null)" || page=""
       resolved="$(grep -oP '<link[^>]*rel="canonical"[^>]*href="\K[^"]+' <<<"$page" | head -n 1)" ||
         resolved="$(grep -oP '<link[^>]*href="\K[^"]+(?="[^>]*rel="canonical")' <<<"$page" | head -n 1)" ||
         resolved=""
@@ -111,7 +119,27 @@ for url in "$@"; do
 done
 
 if [[ "$links_only" == 1 ]]; then
-  exec yt-dlp --flat-playlist --print webpage_url "${args[@]}"
+  # A flat pass over a series URL yields its season playlists, not episodes
+  # (the same reason the skip scan below expands series first), so swap each
+  # series for its seasons here. If the expansion comes back empty, keep the
+  # original URL so yt-dlp still gets a chance to report what's wrong with it.
+  links_args=()
+  for url in "${args[@]}"; do
+    if [[ "$url" =~ ^https?://(www\.)?dr\.dk/drtv/serie/[^/]+_[0-9]+/?$ ]]; then
+      expanded=()
+      while IFS= read -r line; do
+        [[ "$line" == http* ]] && expanded+=("$line")
+      done < <(yt-dlp --ignore-errors --flat-playlist --print url "$url" 2>/dev/null || true)
+      if [[ ${#expanded[@]} -gt 0 ]]; then
+        links_args+=("${expanded[@]}")
+      else
+        links_args+=("$url")
+      fi
+    else
+      links_args+=("$url")
+    fi
+  done
+  exec yt-dlp --flat-playlist --print webpage_url "${links_args[@]}"
 fi
 
 # One template serves both layouts. Films (/drtv/program/ URLs) carry no
@@ -227,10 +255,15 @@ if [[ "$recheck" == 0 && ${#playlist_urls[@]} -gt 0 ]]; then
   fi
 fi
 
+# --remux-video delivers the .mkv the help promises even when DR's streams
+# come down as .mp4 (a lossless container change; already-mkv files are left
+# alone), and it runs before the embed postprocessors, so subs and metadata
+# land in the mkv.
 # no exec: the trap above must clean up the throwaway archive afterwards
 yt-dlp \
   --embed-metadata \
   --sub-langs all --embed-subs \
+  --remux-video mkv \
   --concurrent-fragments 6 \
   "${meta_args[@]}" \
   "${skip_args[@]}" \

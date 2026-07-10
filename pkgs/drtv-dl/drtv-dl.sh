@@ -255,15 +255,10 @@ if [[ "$recheck" == 0 && ${#playlist_urls[@]} -gt 0 ]]; then
   fi
 fi
 
-# --remux-video delivers the .mkv the help promises even when DR's streams
-# come down as .mp4 (a lossless container change; already-mkv files are left
-# alone), and it runs before the embed postprocessors, so subs and metadata
-# land in the mkv.
 # no exec: the trap above must clean up the throwaway archive afterwards
 yt-dlp \
   --embed-metadata \
   --sub-langs all --embed-subs \
-  --remux-video mkv \
   --concurrent-fragments 6 \
   "${meta_args[@]}" \
   "${skip_args[@]}" \

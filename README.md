@@ -34,7 +34,7 @@ Development:
 Applications:
 
 - Productivity: LibreOffice, Nextcloud
-- Media: mpv, Spotify, Calibre, YACReader, drtv-dl (DRTV downloads with Jellyfin naming)
+- Media: mpv, Spotify, Calibre, YACReader, drtv-dl (DRTV downloads with Jellyfin naming, NFO metadata and artwork)
 - Communication: Discord, Signal
 - System monitoring: btop, fastfetch, s-tui
 

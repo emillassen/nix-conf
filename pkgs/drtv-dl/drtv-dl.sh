@@ -14,6 +14,14 @@ Episodes whose file already exists on disk are skipped up front via a cheap
 playlist scan (one API request per season) instead of being re-extracted
 one webpage at a time on every run.
 
+Jellyfin NFO files and artwork are generated alongside the downloads:
+tvshow.nfo, poster and season posters per series, an .nfo and thumb image
+per episode, and an .nfo plus poster per film. The NFOs carry
+<lockdata>true</lockdata>, so Jellyfin keeps DR's metadata instead of
+guessing (often wrongly) via TVDB/TMDB. Episodes skipped by the fast scan
+keep whatever sidecars they have; run once with -r to backfill NFOs and
+images for a library downloaded before this existed.
+
 With no URLs, they are read from a drtv-series.txt in the library root
 (see -d): one series or season URL per line; blank lines, #-comments and
 anything after the URL are ignored. Keep one next to your series and
@@ -30,7 +38,8 @@ Options:
            line. Series/season URLs only - films and direct episode links
            are skipped in this mode.
   -r       recheck every episode with yt-dlp even if its file exists
-           (use if files were renamed and the fast skip misjudges them)
+           (use if files were renamed and the fast skip misjudges them,
+           or to regenerate NFOs and images for existing files)
   -h       show this help
 
 Several URLs can be given; anything that isn't a DRTV URL is passed
@@ -152,7 +161,9 @@ fi
 # The season directory must remain its own literal path segment (slashes
 # inside %(...&...)s replacements are sanitised into "⧸"), so the film path
 # keeps an empty component; "//" collapses and the file lands one level up.
-outtmpl="$dest/%(series,movie_name)s/%(season_number&Season {:02d}|)s/%(series&{} - |)s%(season_number&S{:02d}|)s%(episode_number&E{:02d}|)s%(series& - |)s%(movie_name,episode,title)s.%(ext)s"
+# The episode thumb shares the same base so Jellyfin pairs them up.
+outbase="$dest/%(series,movie_name)s/%(season_number&Season {:02d}|)s/%(series&{} - |)s%(season_number&S{:02d}|)s%(episode_number&E{:02d}|)s%(series& - |)s%(movie_name,episode,title)s"
+outtmpl="$outbase.%(ext)s"
 
 # DRTV episode titles repeat the series name ("Gurli Gris: Slemme skildpadde");
 # strip that prefix from episode/title, but only when it matches the series
@@ -217,9 +228,11 @@ if [[ "$recheck" == 0 && ${#playlist_urls[@]} -gt 0 ]]; then
       for f in "$base".*; do
         [[ -e "$f" ]] || continue
         # a real download has a single-token extension; leftovers like
-        # .part/.ytdl/.f<id>.mp4 from aborted runs must not count as done
+        # .part/.ytdl/.f<id>.mp4 from aborted runs must not count as done,
+        # and neither do the NFO/image sidecars generated below
         ext="${f#"$base".}"
         [[ "$ext" == *.* ]] && continue
+        case "$ext" in nfo | jpg | jpeg | png | webp) continue ;; esac
         found=1
         break
       done
@@ -255,12 +268,102 @@ if [[ "$recheck" == 0 && ${#playlist_urls[@]} -gt 0 ]]; then
   fi
 fi
 
-# no exec: the trap above must clean up the throwaway archive afterwards
+# Besides the media file, have yt-dlp write the raw material for Jellyfin
+# sidecars: an info.json per video (turned into an .nfo below and deleted),
+# a landscape thumb next to each episode/film, and - via the playlist
+# metafiles written for every series/season playlist it descends into -
+# a tvshow info.json plus portrait poster/season posters in the series
+# directory. Playlist metafiles are refreshed on every run, even when all
+# episodes are skipped through the download archive.
+#
+# no exec: the trap above must clean up the throwaway archive, and the NFO
+# pass below must still run (yt-dlp's exit status is re-raised at the end)
+status=0
 yt-dlp \
   --embed-metadata \
   --sub-langs all --embed-subs \
   --concurrent-fragments 6 \
+  --write-info-json \
+  --write-thumbnail --convert-thumbnails jpg \
   "${meta_args[@]}" \
   "${skip_args[@]}" \
   --output "$outtmpl" \
-  "${args[@]}"
+  --output "thumbnail:$outbase-thumb.%(ext)s" \
+  --output "pl_thumbnail:$dest/%(series)s/%(season_number&season{:02d}-poster|poster)s.%(ext)s" \
+  --output "pl_infojson:$dest/%(series)s/%(season_number&season{:02d}|tvshow)s" \
+  "${args[@]}" || status=$?
+
+# Turn every info.json from this run into a Jellyfin NFO
+# (https://jellyfin.org/docs/general/server/metadata/nfo/) and delete it -
+# the jsons never outlive a run, so any file found here is fresh.
+# <lockdata>true</lockdata> stops Jellyfin's online scrapers from
+# overwriting DR's metadata; the mismatched TVDB/TMDB guesses are exactly
+# what these files exist to prevent.
+xml_esc='def esc: tostring | gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;");'
+xml_decl='"<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>",'
+
+tvshow_nfo="$xml_esc $xml_decl"'
+  "<tvshow>",
+  "  <title>\(.series // .title | esc)</title>",
+  (if .description then "  <plot>\(.description | esc)</plot>" else empty end),
+  "  <lockdata>true</lockdata>",
+  "</tvshow>"'
+
+# shellcheck disable=SC2016 # $root is a jq variable, not a shell one
+media_nfo="$xml_esc"'
+  (if .series then "episodedetails" else "movie" end) as $root | '"$xml_decl"'
+  "<\($root)>",
+  "  <title>\((if .series then .episode else null end) // .title | esc)</title>",
+  (if .series == null and .release_year then "  <year>\(.release_year)</year>" else empty end),
+  (if .season_number != null then "  <season>\(.season_number)</season>" else empty end),
+  (if .episode_number != null then "  <episode>\(.episode_number)</episode>" else empty end),
+  (if .description then "  <plot>\(.description | esc)</plot>" else empty end),
+  (if .release_timestamp then "  <\(if .series then "aired" else "premiered" end)>\((.release_timestamp | todate)[:10])</\(if .series then "aired" else "premiered" end)>" else empty end),
+  (if .duration then "  <runtime>\(.duration / 60 | floor)</runtime>" else empty end),
+  "  <lockdata>true</lockdata>",
+  "</\($root)>"'
+
+# When only a season playlist was processed (season URL subscriptions, or a
+# series whose own artwork is missing), promote a season poster to the
+# series poster Jellyfin looks for.
+ensure_poster() {
+  local p
+  if ! compgen -G "$1/poster.*" >/dev/null; then
+    for p in "$1"/season[0-9]*-poster.*; do
+      [[ -e "$p" ]] || continue
+      cp -- "$p" "$1/poster.${p##*.}"
+      break
+    done
+  fi
+}
+
+while IFS= read -r -d '' f; do
+  dir="${f%/*}"
+  base="${f%.info.json}"
+  case "${base##*/}" in
+    tvshow)
+      jq -r "$tvshow_nfo" "$f" >"$dir/tvshow.nfo"
+      ensure_poster "$dir"
+      ;;
+    season[0-9]*)
+      # a season playlist only stands in for the series when nothing has
+      # written the series-level files yet
+      [[ -e "$dir/tvshow.nfo" ]] || jq -r "$tvshow_nfo" "$f" >"$dir/tvshow.nfo"
+      ensure_poster "$dir"
+      ;;
+    *)
+      jq -r "$media_nfo" "$f" >"$base.nfo"
+      # films get DR's portrait poster too; episodes carry no poster id
+      # and film folders inherit nothing from a series playlist
+      poster_url="$(jq -r 'if .series then empty
+        else ([.thumbnails[]? | select(.id == "poster") | .url] | first) // empty
+        end' "$f")"
+      if [[ -n "$poster_url" && ! -e "$dir/poster.jpg" ]]; then
+        curl -fsSL -o "$dir/poster.jpg" "$poster_url" || rm -f "$dir/poster.jpg"
+      fi
+      ;;
+  esac
+  rm -f -- "$f"
+done < <(find "$dest" -name '*.info.json' -type f -print0)
+
+exit "$status"

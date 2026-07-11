@@ -5,9 +5,68 @@ info dict, so %(series)s and %(season_number)s work in output templates.
 The episode extractor itself can't provide them: the season/show object is
 missing from the episode webpage's embedded JSON.
 
+On top of that, surface the artwork and show descriptions that the API
+responses already carry but the extractor drops:
+
+- DRTVIE: emit every entry of item['images'] as a thumbnail (wallpaper
+  preferred, so --write-thumbnail keeps yielding the landscape episode
+  thumb) instead of only the wallpaper; the portrait poster URL then
+  reaches the info.json, where drtv-dl fetches it for film folders.
+- DRTVSeasonIE/DRTVSeriesIE: add the show's description and images to the
+  playlist result, so playlist metafiles (--write-info-json /
+  --write-thumbnail) provide tvshow.nfo material and poster/season-poster
+  images (portrait poster preferred at playlist level). Season items keep
+  the show under item['show']; series items are the show themselves, with
+  item['show'] tried first either way.
+
 --- a/yt_dlp/extractor/drtv.py
 +++ b/yt_dlp/extractor/drtv.py
-@@ -335,7 +335,7 @@ class DRTVSeasonIE(InfoExtractor):
+@@ -16,6 +16,31 @@
+ SERIES_API = 'https://production-cdn.dr-massive.com/api/page?device=web_browser&item_detail_expand=all&lang=da&max_list_prefetch=3&path=%s'
+
+
++def _drtv_thumbnails(images, preferred='poster'):
++    if not isinstance(images, dict):
++        return None
++    return [{'id': k, 'url': v, 'preference': 1 if k == preferred else -1}
++            for k, v in images.items() if url_or_none(v)] or None
++
++
++def _drtv_show_description(data):
++    return traverse_obj(
++        data,
++        ('entries', 0, 'item', 'show', 'shortDescription'),
++        ('entries', 0, 'item', 'show', 'description'),
++        ('entries', 0, 'item', 'shortDescription'),
++        ('entries', 0, 'item', 'description'),
++        expected_type=str, get_all=False)
++
++
++def _drtv_show_thumbnails(data):
++    return _drtv_thumbnails(traverse_obj(
++        data,
++        ('entries', 0, 'item', 'show', 'images'),
++        ('entries', 0, 'item', 'images'),
++        get_all=False))
++
++
+ class DRTVIE(InfoExtractor):
+     _VALID_URL = r'''(?x)
+                     https?://
+@@ -229,11 +254,11 @@
+             'id': video_id,
+             'formats': formats,
+             'subtitles': subtitles,
++            'thumbnails': _drtv_thumbnails(item.get('images'), preferred='wallpaper'),
+             **traverse_obj(item, {
+                 'title': 'title',
+                 'alt_title': 'contextualTitle',
+                 'description': 'description',
+-                'thumbnail': ('images', 'wallpaper'),
+                 'release_timestamp': ('customFields', 'BroadcastTimeDK', {parse_iso8601}),
+                 'duration': ('duration', {int_or_none}),
+                 'series': ('season', 'show', 'title'),
+@@ -335,7 +360,7 @@
          data = self._download_json(SERIES_API % f'/saeson/{display_id}_{season_id}', display_id)
 
          entries = [{
@@ -16,3 +75,19 @@ missing from the episode webpage's embedded JSON.
              'url': f'https://www.dr.dk/drtv{episode["path"]}',
              'ie_key': DRTVIE.ie_key(),
              'title': episode.get('title'),
+@@ -356,6 +381,8 @@
+             'series': traverse_obj(data, ('entries', 0, 'item', 'title')),
+             'entries': entries,
+             'season_number': traverse_obj(data, ('entries', 0, 'item', 'seasonNumber')),
++            'description': _drtv_show_description(data),
++            'thumbnails': _drtv_show_thumbnails(data),
+         }
+
+
+@@ -397,4 +424,6 @@
+             'alt_title': traverse_obj(data, ('entries', 0, 'item', 'contextualTitle')),
+             'series': traverse_obj(data, ('entries', 0, 'item', 'title')),
+             'entries': entries,
++            'description': _drtv_show_description(data),
++            'thumbnails': _drtv_show_thumbnails(data),
+         }

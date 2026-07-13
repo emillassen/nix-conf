@@ -8,6 +8,9 @@
   curl,
   gnugrep,
   jq,
+  coreutils,
+  findutils,
+  gnused,
 }:
 let
   # DRTV episode pages no longer embed the season/show object, so the episode
@@ -28,6 +31,9 @@ writeShellApplication {
     curl # resolves bare-ID URLs to their canonical slug form; film posters
     gnugrep
     jq # info.json -> Jellyfin NFO conversion
+    coreutils # mktemp, tee, sort, wc, cp, ...
+    findutils # the info.json sweeps
+    gnused # summary indentation
   ];
   text = builtins.readFile ./drtv-dl.sh;
 }

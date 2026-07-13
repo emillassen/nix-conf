@@ -2,8 +2,12 @@ DRTVSeasonIE already extracts series/season_number for each episode entry,
 but emits them as plain '_type: url' entries, which discard all extra fields
 when the episode is resolved. 'url_transparent' merges them into the final
 info dict, so %(series)s and %(season_number)s work in output templates.
-The episode extractor itself can't provide them: the season/show object is
-missing from the episode webpage's embedded JSON.
+The episode webpage's embedded JSON is missing the season/show object, so
+DRTVIE cannot provide them by itself; for episode items that arrive without
+a season (direct episode URLs have no playlist to merge from) it now grafts
+the season object from the items API, which still returns it - otherwise
+they would fall back to film-style naming. Film ('program') items never
+have a season, so they skip the extra request.
 
 On top of that, surface the artwork and show descriptions that the API
 responses already carry but the extractor drops:
@@ -53,7 +57,51 @@ responses already carry but the extractor drops:
  class DRTVIE(InfoExtractor):
      _VALID_URL = r'''(?x)
                      https?://
-@@ -229,11 +254,11 @@
+@@ -165,22 +190,33 @@
+             r'window\.__data\s*=', webpage, 'data', url_slug, fatal=False) or {}
+         item = traverse_obj(
+             json_data, ('cache', 'page', ..., (None, ('entries', 0)), 'item', {dict}), get_all=False)
++        items_api_query = {
++            'device': 'web_browser',
++            'expand': 'all',
++            'ff': 'idp,ldp,rpt',
++            'geoLocation': 'dk',
++            'isDeviceAbroad': 'false',
++            'lang': 'da',
++            'segments': 'drtv,optedout',
++            'sub': 'Anonymous',
++        }
+         if item:
+             item_id = item.get('id')
+         else:
+             item_id = url_slug.rsplit('_', 1)[-1]
+             item = self._download_json(
+                 f'https://production-cdn.dr-massive.com/api/items/{item_id}', item_id,
+-                note='Attempting to download backup item data', query={
+-                    'device': 'web_browser',
+-                    'expand': 'all',
+-                    'ff': 'idp,ldp,rpt',
+-                    'geoLocation': 'dk',
+-                    'isDeviceAbroad': 'false',
+-                    'lang': 'da',
+-                    'segments': 'drtv,optedout',
+-                    'sub': 'Anonymous',
+-                })
++                note='Attempting to download backup item data', query=items_api_query)
++
++        # The webpage's embedded JSON no longer includes the season/show
++        # object, so an episode reached by direct URL would miss the
++        # series/season metadata extracted below; graft it from the items
++        # API, which still returns it. Films ('program' items) have none.
++        if item.get('type') == 'episode' and not item.get('season'):
++            item['season'] = traverse_obj(self._download_json(
++                f'https://production-cdn.dr-massive.com/api/items/{item_id}', item_id,
++                note='Downloading season metadata', fatal=False,
++                query=items_api_query), 'season') or {}
+
+         video_id = try_call(lambda: item['customId'].rsplit(':', 1)[-1]) or item_id
+         stream_data = self._download_json(
+@@ -229,11 +265,11 @@
              'id': video_id,
              'formats': formats,
              'subtitles': subtitles,
@@ -66,7 +114,7 @@ responses already carry but the extractor drops:
                  'release_timestamp': ('customFields', 'BroadcastTimeDK', {parse_iso8601}),
                  'duration': ('duration', {int_or_none}),
                  'series': ('season', 'show', 'title'),
-@@ -335,7 +360,7 @@
+@@ -335,7 +371,7 @@
          data = self._download_json(SERIES_API % f'/saeson/{display_id}_{season_id}', display_id)
 
          entries = [{
@@ -75,7 +123,7 @@ responses already carry but the extractor drops:
              'url': f'https://www.dr.dk/drtv{episode["path"]}',
              'ie_key': DRTVIE.ie_key(),
              'title': episode.get('title'),
-@@ -356,6 +381,8 @@
+@@ -356,6 +392,8 @@
              'series': traverse_obj(data, ('entries', 0, 'item', 'title')),
              'entries': entries,
              'season_number': traverse_obj(data, ('entries', 0, 'item', 'seasonNumber')),
@@ -84,7 +132,7 @@ responses already carry but the extractor drops:
          }
 
 
-@@ -397,4 +424,6 @@
+@@ -397,4 +435,6 @@
              'alt_title': traverse_obj(data, ('entries', 0, 'item', 'contextualTitle')),
              'series': traverse_obj(data, ('entries', 0, 'item', 'title')),
              'entries': entries,

@@ -478,6 +478,37 @@ ensure_poster() {
   done
 }
 
+# DR fills the poster slot with a generic play-button placeholder (a fixed
+# ImageId) for every show without portrait artwork - most of the children's
+# series - and the playlist thumbnail download above then writes that
+# placeholder over poster.jpg on every run. The real artwork for those shows
+# lives in the square/tile/wallpaper slots, so when the metadata shows the
+# poster is the placeholder, overwrite the downloaded file with the best of
+# those instead.
+placeholder_image="ImageId='16099618'"
+fix_placeholder_poster() {
+  local json="$1" target="$2" url
+  jq -e --arg ph "$placeholder_image" \
+    '[.thumbnails[]? | select(.id == "poster") | .url // ""] | first // "" | contains($ph)' \
+    "$json" >/dev/null || return 0
+  url="$(jq -r --arg ph "$placeholder_image" '
+    [.thumbnails[]? | select((.url // "") | contains($ph) | not)] as $t
+    | [$t[] | select(.id == "square")] + [$t[] | select(.id == "tile")]
+      + [$t[] | select(.id == "wallpaper")]
+    | (first | .url) // empty' "$json")"
+  [[ -n "$url" ]] || return 0
+  # the alternatives are often PNGs; DR's resize service transcodes on
+  # request, so ask for jpg to match the .jpg name the file keeps
+  url="${url//Format='png'/Format='jpg'}"
+  if curl -fsSL -m 30 -o "$target.tmp" "$url"; then
+    mv -- "$target.tmp" "$target"
+    echo "drtv-dl: replaced placeholder poster: $target"
+  else
+    rm -f -- "$target.tmp"
+    warn "could not replace placeholder poster $target"
+  fi
+}
+
 while IFS= read -r -d '' f; do
   dir="${f%/*}"
   base="${f%.info.json}"
@@ -485,6 +516,7 @@ while IFS= read -r -d '' f; do
     tvshow)
       jq -r "$tvshow_nfo" "$f" >"$dir/tvshow.nfo"
       echo "drtv-dl: wrote $dir/tvshow.nfo"
+      fix_placeholder_poster "$f" "$dir/poster.jpg"
       ensure_poster "$dir"
       ;;
     season[0-9]*)
@@ -494,6 +526,7 @@ while IFS= read -r -d '' f; do
         jq -r "$tvshow_nfo" "$f" >"$dir/tvshow.nfo"
         echo "drtv-dl: wrote $dir/tvshow.nfo"
       fi
+      fix_placeholder_poster "$f" "$dir/${base##*/}-poster.jpg"
       ensure_poster "$dir"
       ;;
     *)
@@ -508,8 +541,9 @@ while IFS= read -r -d '' f; do
       echo "drtv-dl: wrote $base.nfo"
       # films get DR's portrait poster too; episodes carry no poster id
       # and film folders inherit nothing from a series playlist
-      poster_url="$(jq -r 'if .series then empty
-        else ([.thumbnails[]? | select(.id == "poster") | .url] | first) // empty
+      poster_url="$(jq -r --arg ph "$placeholder_image" 'if .series then empty
+        else ([.thumbnails[]? | select(.id == "poster")
+          | .url // "" | select(contains($ph) | not)] | first) // empty
         end' "$f")"
       if [[ -n "$poster_url" && ! -e "$dir/poster.jpg" ]]; then
         curl -fsSL -m 30 -o "$dir/poster.jpg" "$poster_url" || rm -f "$dir/poster.jpg"

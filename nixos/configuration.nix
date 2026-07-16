@@ -35,6 +35,10 @@
     # of evaluating a second private instance — faster rebuilds, and one single
     # place (this file) for overlays and allowUnfree.
     useGlobalPkgs = true;
+    # Install home.packages via users.users.emil.packages (/etc/profiles,
+    # part of the system closure) instead of the nix-env profile at
+    # ~/.nix-profile, whose GC root nh clean 4.4.0 deletes (nh issue #722).
+    useUserPackages = true;
     extraSpecialArgs = { inherit inputs outputs; };
     users = {
       emil = import ../home-manager/home.nix;
@@ -54,8 +58,12 @@
 
       # VSCode marketplace extensions -> pkgs.vscode-marketplace.*
       inputs.nix-vscode-extensions.overlays.default
-      # AI coding agents -> pkgs.llm-agents.*
-      inputs.llm-agents.overlays.default
+
+      # The AI coding agents are intentionally NOT an overlay: per upstream's
+      # README they are referenced directly from inputs.llm-agents.packages
+      # (home.nix, vscode.nix), built against the flake's own pinned nixpkgs
+      # so the numtide binary cache applies. Its overlays.shared-nixpkgs would
+      # rebuild them against our nixpkgs and miss the cache.
     ];
     # Configure your nixpkgs instance
     config = {

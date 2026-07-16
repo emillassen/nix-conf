@@ -210,8 +210,12 @@
           pupdate = "pocket-up";
           pocket-up = "pupdate -s -p /run/media/$(whoami)/Pocket/";
           ns = "sudo nixos-rebuild switch --flake $NH_FLAKE#fw13";
-          nsu = "sudo nixos-rebuild switch --upgrade --flake $NH_FLAKE#fw13";
-          nix-clean = "nh clean all";
+          # -u updates flake inputs before switching (nixos-rebuild --upgrade
+          # only updates channels, so it was a no-op with flakes)
+          nsu = "nh os switch -u";
+          # Bare `nh clean all` keeps only 1 generation — no rollback left.
+          # Keep a margin on manual cleans; the weekly timer keeps 10/30d.
+          nix-clean = "nh clean all --keep 5 --keep-since 7d";
           flake-up = "nix flake update --flake $NH_FLAKE";
         };
       };

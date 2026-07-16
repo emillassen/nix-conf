@@ -1,4 +1,5 @@
 {
+  inputs,
   lib,
   pkgs,
   ...
@@ -12,7 +13,9 @@
     with pkgs;
     lib.mkAfter [
       ansible-lint
-      llm-agents.claude-code # CLI backing the claude-code VSCode extension
+      # CLI backing the claude-code VSCode extension (direct flake reference
+      # per upstream's README, keeping its binary cache)
+      inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}.claude-code
       nixd
       nixfmt
       pre-commit

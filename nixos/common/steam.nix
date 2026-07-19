@@ -1,4 +1,4 @@
-# https://nixos.wiki/wiki/Steam
+# https://wiki.nixos.org/wiki/Steam
 { pkgs, ... }:
 {
   fonts.fontconfig.cache32Bit = true;

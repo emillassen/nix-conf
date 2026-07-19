@@ -19,7 +19,7 @@ _: {
         init.defaultBranch = "main";
         push.autoSetupRemote = true;
         pull.rebase = true;
-        merge.conflictstyle = "diff3";
+        merge.conflictstyle = "zdiff3";
         diff.colorMoved = "default";
 
         # Useful aliases

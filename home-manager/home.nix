@@ -8,15 +8,14 @@
 {
   # You can import other home-manager modules here
   imports = [
-    # If you want to use modules your own flake exports (from modules/home-manager):
-    # outputs.homeManagerModules.example
+    # Modules this flake exports (from modules/home-manager) would go here:
+    # outputs.homeModules.example
 
-    # Or modules exported from other flakes (such as nix-colors):
-    # inputs.nix-colors.homeManagerModules.default
+    # Modules exported from other flakes:
     inputs.catppuccin.homeModules.catppuccin
 
-    # You can also split up your configuration and import pieces of it here:
-    ./config/git.nix # Needed for home-manager to work
+    # Per-app configs:
+    ./config/git.nix
     ./config/catppuccin.nix
     #./config/kitty.nix
     ./config/ghostty.nix
@@ -101,6 +100,7 @@
       signal-desktop # Signal messenger desktop client
       spotify # Music streaming service
       stress-ng # System stress testing tool
+      thunderbird # Full-featured e-mail client
       usbutils # USB utilities (lsusb, etc.)
       vuescan # Scanner software (from /nix-conf/pkgs)
       wavemon # Wireless network monitoring tool
@@ -122,9 +122,6 @@
   # Required to autoload fonts from packages installed via Home Manager
   fonts.fontconfig.enable = true;
 
-  # Nicely reload system units when changing configs
-  systemd.user.startServices = "sd-switch";
-
-  # https://nixos.wiki/wiki/FAQ/When_do_I_update_stateVersion
+  # https://wiki.nixos.org/wiki/FAQ/When_do_I_update_stateVersion
   home.stateVersion = "26.05";
 }

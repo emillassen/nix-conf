@@ -44,15 +44,15 @@ Zsh abbreviations on the host: `ns`/`nsu` (rebuild/upgrade), `nix-clean`, `flake
 
 ## Architecture
 
-**flake.nix** is the entry point. Outputs: `nixosConfigurations.fw13`, `packages` (from `pkgs/`), `formatter` (nixfmt-tree), `overlays`, `devShells`, `checks` (pre-commit), plus empty `nixosModules`/`homeManagerModules` stubs (`modules/` is placeholder). `systems` is Linux-only (x86_64 + aarch64).
+**flake.nix** is the entry point. Outputs: `nixosConfigurations.fw13`, `packages` (from `pkgs/`), `formatter` (nixfmt-tree), `overlays`, `devShells`, `checks` (pre-commit), plus empty `nixosModules`/`homeModules` stubs (`modules/` is placeholder; `homeModules` is the standard output name, not `homeManagerModules`). `systems` is Linux-only (x86_64 + aarch64).
 
-Inputs: nixpkgs (nixos-unstable), nixpkgs-stable (26.05), disko, home-manager, nixos-hardware, nix-vscode-extensions, sops-nix, pre-commit-hooks, nixvim, catppuccin, llm-agents. Every input follows the main nixpkgs **except `llm-agents`**, which keeps its own pinned nixpkgs on purpose so the numtide binary cache applies — do not add `follows` to it.
+Inputs: nixpkgs (nixos-unstable), nixpkgs-stable (26.05), disko, home-manager, nixos-hardware, nix-vscode-extensions, sops-nix, pre-commit-hooks (URL is `cachix/git-hooks.nix`, the renamed pre-commit-hooks.nix repo), nixvim, catppuccin, llm-agents. Every input follows the main nixpkgs **except `llm-agents`**, which keeps its own pinned nixpkgs on purpose so the numtide binary cache applies — do not add `follows` to it.
 
 - `nixos/configuration.nix` — Main system config. Imports hardware config, disks, KDE, and the `common/` modules, and wires in Home Manager. All nixpkgs overlays and config (allowUnfree) live **here** and serve both system and HM: `additions` (pkgs/), `modifications` (empty), `stable-packages` (`pkgs.stable`), `nix-vscode-extensions` (`pkgs.vscode-marketplace.*`). The AI agents are deliberately not an overlay: they are referenced directly as `inputs.llm-agents.packages.<system>.*` (in `home.nix` and `config/vscode.nix`), the pattern upstream's README documents, so the numtide cache applies.
 - `nixos/common/` — `pipewire.nix` (audio), `sops.nix` (secrets, see below), `yubikey.nix` (GPG agent + SSH support, yubikey-manager, touch detector), `cifs.nix` (NAS automounts at `/mnt/<share>` from 192.168.1.30, credentials via a sops template), `steam.nix` (+ gamemode, proton-ge), `catppuccin.nix` (system theming: SDDM, TTY, Plymouth).
 - `nixos/kde.nix` — active desktop (Plasma 6, SDDM on Wayland, autologin). `nixos/gnome.nix` exists but its import is commented out in `configuration.nix`.
 - `nixos/disks.nix` — Disko layout: GPT, 2G ESP, LUKS (`crypted`, discards allowed) with ext4 root. `passwordFile = /tmp/secret.key` is only used at install time.
-- System notables: systemd initrd + Plymouth (themed LUKS prompt, `password-echo=no`), latest kernel, zram swap, tmpfs `/tmp` (16G), systemd-boot capped at 10 generations, fwupd (+ lvfs-testing), fprintd, Mullvad, fw-fanctrl, rtl-sdr, Danish locale and `dk`/`nodeadkeys` layout. `system.stateVersion = "26.05"` — do not bump it.
+- System notables: systemd initrd + Plymouth (themed LUKS prompt, `password-echo=no`), latest kernel, zram swap, tmpfs `/tmp` (16G), systemd-boot capped at 10 generations, fwupd (+ lvfs-testing), fprintd, Mullvad, fw-fanctrl, rtl-sdr, Danish locale and `dk`/`nodeadkeys` layout. Flake-only Nix: `nix.channel.enable = false` (NIX_PATH/registry resolve to the flake's nixpkgs via `nixpkgs.flake.*` defaults) and scheduled `nix.optimise` instead of `auto-optimise-store`. `system.stateVersion = "26.05"` — do not bump it.
 
 **home-manager/home.nix** is the HM entry point for `emil`. Per-app configs in `home-manager/config/`: git (+ delta, gh, GPG signing), catppuccin, ghostty, nixvim, zsh (+ starship, zsh-abbr), vscode, zed-editor, helix, games. Disabled imports (see comments in `home.nix`): `kitty.nix`, `gnome/gnomesettings.nix`, `gnome/catppuccin.nix`, `nextcloud.nix` — the gnome ones are moot under KDE but kept valid.
 
@@ -79,7 +79,7 @@ Three workflows exist in `.github/workflows/`, but **all three are manually disa
 - `update-flake.yml` — weekly `nix flake update` PR via update-flake-lock (PAT `GH_TOKEN_FOR_UPDATES`).
 - `update-devilutionx.yml` — weekly upstream check; prefetches via `nix run nixpkgs#nix-prefetch-github` (with pipefail and an empty-hash guard), rewrites `pkgs/devilutionx/default.nix`, opens a PR.
 
-Actions used: checkout@v7, determinate-nix-action@v3, magic-nix-cache-action@v14 (FlakeHub off), flake-checker-action@v12, update-flake-lock@v28, peter-evans/create-pull-request@v8.
+Actions used: checkout@v7, determinate-nix-action@v3, magic-nix-cache-action@v14 (FlakeHub off), flake-checker-action@v13, update-flake-lock@v28, peter-evans/create-pull-request@v8. Renovate keeps these bumped.
 
 ## Key Patterns & Gotchas
 

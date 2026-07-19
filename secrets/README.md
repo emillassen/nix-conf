@@ -1,6 +1,6 @@
 # Secrets Management with sops-nix
 
-This directory contains encrypted secrets managed by [sops](https://github.com/mozilla/sops) and integrated with NixOS via [sops-nix](https://github.com/Mic92/sops-nix).
+This directory contains encrypted secrets managed by [sops](https://github.com/getsops/sops) and integrated with NixOS via [sops-nix](https://github.com/Mic92/sops-nix).
 
 ## Directory Structure
 

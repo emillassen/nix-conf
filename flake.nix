@@ -1,36 +1,27 @@
 {
   description = "Emil's NixOS config";
 
-  # the nixConfig here only affects the flake itself, not the system configuration!
+  # the nixConfig here only affects commands run on the flake itself (useful at
+  # install time, before the system config applies) — cache.nixos.org and its
+  # key stay active as the built-in defaults. Honored because emil is in
+  # nix.settings.trusted-users (nixos/configuration.nix).
   nixConfig = {
-    # override the default substituters
-    substituters = [
-      # cache mirror located in China
-      # status: https://mirror.sjtu.edu.cn/
-      #"https://mirror.sjtu.edu.cn/nix-channels/store"
-      # status: https://mirrors.ustc.edu.cn/status/
-      #"https://mirrors.ustc.edu.cn/nix-channels/store"
-
-      "https://cache.nixos.org"
-
+    extra-substituters = [
       # nix community's cache server
       "https://nix-community.cachix.org"
-
       # numtide cache for llm-agents.nix prebuilt AI agents
       "https://cache.numtide.com"
     ];
-    trusted-public-keys = [
-      "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="
+    extra-trusted-public-keys = [
       "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
       "niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g="
     ];
   };
 
   inputs = {
-    # Nixpkgs
+    # Nixpkgs (primary channel)
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
-    # You can access packages and modules from different nixpkgs revs
-    # at the same time. Here's an working example:
+    # Stable nixpkgs, exposed as pkgs.stable via the stable-packages overlay
     nixpkgs-stable.url = "github:nixos/nixpkgs/nixos-26.05";
 
     # Adds disko support for partitioning, formatting and LUKS on disks
@@ -53,8 +44,8 @@
     sops-nix.url = "github:Mic92/sops-nix";
     sops-nix.inputs.nixpkgs.follows = "nixpkgs";
 
-    # Pre-commit hooks
-    pre-commit-hooks.url = "github:cachix/pre-commit-hooks.nix";
+    # Pre-commit hooks (cachix/git-hooks.nix is the renamed pre-commit-hooks.nix)
+    pre-commit-hooks.url = "github:cachix/git-hooks.nix";
     pre-commit-hooks.inputs.nixpkgs.follows = "nixpkgs";
 
     # Nixvim - Neovim configuration with Nix
@@ -118,7 +109,9 @@
       nixosModules = import ./modules/nixos;
       # Reusable home-manager modules you might want to export
       # These are usually stuff you would upstream into home-manager
-      homeManagerModules = import ./modules/home-manager;
+      # ('homeModules' is the standard output name; 'homeManagerModules' is
+      # legacy and makes 'nix flake check' warn about an unknown output)
+      homeModules = import ./modules/home-manager;
 
       # Development shells
       devShells = forAllSystems (system: {
@@ -196,10 +189,6 @@
             nixos-hardware.nixosModules.framework-13-7040-amd
             sops-nix.nixosModules.sops
             inputs.catppuccin.nixosModules.catppuccin
-
-            # given the users in this list the right to specify additional substituters via:
-            # 1. `nixConfig.substituters` in `flake.nix`
-            { nix.settings.trusted-users = [ "emil" ]; }
           ];
         };
       };

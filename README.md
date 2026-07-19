@@ -1,6 +1,6 @@
 # Emil's NixOS Configuration
 
-My personal [NixOS](https://nixos.org/) configuration using [Nix Flakes](https://nixos.wiki/wiki/Flakes) and [Home Manager](https://github.com/nix-community/home-manager). It's built for my own hardware and workflow, but may be useful as a reference.
+My personal [NixOS](https://nixos.org/) configuration using [Nix Flakes](https://wiki.nixos.org/wiki/Flakes) and [Home Manager](https://github.com/nix-community/home-manager). It's built for my own hardware and workflow, but may be useful as a reference.
 
 ## System Overview
 
@@ -142,7 +142,7 @@ Prerequisites:
 4. Apply the configuration:
 
    ```bash
-   sudo nixos-rebuild switch
+   sudo nixos-rebuild switch --flake .#fw13
    ```
 
 ## Post-Install Configuration
@@ -242,6 +242,6 @@ cd secrets && sops -d smb.yaml       # test manual decryption
 
 - [NixOS Manual](https://nixos.org/manual/nixos/stable/)
 - [Home Manager Manual](https://nix-community.github.io/home-manager/)
-- [SOPS Documentation](https://github.com/mozilla/sops)
+- [SOPS Documentation](https://github.com/getsops/sops)
 - [Framework 13 NixOS Guide](https://github.com/NixOS/nixos-hardware/tree/master/framework/13-inch/7040-amd)
 - [Framework Community](https://community.frame.work/)

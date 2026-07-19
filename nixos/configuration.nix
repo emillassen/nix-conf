@@ -11,13 +11,13 @@
 {
   # You can import other NixOS modules here
   imports = [
-    # If you want to use modules your own flake exports (from modules/nixos):
+    # Modules this flake exports (from modules/nixos) would go here:
     # outputs.nixosModules.example
 
-    # Or modules from other flakes (such as nixos-hardware):
+    # Home Manager as a NixOS module (hardware/disko/sops/catppuccin modules
+    # are wired up in flake.nix next to the host definition)
     inputs.home-manager.nixosModules.home-manager
 
-    # You can also split up your configuration and import pieces of it here:
     ./hardware-configuration.nix
     ./disks.nix
     ./common/pipewire.nix
@@ -39,6 +39,9 @@
     # part of the system closure) instead of the nix-env profile at
     # ~/.nix-profile, whose GC root nh clean 4.4.0 deletes (nh issue #722).
     useUserPackages = true;
+    # If HM starts managing a file that already exists on disk, rename the old
+    # file to *.backup instead of aborting the whole system switch.
+    backupFileExtension = "backup";
     extraSpecialArgs = { inherit inputs outputs; };
     users = {
       emil = import ../home-manager/home.nix;
@@ -73,9 +76,19 @@
 
   # Nix settings
   nix = {
+    # Flake-only system: disable the nix-channel machinery. <nixpkgs> and the
+    # system flake registry still resolve to this flake's pinned input via the
+    # nixpkgs.flake.setNixPath/setFlakeRegistry defaults.
+    channel.enable = false;
     # Registry to make nix3 commands consistent with your flake
     registry = lib.mapAttrs (_: flake: { inherit flake; }) inputs;
-    # Nix settings
+    # Deduplicate the store on a schedule (idle priority, AC only, catches up
+    # on missed runs) instead of hardlinking during every build —
+    # auto-optimise-store slows builds (NixOS/nix#6033).
+    optimise = {
+      automatic = true;
+      dates = [ "weekly" ];
+    };
     settings = {
       experimental-features = [
         "nix-command"
@@ -83,13 +96,22 @@
       ];
       # Disable 'warning : git tree 'nix-config folder' is dirty'
       warn-dirty = false;
-      # Deduplicate and optimize nix store
-      auto-optimise-store = true;
-      # Binary cache for numtide/llm-agents.nix (prebuilt AI agents)
-      extra-substituters = [ "https://cache.numtide.com" ];
+      # Lets emil pass extra substituters/keys from a flake's nixConfig
+      # (e.g. this flake's own nixConfig at install time)
+      trusted-users = [ "emil" ];
+      # Mirror this flake's nixConfig caches system-wide so builds never depend
+      # on flake-config acceptance (non-interactive runs like nh ignore it).
+      extra-substituters = [
+        "https://nix-community.cachix.org"
+        "https://cache.numtide.com"
+      ];
       extra-trusted-public-keys = [
+        "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
         "niks3.numtide.com-1:DTx8wZduET09hRmMtKdQDxNNthLQETkc/yaX7M4qK0g="
       ];
+      # This flake's own nixConfig is the same set of caches — accept it
+      # silently instead of warning on every nh/nixos-rebuild run.
+      accept-flake-config = true;
     };
   };
 
@@ -247,6 +269,6 @@
 
   # Generation cleanup is handled by programs.nh.clean (see above).
 
-  # https://nixos.wiki/wiki/FAQ/When_do_I_update_stateVersion
+  # https://wiki.nixos.org/wiki/FAQ/When_do_I_update_stateVersion
   system.stateVersion = "26.05";
 }

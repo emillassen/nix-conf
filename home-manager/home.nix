@@ -84,6 +84,7 @@
       libation # Audible audiobook manager
       libreoffice # Office suite
       mediainfo-gui # Media file information viewer
+      meshcore-cli # CLI companion for MeshCore mesh radio devices
       mkvtoolnix # Matroska video tools
       mpv # Media player
       ncdu # Disk usage analyzer with ncurses interface
@@ -94,14 +95,20 @@
       orca-slicer # G-code generator for 3D printers.
       pciutils # PCI utilities (lspci, etc.)
       pupdate # Pupdate tool
+      # uv's own downloaded CPython is a generic-linux build that NixOS cannot
+      # exec (stub-ld). uvx runs with --python-preference system, so a real
+      # interpreter on PATH keeps it from reaching for the broken one.
+      python3 # Python interpreter (used by uvx-launched MCP servers)
       remmina # Remote desktop client
       s-tui # Stress testing and monitoring tool
       sdrpp # Software-defined radio application
       signal-desktop # Signal messenger desktop client
       spotify # Music streaming service
+      standardebooks-dl # Sync a Calibre-style library with standardebooks.org (from /nix-conf/pkgs)
       stress-ng # System stress testing tool
       thunderbird # Full-featured e-mail client
       usbutils # USB utilities (lsusb, etc.)
+      uv # Python package/project manager (provides uvx, used to launch MCP servers)
       vuescan # Scanner software (from /nix-conf/pkgs)
       wavemon # Wireless network monitoring tool
       wget # File downloader

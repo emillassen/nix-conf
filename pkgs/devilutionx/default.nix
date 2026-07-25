@@ -23,8 +23,8 @@
 
 let
   asio = fetchzip {
-    url = "https://github.com/diasurgical/asio/archive/4bcf552fcea3e1ae555dde2ab33bc9fa6770da4d.tar.gz";
-    hash = "sha256-MhCPqe7YyoPWLpTu55UWNM1bmOX3TNL24FFSsBIohCM";
+    url = "https://github.com/diasurgical/asio/archive/112f011842f4ae713b158a0fc57009f95c761a21.tar.gz";
+    hash = "sha256-I3YyKLrZ8VBUPlp9iC+42rfnlDeCzpFPC/Y3yxnTEhU=";
   };
 
   libsmackerdec = fetchzip {
@@ -46,8 +46,8 @@ let
   };
 
   mpqfs = fetchzip {
-    url = "https://github.com/diasurgical/mpqfs/archive/9423bd48d04c8a0c51d3df6ce328e66785e3b441.tar.gz";
-    hash = "sha256-YkfXKtJVmUOM6Cvmjatmn67bBL7sMmj7gr8BFal+ePc=";
+    url = "https://github.com/diasurgical/mpqfs/archive/ee29f596bd01822ae0edf01bcf3564cb9e6ea781.tar.gz";
+    hash = "sha256-Za/+g7IEssK5sNWVkjnHN0WUl504zi9KnEXFTIRXARI=";
   };
 
   sheenbidi = fetchzip {
@@ -64,13 +64,13 @@ in
 
 stdenv.mkDerivation {
   pname = "devilutionx";
-  version = "unstable-2026-06-23-95acc82";
+  version = "unstable-2026-07-13-ac2d7fc";
 
   src = fetchFromGitHub {
     owner = "diasurgical";
     repo = "devilutionX";
-    rev = "95acc82d89e6ce34cf54cda429d794d52eba3459";
-    hash = "sha256-dpUluRfFVTglgSbR/+GXE2P3cXC7aTNqtAmTvCNgSZU=";
+    rev = "ac2d7fc731bc37bc3547eddd2d4c395c868c439f";
+    hash = "sha256-L6N8/bySZYstN1Ly4fphVbtWDCNUkdcpTKNXp78YdvE=";
   };
 
   postPatch = ''

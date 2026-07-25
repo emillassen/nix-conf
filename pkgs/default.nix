@@ -4,6 +4,7 @@
 pkgs: {
   # example = pkgs.callPackage ./example { };
   drtv-dl = pkgs.callPackage ./drtv-dl { };
+  standardebooks-dl = pkgs.callPackage ./standardebooks-dl { };
   vuescan = pkgs.callPackage ./vuescan { };
   devilutionx = pkgs.callPackage ./devilutionx { };
 }

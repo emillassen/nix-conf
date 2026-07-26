@@ -7,17 +7,22 @@ Usage: standardebooks-dl [-d DIR] [-n] [-r] [-h]
 Download every ebook from standardebooks.org that isn't already in DIR yet,
 laid out the way Calibre-style libraries expect:
 
-  Author Last Name/Author First Name/Book Title/Book Title.epub
-  Author Last Name/Author First Name/Book Title/Book Title.azw3
-  Author Last Name/Author First Name/Book Title/Book Title.kepub.epub
-  Author Last Name/Author First Name/Book Title/Book Title.advanced.epub
+  Last Name, First Name/Book Title/Book Title.epub
+  Last Name, First Name/Book Title/Book Title.azw3
+  Last Name, First Name/Book Title/Book Title.kepub.epub
+  Last Name, First Name/Book Title/Book Title.advanced.epub
 
 The full catalog (a few thousand ebooks, spanning the site's 100+ listing
 pages) is discovered in one request via the site's sitemap, instead of
 crawling /ebooks page by page. Author name and title come from each ebook's
 own epub metadata (its file-as sort name), not guessed from the display
 name, so multi-word surnames and particles (von, de, van Gogh, ...) come out
-right.
+right. That sort name is the author directory verbatim - the same
+"Last, First" form Calibre's {author_sort} template produces (Milne, A. A.),
+and a plain mononym (Aesop, Homer, Anonymous, ...) where there is no first
+name. A library laid out by an older version, which split that name into
+Last/First/ directories, is moved over to it automatically on the next run
+(-n excepted, being a dry run); no re-downloading involved.
 
 Each book's embedded cover is lifted out of its epub as a cover.jpg next to
 the files, so KDE's Dolphin shows a folder thumbnail and Calibre / Jellyfin
@@ -159,6 +164,102 @@ media_exists() {
   [[ -e "$dir/$base.epub" && -e "$dir/$base.azw3" && -e "$dir/$base.kepub.epub" && -e "$dir/$base.advanced.epub" ]]
 }
 
+index_file="$dest/.standardebooks-dl-index.tsv"
+
+# A relative book path has 3 segments in the layout used before authors got a
+# single directory (Last/First/Title) and 2 in the current one (Last, First/
+# Title), so the count alone identifies a legacy path. Joining the two author
+# segments back with ", " reproduces the sort name exactly: the old code split
+# it at the first ", " only and rewrote neither half beyond sanitize's
+# character replacement (which never introduces or removes a "/"). Mononym
+# authors (Aesop, Homer, Anonymous...) always had one level and never match.
+legacy_relpath() {
+  local -a p
+  IFS=/ read -ra p <<<"$1"
+  [[ "${#p[@]}" == 3 ]]
+}
+
+current_relpath() {
+  local -a p
+  IFS=/ read -ra p <<<"$1"
+  printf '%s, %s/%s' "${p[0]}" "${p[1]}" "${p[2]}"
+}
+
+# Moves a library built by an older version over to the current layout. This
+# has to happen on every ordinary run, not once behind a flag: the ledger
+# hands stored paths straight back to the downloader, which recreates them to
+# fill in missing formats, so without this the layout would never change for
+# any book already synced - only brand new ones would land in the right place.
+# Idempotent, and local only (no requests): it just renames directories.
+migrate_layout() {
+  local dir rel new first surname moved=0 stuck=0
+  while IFS= read -r -d '' dir; do
+    rel="${dir#"$dest"/}"
+    legacy_relpath "$rel" || continue
+    # a book directory holds the book; anything else 3 deep is left alone
+    [[ -n "$(find "$dir" -maxdepth 1 -type f -name '*.epub' -print -quit)" ]] || continue
+    new="$(current_relpath "$rel")"
+    if [[ -e "$dest/$new" ]]; then
+      # these go straight to stderr rather than through warn(): the run-end
+      # summaries collect download and cover failures, and a layout note
+      # listed under those headings would just read as one of them
+      echo "standardebooks-dl: warning: $rel: $new already exists" \
+        "- left in place, merge it by hand" >&2
+      stuck=$((stuck + 1))
+      continue
+    fi
+    mkdir -p "$dest/${new%/*}"
+    if mv -- "$dir" "$dest/$new"; then
+      moved=$((moved + 1))
+      # clear the two directory levels the move emptied, innermost first.
+      # Plain rmdir (never -p, which would walk on up into the library root
+      # and beyond) and each is skipped unless it is genuinely empty, so an
+      # author with books still to migrate keeps their directory.
+      first="${dir%/*}"
+      surname="${first%/*}"
+      rmdir -- "$first" 2>/dev/null || true
+      [[ "$surname" != "$dest" ]] && { rmdir -- "$surname" 2>/dev/null || true; }
+    else
+      echo "standardebooks-dl: warning: $rel: could not move to $new" >&2
+      stuck=$((stuck + 1))
+    fi
+  done < <(find "$dest" -mindepth 3 -maxdepth 3 -type d -print0)
+  if [[ "$moved" -gt 0 || "$stuck" -gt 0 ]]; then
+    echo "standardebooks-dl: layout: moved $moved book(s) to Last, First/Title" \
+      "($stuck left behind)" >&2
+  fi
+}
+
+# The on-disk move above is only half of it - the ledger's stored paths have to
+# follow, or every migrated book looks missing and gets downloaded again into a
+# freshly recreated legacy directory.
+migrate_index() {
+  local slug relpath changed=0 tmp="$index_file.migrating"
+  [[ -s "$index_file" ]] || return 0
+  : >"$tmp"
+  while IFS=$'\t' read -r slug relpath; do
+    [[ -n "$slug" ]] || continue
+    if [[ -n "$relpath" ]] && legacy_relpath "$relpath"; then
+      relpath="$(current_relpath "$relpath")"
+      changed=$((changed + 1))
+    fi
+    printf '%s\t%s\n' "$slug" "$relpath" >>"$tmp"
+  done <"$index_file"
+  if [[ "$changed" -gt 0 ]]; then
+    mv -- "$tmp" "$index_file"
+    echo "standardebooks-dl: layout: $changed ledger path(s) updated" >&2
+  else
+    rm -f "$tmp"
+  fi
+}
+
+# -n is a dry run and stays read-only; the other modes migrate first so they
+# never operate on a mix of both layouts.
+if [[ "$list_only" == 0 ]]; then
+  migrate_layout
+  migrate_index
+fi
+
 # -r: (re)generate cover.jpg for every book already on disk, read straight from
 # the local epubs. No catalog fetch, no network, no pacing - it only touches
 # files already downloaded, overwriting existing covers so it doubles as a
@@ -191,7 +292,6 @@ if [[ "$recheck" == 1 ]]; then
   exit 0
 fi
 
-index_file="$dest/.standardebooks-dl-index.tsv"
 touch "$index_file"
 
 tmpdir="$(mktemp -d)"
@@ -358,18 +458,15 @@ for slug in "${books[@]}"; do
     author_fileas="$(unescape_xml "$author_fileas")"
     title="$(unescape_xml "$title")"
 
-    # file-as is "Last, First" for named authors; mononyms (Aesop, Homer,
-    # Anonymous...) carry no comma and get just one directory level.
-    author_last="$(sanitize "${author_fileas%%, *}")"
-    author_first=""
-    [[ "$author_fileas" == *", "* ]] && author_first="$(sanitize "${author_fileas#*, }")"
+    # file-as is already the "Last, First" sort name Calibre's {author_sort}
+    # uses (and a bare mononym - Aesop, Homer, Anonymous... - where there is
+    # no first name), so it becomes the author directory as-is. It stays one
+    # directory level: splitting it on the comma would make Calibre and
+    # Jellyfin read the surname as the author and the first name as a book.
+    author_dir="$(sanitize "$author_fileas")"
     base="$(sanitize "$title")"
 
-    if [[ -n "$author_first" ]]; then
-      titledir="$dest/$author_last/$author_first/$base"
-    else
-      titledir="$dest/$author_last/$base"
-    fi
+    titledir="$dest/$author_dir/$base"
     mkdir -p "$titledir"
     mv -- "$epub_tmp" "$titledir/$base.epub"
     relpath="${titledir#"$dest"/}"

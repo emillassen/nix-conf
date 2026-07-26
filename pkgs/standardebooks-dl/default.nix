@@ -1,4 +1,4 @@
-# Syncs a local, Calibre-style library (Author Last/Author First/Title/) with
+# Syncs a local, Calibre-style library ("Last, First"/Title/) with
 # the free ebooks at standardebooks.org: discovers the whole catalog from the
 # site's sitemap in one request, then downloads whatever isn't on disk yet in
 # all 4 formats the site offers (epub, azw3, kepub, advanced epub) and lifts

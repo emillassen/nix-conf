@@ -106,6 +106,17 @@
           symbol = " ";
           style = "bold yellow";
           format = "via [$symbol$version]($style) ";
+          # Upstream also detects a bare *.py, which lights the module up in any
+          # directory holding a stray script (~/Documents). Project markers only.
+          detect_extensions = [ ];
+          detect_files = [
+            "pyproject.toml"
+            ".python-version"
+            "requirements.txt"
+            "Pipfile"
+            "setup.py"
+            "tox.ini"
+          ];
         };
         nodejs = {
           symbol = " ";

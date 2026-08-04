@@ -1,3 +1,6 @@
+# NOTE: this workflow is disabled_manually on GitHub. That state is keyed to
+# this file's path, so editing it here keeps it disabled — renaming the file
+# would create a new workflow that starts out enabled.
 name: Update DevilutionX
 on:
   workflow_dispatch:
@@ -12,7 +15,7 @@ permissions:
 jobs:
   update-devilutionx:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -25,56 +28,69 @@ jobs:
         with:
           use-flakehub: false
 
-      - name: Check for DevilutionX updates
+      - name: Run the update script
         id: update
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN_FOR_UPDATES }}
         run: |
-          CURRENT_REV=$(awk '/src = fetchFromGitHub/{found=1} found && /rev = "/{match($0, /rev = "([^"]+)"/, a); print a[1]; exit}' pkgs/devilutionx/default.nix)
-          LATEST=$(curl -sf -H "Authorization: token $GITHUB_TOKEN" \
-            "https://api.github.com/repos/diasurgical/devilutionX/commits/master")
-          REV=$(echo "$LATEST" | jq -r '.sha')
-          DATE=$(echo "$LATEST" | jq -r '.commit.committer.date' | cut -dT -f1)
-          MESSAGE=$(echo "$LATEST" | jq -r '.commit.message' | head -1)
-          if [ "$REV" = "$CURRENT_REV" ]; then
-            echo "Already up to date"
+          set -o pipefail
+
+          # pkgs/devilutionx/update.sh is the single source of truth. It bumps
+          # `src` to the latest upstream master *and* re-syncs the vendored
+          # 3rdParty pins that commit expects — bumping src alone lets the two
+          # drift apart and breaks the build. It is a no-op when nothing moved.
+          #
+          # Invoked through `nix shell` rather than its nix-shell shebang, which
+          # would need a NIX_PATH channel the runner does not have. --inputs-from
+          # resolves nixpkgs from this repo's flake.lock instead of the registry,
+          # so the tooling is pinned. `nix` and `nix-prefetch-url` come from the
+          # Nix install itself; the script fails loudly if either is absent.
+          nix shell --inputs-from . \
+            nixpkgs#curl nixpkgs#jq nixpkgs#gawk nixpkgs#nix-prefetch-github \
+            --command bash pkgs/devilutionx/update.sh 2>&1 \
+            | tee /tmp/devilutionx-update.log
+
+          if git diff --quiet -- pkgs/devilutionx/default.nix; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           echo "changed=true" >> "$GITHUB_OUTPUT"
-          echo "rev=$REV" >> "$GITHUB_OUTPUT"
-          echo "short_rev=${REV:0:7}" >> "$GITHUB_OUTPUT"
-          echo "date=$DATE" >> "$GITHUB_OUTPUT"
-          echo "message=$MESSAGE" >> "$GITHUB_OUTPUT"
 
-      - name: Update package
-        if: steps.update.outputs.changed == 'true'
-        run: |
-          set -o pipefail
-          # nix-prefetch-github is not on the runner's PATH, so run it via nix
-          HASH=$(nix run nixpkgs#nix-prefetch-github -- --rev "${{ steps.update.outputs.rev }}" diasurgical devilutionX | jq -r '.hash')
-          if [ -z "$HASH" ] || [ "$HASH" = "null" ]; then
-            echo "ERROR: failed to prefetch hash for ${{ steps.update.outputs.rev }}" >&2
+          # Read back what the script pinned. sed, not awk: the runner's awk is
+          # mawk, which cannot parse gawk's three-argument match().
+          VERSION=$(sed -n 's/^  version = "\(.*\)";$/\1/p' pkgs/devilutionx/default.nix | head -n1)
+          REV=$(sed -n '/^  src = fetchFromGitHub/,/};/ s/^    rev = "\(.*\)";$/\1/p' pkgs/devilutionx/default.nix | head -n1)
+          if [ -z "$VERSION" ] || [ -z "$REV" ]; then
+            echo "ERROR: could not read version/rev back from default.nix" >&2
             exit 1
           fi
-          VERSION="unstable-${{ steps.update.outputs.date }}-${{ steps.update.outputs.short_rev }}"
-          awk -v new_rev="${{ steps.update.outputs.rev }}" \
-              -v new_hash="$HASH" \
-              -v new_version="$VERSION" '
-            /version = "/ {
-              sub(/version = "[^"]*"/, "version = \"" new_version "\"")
-            }
-            /src = fetchFromGitHub/ { in_src = 1 }
-            in_src && /rev = "/ {
-              sub(/rev = "[^"]*"/, "rev = \"" new_rev "\"")
-            }
-            in_src && /hash = "/ {
-              sub(/hash = "[^"]*"/, "hash = \"" new_hash "\"")
-              in_src = 0
-            }
-            { print }
-          ' pkgs/devilutionx/default.nix > pkgs/devilutionx/default.nix.tmp \
-            && mv pkgs/devilutionx/default.nix.tmp pkgs/devilutionx/default.nix
+          SHORT_REV=${REV:0:7}
+          DATE=$(echo "$VERSION" | sed 's/^unstable-\(.*\)-[^-]*$/\1/')
+          # Cosmetic only, so never let it fail the run: an absent secret sends an
+          # empty Bearer header and 401s, which pipefail + bash -e would otherwise
+          # turn into a discarded update.
+          COMMIT_API="https://api.github.com/repos/diasurgical/devilutionX/commits/$REV"
+          if [ -n "$GITHUB_TOKEN" ]; then
+            RAW=$(curl -sfL -H "Authorization: Bearer $GITHUB_TOKEN" "$COMMIT_API" || true)
+          else
+            RAW=$(curl -sfL "$COMMIT_API" || true)
+          fi
+          SUBJECT=$(printf '%s' "$RAW" | jq -r '.commit.message // empty' 2>/dev/null | head -n1 || true)
+
+          echo "short_rev=$SHORT_REV" >> "$GITHUB_OUTPUT"
+          echo "date=$DATE" >> "$GITHUB_OUTPUT"
+
+          {
+            printf 'Updates DevilutionX to [`%s`](https://github.com/diasurgical/devilutionX/commit/%s).\n\n' \
+              "$SHORT_REV" "$REV"
+            [ -n "$SUBJECT" ] && printf '> %s\n\n' "$SUBJECT"
+            printf 'Produced by `pkgs/devilutionx/update.sh`, which also re-syncs the vendored\n'
+            printf '3rdParty dependency pins to whatever the new commit expects. Not build-tested\n'
+            printf 'by CI — run `nix build .#devilutionx` before merging.\n\n'
+            printf '<details><summary>Update log</summary>\n\n```\n'
+            cat /tmp/devilutionx-update.log
+            printf '```\n\n</details>\n'
+          } > /tmp/devilutionx-pr-body.md
 
       - name: Create Pull Request
         if: steps.update.outputs.changed == 'true'
@@ -84,9 +100,7 @@ jobs:
           commit-message: "chore: update devilutionx to ${{ steps.update.outputs.short_rev }}"
           branch: update-devilutionx
           title: "chore: update devilutionx to ${{ steps.update.outputs.date }}"
-          body: |
-            Updates DevilutionX to [`${{ steps.update.outputs.short_rev }}`](https://github.com/diasurgical/devilutionX/commit/${{ steps.update.outputs.rev }}).
-            > ${{ steps.update.outputs.message }}
+          body-path: /tmp/devilutionx-pr-body.md
           labels: |
             dependencies
             automated

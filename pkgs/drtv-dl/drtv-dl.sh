@@ -2,7 +2,7 @@ usage() {
   # requested help goes to stdout; usage errors go to stderr
   [[ "${1:-0}" == 0 ]] || exec >&2
   cat <<'EOF'
-Usage: drtv-dl [-d DIR] [-l] [-n] [-r] [URL...] [extra yt-dlp options...]
+Usage: drtv-dl [-d DIR] [-l] [-n] [-r] [-c] [URL...] [extra yt-dlp options...]
 
 Download one or more DRTV (dr.dk/drtv) series, seasons or films,
 named so Jellyfin picks them up:
@@ -20,9 +20,7 @@ Jellyfin NFO files and artwork are generated alongside the downloads:
 tvshow.nfo, poster and season posters per series, an .nfo and thumb image
 per episode, and an .nfo plus poster per film. The NFOs carry
 <lockdata>true</lockdata>, so Jellyfin keeps DR's metadata instead of
-guessing (often wrongly) via TVDB/TMDB. Episodes skipped by the fast scan
-keep whatever sidecars they have; run once with -r to backfill NFOs and
-images for a library downloaded before this existed.
+guessing (often wrongly) via TVDB/TMDB.
 
 With no URLs, they are read from a drtv-series.txt in the library root
 (see -d): one series or season URL per line; blank lines, #-comments and
@@ -32,17 +30,31 @@ staying current is just:
   cd /mnt/series && drtv-dl -n    # list episodes you don't have yet
   cd /mnt/series && drtv-dl       # download them
 
+An episode whose video is on disk but whose .nfo is missing (an interrupted
+run, or a library predating the sidecars) is re-extracted on its own with
+--skip-download, so an ordinary run repairs the gap for the few episodes
+that have one instead of needing -r over the whole library.
+
+Progress is reported per finished file against the number the run set out to
+fetch, with a rolling estimate of the time left:
+
+  drtv-dl: [7/23] finished: Gurli Gris/Season 10/... - 16 left, ~1h12m
+
 Options:
   -d DIR   root of your TV library (default: current directory)
   -l       don't download; print the episode links instead, one per line
            (e.g. drtv-dl -l URL > links.txt)
-  -n       don't download; list episodes that are not on disk yet, one per
-           line. Series/season URLs only - films and direct episode links
-           are skipped in this mode.
+  -n       don't download; list videos that are not on disk yet, one per
+           line, plus a count of those missing their NFO sidecar. Films are
+           probed one request each; series/seasons cost one per season.
   -r       recheck every episode with a full extraction even if its file
-           exists, regenerating NFOs and images along the way (use it to
-           backfill sidecars, or when renames make the fast skip misjudge);
-           video files already on disk are left untouched
+           exists, regenerating NFOs and images along the way (use it when
+           renames make the fast skip misjudge - routine sidecar gaps are
+           repaired by an ordinary run); video files are left untouched
+  -c       don't download; delete yt-dlp's leftover scratch files (.part,
+           .part-FragN, .ytdl and per-format streams) from runs that were
+           interrupted. Every run reports what it finds. Don't use it while
+           another drtv-dl is downloading into the same library.
   -h       show this help
 
 Several URLs can be given; anything that isn't a DRTV URL is passed
@@ -57,9 +69,11 @@ dest="."
 links_only=0
 check_only=0
 recheck=0
-while getopts ":d:lnrh" opt; do
+clean_only=0
+while getopts ":d:clnrh" opt; do
   case "$opt" in
     d) dest="$OPTARG" ;;
+    c) clean_only=1 ;;
     l) links_only=1 ;;
     n) check_only=1 ;;
     r) recheck=1 ;;
@@ -75,9 +89,64 @@ while getopts ":d:lnrh" opt; do
   esac
 done
 shift $((OPTIND - 1))
-if [[ $((links_only + check_only + recheck)) -gt 1 ]]; then
-  echo "drtv-dl: -l, -n and -r cannot be combined" >&2
+if [[ $((links_only + check_only + recheck + clean_only)) -gt 1 ]]; then
+  echo "drtv-dl: -l, -n, -r and -c cannot be combined" >&2
   exit 1
+fi
+
+# An interrupted run leaves yt-dlp's scratch files behind: the per-format
+# streams it had not merged yet, fragment parts, resume data. media_exists
+# below ignores them (its single-token extension rule), so they never cause a
+# wrong skip - but nothing removes them either, and a half-fetched video stream
+# is not free. Only yt-dlp's own scratch names are matched: subtitle and image
+# files are left alone, since those may well be the user's own.
+find_leftovers() {
+  find "$dest" -regextype posix-extended -type f \
+    \( -name '*.part' -o -name '*.part-Frag*' -o -name '*.ytdl' -o -name '*.temp' \
+    -o -name '*.fvideo_*' -o -name '*.faudio_*' -o -regex '.*\.f[0-9]+\.[a-z0-9]+' \) \
+    -print0
+}
+
+fmt_size() {
+  local b="$1"
+  if [[ "$b" -ge 1073741824 ]]; then
+    printf '%d.%d GB' $((b / 1073741824)) $((b % 1073741824 * 10 / 1073741824))
+  elif [[ "$b" -ge 1048576 ]]; then
+    printf '%d MB' $((b / 1048576))
+  else
+    printf '%d kB' $((b / 1024))
+  fi
+}
+
+fmt_duration() {
+  local s="$1"
+  if [[ "$s" -ge 3600 ]]; then
+    printf '%dh%02dm' $((s / 3600)) $((s % 3600 / 60))
+  elif [[ "$s" -ge 60 ]]; then
+    printf '%dm' $((s / 60))
+  else
+    printf '%ds' "$s"
+  fi
+}
+
+# -c needs no URLs, so it runs before the subscription-file fallback below.
+if [[ "$clean_only" == 1 ]]; then
+  removed=0
+  freed=0
+  while IFS= read -r -d '' f; do
+    size="$(stat -c %s "$f" 2>/dev/null || echo 0)"
+    if rm -f -- "$f"; then
+      removed=$((removed + 1))
+      freed=$((freed + size))
+      echo "drtv-dl: removed ${f#"$dest"/}"
+    fi
+  done < <(find_leftovers)
+  if [[ "$removed" -eq 0 ]]; then
+    echo "drtv-dl: no leftover files in $dest" >&2
+  else
+    echo "drtv-dl: removed $removed leftover file(s), freeing $(fmt_size "$freed")" >&2
+  fi
+  exit 0
 fi
 
 # With no URLs, fall back to the subscription file in the library root.
@@ -140,6 +209,9 @@ playlist_urls=()
 # --skip-download probe instead; passthrough yt-dlp options tag along.
 probe_args=()
 probe_has_url=0
+# how many of probe_args are URLs rather than passthrough yt-dlp options, so -n
+# can tell when a probe came back with fewer answers than it asked questions
+probe_url_count=0
 for url in "$@"; do
   if [[ "$url" =~ ^https?://(www\.)?dr\.dk/drtv/(serie|saeson)/[0-9]+/?$ ]]; then
     # One GET serves both detection paths: -w appends the post-redirect URL
@@ -171,11 +243,14 @@ for url in "$@"; do
     if [[ "$url" == */drtv/saeson/* ]]; then
       check_single_season "$url"
     fi
-  elif [[ "$check_only" == 1 && "$url" == http* ]]; then
-    echo "drtv-dl: -n: skipping $url (not a series/season URL)" >&2
   else
+    # films and direct episode links; under -n these are probed for their
+    # filename only, which is one request each and no info.json
     probe_args+=("$url")
-    [[ "$url" == http* ]] && probe_has_url=1
+    if [[ "$url" == http* ]]; then
+      probe_has_url=1
+      probe_url_count=$((probe_url_count + 1))
+    fi
   fi
   args+=("$url")
 done
@@ -278,11 +353,25 @@ media_exists() {
 # archive is deleted afterwards - the files on disk stay the source of truth.
 # -n reuses the same scan, but prints the episodes whose file is missing
 # instead of downloading them.
+#
+# The scan also notices episodes whose video is on disk but whose .nfo is not
+# (a run interrupted between the two, or a library older than the sidecars).
+# Those are neither skipped nor downloaded: they join the --skip-download probe
+# below, which regenerates the sidecars for one episode at the cost of one
+# extraction. Before this, the only cure was -r over the whole library - a full
+# extraction of every episode to repair a handful. The thumbnail is not part of
+# the test: DR does not have one for every video, and an episode that will
+# never have one would otherwise be re-probed on every single run.
 skip_args=()
 scanned=0
 present=0
-if [[ "$check_only" == 1 && ${#playlist_urls[@]} -eq 0 ]]; then
-  echo "drtv-dl: -n: no series or season URLs to check" >&2
+sidecar_urls=()
+sidecar_missing=0
+# bases the playlist scan has already accounted for, so the probe below doesn't
+# count the sidecar repairs it hands over a second time
+declare -A scanned_bases=()
+if [[ "$check_only" == 1 && ${#playlist_urls[@]} -eq 0 && "$probe_has_url" == 0 ]]; then
+  echo "drtv-dl: -n: no URLs to check" >&2
   exit 1
 fi
 if [[ "$recheck" == 0 && ${#playlist_urls[@]} -gt 0 ]]; then
@@ -303,39 +392,90 @@ if [[ "$recheck" == 0 && ${#playlist_urls[@]} -gt 0 ]]; then
   fi
 
   if [[ ${#season_urls[@]} -gt 0 ]]; then
-    while IFS= read -r id && IFS= read -r name; do
+    while IFS= read -r id && IFS= read -r name && IFS= read -r url; do
       scanned=$((scanned + 1))
-      base="${name%.NA}"
+      # flat-playlist entries have no known extension, so this is ".NA" - but
+      # strip whatever is there, the same way the film probe below has to
+      base="${name%.*}"
+      scanned_bases["$base"]=1
       if media_exists "$base"; then
         present=$((present + 1))
-        if [[ "$check_only" == 0 ]]; then
-          printf 'drtv %s\n' "$id" >>"$archive"
+        if [[ -e "$base.nfo" ]]; then
+          if [[ "$check_only" == 0 ]]; then
+            printf 'drtv %s\n' "$id" >>"$archive"
+          fi
+        else
+          sidecar_missing=$((sidecar_missing + 1))
+          if [[ "$check_only" == 0 ]]; then
+            sidecar_urls+=("$url")
+          fi
         fi
       elif [[ "$check_only" == 1 ]]; then
         printf '%s\n' "${base#"$dest/"}"
       fi
     done < <(yt-dlp --ignore-errors --flat-playlist "${meta_args[@]}" \
-      --output "$outtmpl" --print id --print filename "${season_urls[@]}" 2>/dev/null || true)
-    if [[ "$check_only" == 1 ]]; then
-      if [[ "$scanned" -eq 0 ]]; then
-        echo "drtv-dl: warning: playlist scan found no episodes" >&2
-        exit 1
+      --output "$outtmpl" --print id --print filename --print url "${season_urls[@]}" 2>/dev/null || true)
+    if [[ "$check_only" == 0 ]]; then
+      if [[ "$scanned" -gt 0 ]]; then
+        echo "drtv-dl: $present of $scanned episodes already on disk; skipping those" >&2
+        skip_args=(--download-archive "$archive")
+      else
+        warn "playlist scan found no episodes; checking everything"
       fi
-      echo "drtv-dl: $((scanned - present)) of $scanned episodes not on disk yet" >&2
-      exit 0
+      if [[ ${#sidecar_urls[@]} -gt 0 ]]; then
+        echo "drtv-dl: $sidecar_missing episode(s) on disk have no .nfo; re-extracting just those" >&2
+        probe_args+=("${sidecar_urls[@]}")
+        probe_has_url=1
+      fi
     fi
-    if [[ "$scanned" -gt 0 ]]; then
-      echo "drtv-dl: $present of $scanned episodes already on disk; skipping those" >&2
-      skip_args=(--download-archive "$archive")
-    else
-      warn "playlist scan found no episodes; checking everything"
-    fi
-  fi
-  if [[ "$check_only" == 1 ]]; then
-    # only reached when no season playlist could be scanned at all
+  elif [[ "$check_only" == 1 && "$probe_has_url" == 0 ]]; then
     echo "drtv-dl: -n: could not expand the URLs into season playlists" >&2
     exit 1
   fi
+fi
+
+# -n for everything a playlist can't cover: films and direct episode links.
+# One --skip-download extraction each buys the output filename, which is all
+# the on-disk test needs - and nothing is written, not even an info.json.
+if [[ "$check_only" == 1 && "$probe_has_url" == 1 ]]; then
+  probed=0
+  while IFS= read -r name; do
+    [[ -n "$name" ]] || continue
+    probed=$((probed + 1))
+    scanned=$((scanned + 1))
+    # a full extraction knows the real extension, where the flat playlist scan
+    # only ever gets NA - strip whichever it is, or media_exists would look for
+    # "Film (1990).mp4.*" and pronounce a film it already has missing
+    base="${name%.*}"
+    if media_exists "$base"; then
+      present=$((present + 1))
+    else
+      rel="${base#"$dest/"}"
+      # films render as "Film (1990)//Film (1990)": the template keeps an empty
+      # season component so the season stays its own path segment. The
+      # filesystem collapses it; the listing shouldn't show it.
+      printf '%s\n' "${rel//\/\//\/}"
+    fi
+  done < <(yt-dlp --ignore-errors --skip-download --no-write-info-json \
+    "${meta_args[@]}" --output "$outtmpl" --print filename "${probe_args[@]}" 2>/dev/null || true)
+  # DR takes films down again; a URL that answers nothing would otherwise be
+  # missing from the list without a word, which reads as "you have it already"
+  if [[ "$probed" -lt "$probe_url_count" ]]; then
+    warn "$((probe_url_count - probed)) of $probe_url_count film/episode URLs could not be checked" \
+      "- gone from DR, or a URL that no longer resolves"
+  fi
+fi
+
+if [[ "$check_only" == 1 ]]; then
+  if [[ "$scanned" -eq 0 ]]; then
+    echo "drtv-dl: warning: nothing could be scanned" >&2
+    exit 1
+  fi
+  echo "drtv-dl: $((scanned - present)) of $scanned videos not on disk yet" >&2
+  if [[ "$sidecar_missing" -gt 0 ]]; then
+    echo "drtv-dl: $sidecar_missing more are on disk without an .nfo - an ordinary run repairs those" >&2
+  fi
+  exit 0
 fi
 
 # yt-dlp re-runs its metadata/subtitle embedding on any file that already
@@ -364,9 +504,16 @@ if [[ "$probe_has_url" == 1 ]]; then
   while IFS= read -r -d '' f; do
     base="${f%.info.json}"
     case "${base##*/}" in tvshow | season[0-9]*) continue ;; esac
-    probe_scanned=$((probe_scanned + 1))
+    # an episode handed over by the playlist scan for sidecar repair is already
+    # in its tallies; counting it again here would inflate both halves of the
+    # "N of M already on disk" summary
+    if [[ -z "${scanned_bases[$base]:-}" ]]; then
+      probe_scanned=$((probe_scanned + 1))
+      if media_exists "$base"; then
+        probe_present=$((probe_present + 1))
+      fi
+    fi
     if media_exists "$base"; then
-      probe_present=$((probe_present + 1))
       # Two archive lines per video. The final id is what films and direct
       # URLs are checked against (after their unavoidable re-extraction);
       # season-playlist entries are checked against the URL slug *before*
@@ -400,11 +547,50 @@ fi
 # so the count grows as the run progresses). The logic lives in a scratch
 # script because yt-dlp echoes the entire --exec command line before running
 # it - this keeps that echo down to the script path plus the file name.
+#
+# Both scans above have run by now, so the number of videos this run set out to
+# fetch is known: everything they looked at, minus what was already on disk.
+# That turns the announcement into a position rather than a running total, with
+# a projection from the average so far. It stays honest when the denominator
+# can't be trusted (nothing scannable, or more files arriving than predicted -
+# a season gaining episodes mid-run): past the total, it falls back to the
+# plain count rather than printing a negative or a nonsense estimate.
+remaining=0
+if [[ "$scanned" -gt "$present" ]]; then
+  remaining=$((scanned - present))
+fi
+started=$(date +%s)
+# yt-dlp reports an absolute filepath; the library root is the same for every
+# line of a run, so the announcements and the summary listing drop it
+dest_abs="$(realpath -m -- "$dest")"
+
 announce="$tmpdir/announce"
 cat >"$announce" <<EOF
 #!/bin/sh
-printf '%s\n' "\$1" >>'$manifest'
-printf 'drtv-dl: finished (%s this run): %s\n' "\$(wc -l <'$manifest')" "\$1"
+rel="\$1"
+case "\$rel" in
+  '$dest_abs'/*) rel="\${rel#'$dest_abs'/}" ;;
+esac
+printf '%s\n' "\$rel" >>'$manifest'
+n=\$(wc -l <'$manifest')
+left=\$(($remaining - n))
+if [ '$remaining' -gt 0 ] && [ "\$left" -ge 0 ]; then
+  if [ "\$left" -gt 0 ]; then
+    eta=\$(((\$(date +%s) - $started) * left / n))
+    if [ "\$eta" -ge 3600 ]; then
+      human="\$((eta / 3600))h\$(printf '%02d' \$((eta % 3600 / 60)))m"
+    elif [ "\$eta" -ge 60 ]; then
+      human="\$((eta / 60))m"
+    else
+      human="\${eta}s"
+    fi
+    printf 'drtv-dl: [%s/%s] finished: %s - %s left, ~%s\n' "\$n" '$remaining' "\$rel" "\$left" "\$human"
+  else
+    printf 'drtv-dl: [%s/%s] finished: %s\n' "\$n" '$remaining' "\$rel"
+  fi
+else
+  printf 'drtv-dl: finished (%s this run): %s\n' "\$n" "\$rel"
+fi
 EOF
 chmod +x "$announce"
 
@@ -560,15 +746,30 @@ if [[ -s "$manifest" ]]; then
   downloaded="$(wc -l <"$manifest")"
 fi
 issues="$(grep -E '^(WARNING|ERROR):' "$errlog" | sort -u || true)"
+
+# Scratch files an interrupted run (this one or an earlier one) left behind.
+# Reported, never removed on the script's own initiative: -c does that, and
+# only when asked - a .part-Frag file can belong to a second drtv-dl running
+# into the same library right now.
+leftover_n=0
+leftover_bytes=0
+while IFS= read -r -d '' f; do
+  leftover_n=$((leftover_n + 1))
+  leftover_bytes=$((leftover_bytes + $(stat -c %s "$f" 2>/dev/null || echo 0)))
+done < <(find_leftovers)
+
 {
   echo
   echo "drtv-dl: ---- run summary ----"
   if [[ "$scanned" -gt 0 ]]; then
     echo "drtv-dl: $present of $scanned videos were already on disk"
   fi
-  echo "drtv-dl: downloaded $downloaded file(s)"
+  echo "drtv-dl: downloaded $downloaded file(s) in $(fmt_duration $(($(date +%s) - started)))"
   if [[ "$downloaded" -gt 0 ]]; then
     sed 's/^/drtv-dl:   /' "$manifest"
+  fi
+  if [[ "$leftover_n" -gt 0 ]]; then
+    echo "drtv-dl: $leftover_n leftover file(s) from interrupted runs, $(fmt_size "$leftover_bytes") - remove with: drtv-dl -d ${dest} -c"
   fi
   if [[ ${#warnings[@]} -gt 0 || -n "$issues" || "$status" -ne 0 ]]; then
     echo "drtv-dl: warnings and errors:"

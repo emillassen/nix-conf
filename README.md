@@ -63,6 +63,8 @@ Applications:
 │       ├── pipewire.nix      # Audio
 │       ├── sops.nix          # Secrets
 │       ├── yubikey.nix       # YubiKey
+│       ├── cifs.nix          # NAS automounts
+│       ├── catppuccin.nix    # System theming (SDDM, TTY, Plymouth)
 │       └── steam.nix         # Gaming
 ├── modules/                  # Reusable NixOS / Home Manager modules
 ├── overlays/default.nix      # Custom package overlays
@@ -223,9 +225,11 @@ pre-commit run --all-files # run hooks manually
 
 ## CI/CD
 
-Three GitHub Actions workflows in `.github/workflows/`:
+Three GitHub Actions workflows exist in `.github/workflows/`, but **all three are currently disabled** (`disabled_manually` — confirmed via `gh workflow list --all`). Nothing runs automatically: no push or PR is validated by CI, and no update PRs are opened. **`nix flake check -v` run locally is the actual gate.**
 
-- `ci.yml` — runs on push to `main`, PRs, and manual dispatch. Two parallel jobs: flake checks ([Flake Checker](https://github.com/DeterminateSystems/flake-checker-action) + `nix flake check`) and a full build of the `fw13` configuration. Uses [Determinate Nix](https://github.com/DeterminateSystems/determinate-nix-action) and [Magic Nix Cache](https://github.com/DeterminateSystems/magic-nix-cache-action).
+The triggers below are what each workflow _would_ use if re-enabled:
+
+- `ci.yml` — push to `main`, PRs, and manual dispatch. Two parallel jobs: flake checks ([Flake Checker](https://github.com/DeterminateSystems/flake-checker-action) + `nix flake check`) and a full build of the `fw13` configuration. Uses [Determinate Nix](https://github.com/DeterminateSystems/determinate-nix-action) and [Magic Nix Cache](https://github.com/DeterminateSystems/magic-nix-cache-action).
 - `update-flake.yml` — weekly (Sunday midnight UTC) or manual. Runs `nix flake update` and opens a PR via [update-flake-lock](https://github.com/DeterminateSystems/update-flake-lock).
 - `update-devilutionx.yml` — weekly or manual. Checks upstream devilutionX for a new commit, re-prefetches the hash, and opens a PR.
 

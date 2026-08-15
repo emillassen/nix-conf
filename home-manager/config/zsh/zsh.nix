@@ -227,7 +227,13 @@
           # Bare `nh clean all` keeps only 1 generation — no rollback left.
           # Keep a margin on manual cleans; the weekly timer keeps 10/30d.
           nix-clean = "nh clean all --keep 5 --keep-since 7d";
-          flake-up = "nix flake update --flake $NH_FLAKE";
+          # Moves every input to its tip in one go, so one broken input breaks
+          # the whole lock.
+          fu = "nix flake update --flake $NH_FLAKE";
+          # Same, but only keeps the input updates that still build, holding the
+          # rest at the last committed lock. Slower (it builds), so `fu` stays
+          # the quick path.
+          fus = "$NH_FLAKE/scripts/flake-up-safe.sh";
         };
       };
     };

@@ -46,8 +46,8 @@ let
   };
 
   mpqfs = fetchzip {
-    url = "https://github.com/diasurgical/mpqfs/archive/ee29f596bd01822ae0edf01bcf3564cb9e6ea781.tar.gz";
-    hash = "sha256-Za/+g7IEssK5sNWVkjnHN0WUl504zi9KnEXFTIRXARI=";
+    url = "https://github.com/diasurgical/mpqfs/archive/f9dbf8abc0e5a25b3c76b2b964a707dc72b7d45b.tar.gz";
+    hash = "sha256-lJThBawdjUAmM4N7wSSENNpSYnEizZrchYe1FTyHmlE=";
   };
 
   sheenbidi = fetchzip {
@@ -64,13 +64,13 @@ in
 
 stdenv.mkDerivation {
   pname = "devilutionx";
-  version = "unstable-2026-08-06-aff9a4a";
+  version = "unstable-2026-08-14-d0d5e9d";
 
   src = fetchFromGitHub {
     owner = "diasurgical";
     repo = "devilutionX";
-    rev = "aff9a4a9c886b26766801d705923150b4b195b92";
-    hash = "sha256-Jxq+0MgiCiV0JQMjMwPkBRcXLJ5H3dHZnNRhTzMOuaM=";
+    rev = "d0d5e9d45c00080806062dfcadac028bc199880e";
+    hash = "sha256-rfBUG7AZ+ZFfxiaW6/SjldyXwE+JaunspAqVgDOQBSM=";
   };
 
   postPatch = ''

@@ -26,6 +26,11 @@ nix flake check -v
 # Update flake inputs
 nix flake update
 
+# Update them without breaking the build: search for the newest lock that still
+# builds fw13, per input, and write that (zsh abbr `fus`). -n reports what has
+# updates without building anything.
+./scripts/flake-up-safe.sh
+
 # Dev shell: sops, age, pre-commit tooling (also installs the git hooks)
 nix develop
 
@@ -40,7 +45,18 @@ nh clean all
 nix build .#devilutionx
 ```
 
-Zsh abbreviations on the host: `ns`/`nsu` (rebuild/upgrade), `nix-clean`, `flake-up`.
+Zsh abbreviations on the host: `ns`/`nsu` (rebuild/upgrade), `nix-clean`, `flake-up`, `fus`.
+
+`scripts/flake-up-safe.sh` keeps the lock as new as it can be while still building. It
+takes the committed lock as a known-good baseline, tries all inputs at their tips, and on
+failure narrows down to the inputs that are actually to blame; those are then bisected
+through their own history (one candidate per day, newest first, GitHub API via `gh`) for
+the newest revision that does build, and pinned with `nix flake lock --override-input` —
+which moves only `locked`, so a later plain `nix flake update` still follows the branch.
+`--no-bisect` settles for baseline-or-tip instead. Trials are keyed on the target's `.drv`
+path, so an input that does not reach the target costs no build at all, and the composed
+result is built once more before it is written. The working tree's `flake.lock` is
+restored on any failure or Ctrl-C.
 
 ## Architecture
 

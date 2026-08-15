@@ -139,6 +139,14 @@
               nixfmt.enable = true;
               statix.enable = true;
               deadnix.enable = true;
+              # scripts/ is where the non-Nix logic lives, and shellcheck is the
+              # only thing that reviews it. The scripts under pkgs/ are left to
+              # writeShellApplication, which shellchecks them at build time —
+              # they are fragments without a shebang, which this hook cannot read.
+              shellcheck = {
+                enable = true;
+                files = "^scripts/.*\\.sh$";
+              };
               check-added-large-files.enable = true;
               end-of-file-fixer.enable = true;
               trim-trailing-whitespace.enable = true;

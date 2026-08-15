@@ -48,15 +48,59 @@ nix build .#devilutionx
 Zsh abbreviations on the host: `ns`/`nsu` (rebuild/upgrade), `nix-clean`, `flake-up`, `fus`.
 
 `scripts/flake-up-safe.sh` keeps the lock as new as it can be while still building. It
-takes the committed lock as a known-good baseline, tries all inputs at their tips, and on
-failure narrows down to the inputs that are actually to blame; those are then bisected
-through their own history (one candidate per day, newest first, GitHub API via `gh`) for
-the newest revision that does build, and pinned with `nix flake lock --override-input` —
-which moves only `locked`, so a later plain `nix flake update` still follows the branch.
-`--no-bisect` settles for baseline-or-tip instead. Trials are keyed on the target's `.drv`
-path, so an input that does not reach the target costs no build at all, and the composed
-result is built once more before it is written. The working tree's `flake.lock` is
-restored on any failure or Ctrl-C.
+takes the committed lock as a known-good baseline and tries all inputs at their tips; a
+set that fails is split in half and each half retried on top of whatever has already been
+accepted, so one culprit among eleven inputs costs about seven trials instead of eleven,
+and an input that only breaks in combination with another is still caught (every trial is
+"what we kept so far, plus this half" — there is no separate combine pass). The inputs
+left behind are then bisected through their own history for the newest revision that does
+build, and pinned with `nix flake lock --override-input` — which moves only `locked`, so a
+later plain `nix flake update` still follows the branch. The pin is read back out of the
+lock afterwards, because `--override-input` implying `--no-write-lock-file` has been
+proposed upstream more than once and every verdict after it would silently be a verdict on
+the unpinned lock. `--no-bisect` settles for baseline-or-tip instead.
+
+Where the bisect's candidates come from depends on the input. For a **nixpkgs input that
+tracks a channel** they are the channel's own releases, listed from the `nix-releases` S3
+bucket (`?prefix=nixos/unstable/&delimiter=/`, one request; the directory names carry a
+short rev and a serial, and the full rev comes from each release's `git-revision` file).
+That matters because the branch's git history is mostly master commits the channel never
+pointed at, and only a channel bump has passed Hydra's `tested` job — bisecting to an
+arbitrary commit would lock in a revision cache.nixos.org has barely built, i.e. a local
+rebuild of the world. The bucket lists lexicographically, which is _not_ chronological
+(`nixos-26.05.889` sorts after `nixos-26.05.7675`), so ordering comes from the serial in
+the name, which is a commit count and only goes up. Everything else falls back to one
+candidate per day, newest first, resolved through the GitHub API (`gh`, else curl) against
+the **tip's own history** rather than the branch, so a branch moving mid-run cannot change
+what is being searched. Index 0 of either list is the tip itself: it was rejected on top of
+a smaller set of updates than the one now in force, so it is worth re-testing, and if
+nothing changed since, the `.drv` cache answers for free.
+
+The search itself walks newest-first and checks the first `--linear` candidates (default 7)
+**one at a time**, then starts doubling its stride and binary-searches the bracket that
+straddles the boundary. The linear prefix needs no assumptions — everything newer has been
+tried and failed, so the first candidate that builds is provably the newest that does. Only
+the skipping part assumes the boundary is monotone, and that assumption is genuinely
+breakable: a window can read bad-good-bad-good from the tip backwards when one breakage was
+fixed and another introduced, and a pure doubling search then lands on the older good
+stretch. Measured on a synthetic window of exactly that shape, `--linear 0` settled 23 days
+behind the tip in 7 builds while the default found the true newest in 3. The prefix is
+where a build still buys a day of freshness worth having; past it, the cap matters more
+(nothing-works over a 60-candidate window costs ~15 builds instead of 60). A result that
+comes out no newer than the baseline is discarded rather than pinned — the check is on
+`lastModified` and not just on revision equality, because a channel list runs past the
+baseline entirely when the baseline is not itself a published release.
+
+Trials are keyed on the target's `.drv` path, so an input that does not reach the target
+costs no build at all, and the composed result is built once more before it is written.
+Composed locks are cached by recipe, verdicts by revision as well as by `.drv`. A build
+that fails on a network error is retried once rather than being recorded as a broken
+revision; one that fails because the disk filled up aborts the run instead of blaming the
+inputs. The working tree's `flake.lock` is restored on any failure or Ctrl-C. The run ends
+with `nix store diff-closures` against the baseline, so the result is reported in packages
+and not only in revisions. `-f DIR` picks the flake (default: the script's own repo, else
+`$NH_FLAKE`, else the first `flake.nix` at or above `$PWD`), `-i NAME` restricts the search
+to one input, `-v` streams nix's own output instead of a progress line.
 
 ## Architecture
 
@@ -109,7 +153,7 @@ Actions used: checkout@v7, determinate-nix-action@v3, magic-nix-cache-action@v14
 - Catppuccin Mocha comes from the catppuccin flake. HM sets `autoEnable = true`, so every enabled HM program is themed automatically — don't set per-app themes by hand (bat/btop/lazygit are enabled as HM programs precisely so they get themed). System targets (SDDM/TTY/Plymouth) are enrolled explicitly with `autoEnable = false`.
 - nixvim deliberately evaluates its own nixpkgs instance (`programs.nixvim.nixpkgs.source = inputs.nixpkgs`).
 - dconf values in `gnome/gnomesettings.nix` must be real Nix types (bool/float) — strings like `"true"` are rejected by GSettings and silently fall back to defaults.
-- Pre-commit hooks (defined in flake.nix, run by `nix flake check` and on commit): nixfmt, statix, deadnix, prettier (yaml/markdown, excluding `secrets/`), sops-encrypted, plus standard hygiene hooks. The root `.pre-commit-config.yaml` is a gitignored symlink generated by the dev shell.
+- Pre-commit hooks (defined in flake.nix, run by `nix flake check` and on commit): nixfmt, statix, deadnix, shellcheck (`scripts/*.sh` only — the scripts under `pkgs/` are shebang-less `writeShellApplication` fragments, which shellchecks them at build time instead), prettier (yaml/markdown, excluding `secrets/`), sops-encrypted, plus standard hygiene hooks. The root `.pre-commit-config.yaml` is a gitignored symlink generated by the dev shell.
 - Git: **work directly on `main` — do not create a branch to commit.** This is a single-user config repo with no human PR workflow and CI disabled, so a branch just leaves work stranded behind a merge the owner has to do by hand. Commit to `main` when asked to commit; `nix flake check` is the gate that would otherwise be a review. (The `update-*` and `claude/*` branches on the remote are bot-opened PR branches — leave them alone.)
 - Git: commits are GPG-signed by default (key on a YubiKey — a touch may be required). SSH remote operations also need the YubiKey; the `gh` CLI is authenticated and is the reliable path for GitHub API/HTTPS operations. Commit style: short imperative subject line, then a body explaining the why (see `git log`).
 - `pkgs.stable` = nixpkgs 26.05; the primary channel is nixos-unstable.

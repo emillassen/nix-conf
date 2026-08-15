@@ -13,9 +13,11 @@
 # that actually break the build stay behind, everything else goes to its tip.
 #
 # An input that fails at its tip is not dropped all the way back to the baseline
-# either. Its history is searched for the newest revision that does build, one
-# candidate per day, so a nixpkgs that broke yesterday costs you one day instead
-# of every day since your last commit. Pass --no-bisect to skip that search and
+# either. Its history is searched for the newest revision that does build, so a
+# nixpkgs that broke yesterday costs you one day instead of every day since your
+# last commit. For a nixpkgs input that tracks a channel the candidates are the
+# channel's own releases, which is what keeps cache.nixos.org useful; for anything
+# else they are one commit per day. Pass --no-bisect to skip that search and
 # settle for baseline-or-tip.
 #
 # It only ever chooses between revisions of an input — it never edits the config
@@ -29,29 +31,39 @@
 #
 # Options:
 #   -n, --dry-run       list inputs with updates available; build nothing
+#   -f, --flake DIR     the flake to work on (default: this script's own repo,
+#                       else $NH_FLAKE, else the first flake.nix at or above $PWD)
 #   -H, --host NAME     nixosConfiguration to build (default: the only one)
 #   -t, --target ATTR   build this flake attr instead of the host's toplevel
+#   -i, --input NAME    only consider this input (repeatable)
 #   -b, --baseline REF  known-good lock to fall back to: head (default) | worktree
 #   -k, --check         also require `nix flake check` to pass
 #   -B, --bisect        search held-back inputs for a working revision (default)
 #       --no-bisect     do not search; an input is either at its tip or at baseline
 #   -d, --max-days N    how far back the bisect will look (default 60)
+#   -l, --linear N      how many candidates the bisect checks one at a time
+#                       before it starts skipping (default 7; 0 skips from the
+#                       start, a large N never skips)
+#   -v, --verbose       stream nix's own output instead of a progress line
 #   -h, --help
 
 set -euo pipefail
 
-FLAKE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-LOCK="$FLAKE_DIR/flake.lock"
-
 DRY_RUN=0
+FLAKE_DIR=""
 HOST=""
 TARGET=""
 BASELINE="head"
 RUN_CHECK=0
 BISECT=1
 MAX_DAYS=60
+LINEAR=7
+VERBOSE=0
+ONLY=()
 
 # Print the header comment block as help, so the two can never drift apart.
+# Anything before the block (a shebang, or the preamble a Nix wrapper injects)
+# is skipped rather than assumed to be exactly one line.
 usage() {
   awk '
     NR == 1 { next }                                  # the shebang
@@ -75,6 +87,11 @@ need_arg() {
 while [ "$#" -gt 0 ]; do
   case "$1" in
   -n | --dry-run) DRY_RUN=1 ;;
+  -f | --flake)
+    need_arg "$@"
+    FLAKE_DIR="$2"
+    shift
+    ;;
   -H | --host)
     need_arg "$@"
     HOST="$2"
@@ -83,6 +100,11 @@ while [ "$#" -gt 0 ]; do
   -t | --target)
     need_arg "$@"
     TARGET="$2"
+    shift
+    ;;
+  -i | --input)
+    need_arg "$@"
+    ONLY+=("$2")
     shift
     ;;
   -b | --baseline)
@@ -98,6 +120,12 @@ while [ "$#" -gt 0 ]; do
     MAX_DAYS="$2"
     shift
     ;;
+  -l | --linear)
+    need_arg "$@"
+    LINEAR="$2"
+    shift
+    ;;
+  -v | --verbose) VERBOSE=1 ;;
   -h | --help) usage 0 ;;
   *)
     echo "error: unknown argument: $1" >&2
@@ -117,14 +145,45 @@ case "$MAX_DAYS" in
 esac
 [ "$MAX_DAYS" -gt 0 ] || die "--max-days must be greater than 0"
 
+case "$LINEAR" in
+'' | *[!0-9]*) die "--linear must be a non-negative integer, got '$LINEAR'" ;;
+esac
+
+# --- Which flake ---------------------------------------------------------------
+# Run from a checkout, the script belongs to the flake it sits in. Installed into
+# the store by a Nix wrapper it does not, so fall back to what the rest of the
+# system already agrees is "the" flake, and then to wherever the user is standing.
+find_flake_root() {
+  local dir="$1"
+  dir="$(cd "$dir" 2>/dev/null && pwd)" || return 1
+  while [ -n "$dir" ]; do
+    [ -f "$dir/flake.nix" ] && {
+      printf '%s\n' "$dir"
+      return 0
+    }
+    [ "$dir" = "/" ] && return 1
+    dir="$(dirname "$dir")"
+  done
+  return 1
+}
+
+if [ -n "$FLAKE_DIR" ]; then
+  [ -d "$FLAKE_DIR" ] || die "no such directory: $FLAKE_DIR"
+  FLAKE_DIR="$(cd "$FLAKE_DIR" && pwd)"
+else
+  FLAKE_DIR="$(find_flake_root "$(dirname "${BASH_SOURCE[0]}")/.." || true)"
+  [ -n "$FLAKE_DIR" ] || FLAKE_DIR="$(find_flake_root "${NH_FLAKE-/nonexistent}" || true)"
+  [ -n "$FLAKE_DIR" ] || FLAKE_DIR="$(find_flake_root "$PWD" || true)"
+  [ -n "$FLAKE_DIR" ] || die "no flake.nix found (pass --flake DIR)"
+fi
+
+LOCK="$FLAKE_DIR/flake.lock"
+[ -f "$LOCK" ] || die "$LOCK not found"
+
 for tool in git jq nix; do
   command -v "$tool" >/dev/null || die "$tool not found in PATH"
 done
-if [ "$BISECT" -eq 1 ] && ! command -v gh >/dev/null 2>&1; then
-  command -v curl >/dev/null || die "the bisect needs either gh or curl in PATH"
-fi
-
-[ -f "$LOCK" ] || die "$LOCK not found"
+command -v curl >/dev/null || die "curl not found in PATH"
 
 # Resolve the build target. With one nixosConfiguration (the usual case) the host
 # needs no flag; with several, -H picks. A -t without a flake reference is taken
@@ -167,6 +226,13 @@ BUILDS=0
 EVALS=0
 SUCCESS=0
 KEEP_LOGS=0
+TRIAL_N=0
+TRIAL_OUT=""
+BASELINE_OUT=""
+FINAL_OUT=""
+
+# A progress line is only useful on a terminal; in a pipe or a log it is noise.
+if [ -t 1 ] && [ "$VERBOSE" -eq 0 ]; then TTY=1; else TTY=0; fi
 
 cleanup() {
   # Anything other than a completed search leaves flake.lock exactly as found.
@@ -187,6 +253,8 @@ trap cleanup EXIT
 # script would carry on to the next trial with that one recorded as a failure.
 trap 'echo >&2; echo "interrupted." >&2; exit 130' INT TERM HUP
 
+fmt_dur() { printf '%dm%02ds' $(($1 / 60)) $(($1 % 60)); }
+
 # --- Reading the lock ---------------------------------------------------------
 # Straight out of flake.lock with jq rather than `nix flake metadata`: the lock
 # file already holds everything needed, and reading it costs no evaluation, no
@@ -202,6 +270,27 @@ lock_revs() {
     | (if (.value | type) == "string" then .value else .value[-1] end) as $node
     | $l.nodes[$node].locked
     | "\($name)\t\(.rev // .narHash // "?")\t\(.lastModified // 0)"
+  ' "${1:-$LOCK}"
+}
+
+# The locked rev of one input, used to confirm a pin actually landed.
+locked_rev() {
+  jq -r --arg n "$1" '
+    . as $l
+    | $l.nodes.root.inputs[$n] as $v
+    | (if ($v | type) == "string" then $v else $v[-1] end) as $node
+    | $l.nodes[$node].locked.rev // ""
+  ' "$LOCK"
+}
+
+# The locked timestamp of one input, which is how "is this actually newer than
+# the baseline" gets answered — revisions on their own carry no order.
+locked_ts() {
+  jq -r --arg n "$1" '
+    . as $l
+    | $l.nodes.root.inputs[$n] as $v
+    | (if ($v | type) == "string" then $v else $v[-1] end) as $node
+    | $l.nodes[$node].locked.lastModified // 0
   ' "$LOCK"
 }
 
@@ -220,45 +309,13 @@ input_origin() {
 day_of() { date -u -d "@$1" +%F; }
 
 # --- Composing candidate locks ------------------------------------------------
-# Every composed lock is cached under its recipe. That keeps the run reproducible
-# — a tip that moves mid-run cannot change what a later trial is testing — and it
-# keeps the bisect from re-fetching the same set of inputs once per candidate.
+# A lock is described by a recipe of tokens: `tip:NAME` moves an input to its tip,
+# `pin:NAME:OWNER/REPO:REV` pins one to a revision. Every composed lock is cached
+# under its recipe. That keeps the run reproducible — a tip that moves mid-run
+# cannot change what a later trial is testing — and it keeps the bisect from
+# re-fetching the same set of inputs once per candidate.
 
 lock_key() { printf '%s\n' "$@" | sort | sha256sum | cut -c1-32; }
-
-# Reset to the baseline lock, then move only the named inputs to their tips.
-# With no arguments this resets to the baseline and moves nothing: `nix flake
-# update` with no input arguments means "all", which is update_all's job.
-apply() {
-  local key cached
-  key="$(lock_key "$@")"
-  cached="$LOCKCACHE/$key.lock"
-  if [ -f "$cached" ]; then
-    cp "$cached" "$LOCK"
-    return 0
-  fi
-  cp "$BASELINE_LOCK" "$LOCK"
-  if [ "$#" -gt 0 ]; then
-    nix flake update --flake "$FLAKE_DIR" --no-warn-dirty "$@" \
-      >"$LOGDIR/update.log" 2>&1 || {
-      echo "error: nix flake update failed for: $*" >&2
-      cat "$LOGDIR/update.log" >&2
-      exit 1
-    }
-  fi
-  cp "$LOCK" "$cached"
-}
-
-# Reset to the baseline, then move every input to its tip.
-update_all() {
-  cp "$BASELINE_LOCK" "$LOCK"
-  nix flake update --flake "$FLAKE_DIR" --no-warn-dirty \
-    >"$LOGDIR/update-all.log" 2>&1 || {
-    echo "error: nix flake update failed" >&2
-    cat "$LOGDIR/update-all.log" >&2
-    exit 1
-  }
-}
 
 # Pin one input to a specific revision. Only `locked` moves: `original` keeps the
 # branch from flake.nix, so a later plain `nix flake update` still follows that
@@ -266,25 +323,110 @@ update_all() {
 # path is explicit — `nix flake lock` otherwise operates on the current working
 # directory, which is not this flake when the script is run from elsewhere.
 pin_input() {
-  local name="$1" slug="$2" rev="$3"
+  local name="$1" slug="$2" rev="$3" got
   nix flake lock "$FLAKE_DIR" --override-input "$name" "github:$slug/$rev" \
     --no-warn-dirty >>"$LOGDIR/pin.log" 2>&1 || {
     echo "      error: could not pin $name to ${rev:0:10} (see $LOGDIR/pin.log)" >&2
     return 1
   }
+  # `--override-input` implying `--no-write-lock-file` has been proposed upstream
+  # more than once. If a future Nix adopts it, every bisect verdict below would
+  # silently be a verdict on the unpinned lock instead, so check rather than trust.
+  got="$(locked_rev "$name")"
+  [ "$got" = "$rev" ] || die "nix did not write the pin for $name (lock says '${got:0:10}', wanted ${rev:0:10})"
 }
 
-# Reset to the baseline, move the kept inputs to their tips, re-apply every
-# revision pin decided so far, then any extra "name slug rev" passed as an
-# argument. Rebuilt from the baseline every time so trials never accumulate.
-apply_state() {
-  apply "${KEPT[@]}"
-  local p pname pslug prev
-  for p in "${PINS[@]}" "$@"; do
-    [ -n "$p" ] || continue
-    read -r pname pslug prev <<<"$p"
+# Reset to the baseline lock and apply a recipe. Tips first, pins second: a
+# `nix flake update` after a pin would undo it. Rebuilt from the baseline every
+# time, so trials never accumulate.
+compose() {
+  local key cached tips=() pins=() t p pname pslug prev
+  key="$(lock_key "$@")"
+  cached="$LOCKCACHE/$key.lock"
+  if [ -f "$cached" ]; then
+    cp "$cached" "$LOCK"
+    return 0
+  fi
+  for t in "$@"; do
+    case "$t" in
+    tip:*) tips+=("${t#tip:}") ;;
+    pin:*) pins+=("${t#pin:}") ;;
+    esac
+  done
+  cp "$BASELINE_LOCK" "$LOCK"
+  # `nix flake update` with no input arguments means "all", which is never what a
+  # recipe asks for — the all-tips lock is composed from the full name list.
+  if [ "${#tips[@]}" -gt 0 ]; then
+    nix flake update --flake "$FLAKE_DIR" --no-warn-dirty "${tips[@]}" \
+      >"$LOGDIR/update.log" 2>&1 || {
+      echo "error: nix flake update failed for: ${tips[*]}" >&2
+      cat "$LOGDIR/update.log" >&2
+      exit 1
+    }
+  fi
+  for p in "${pins[@]}"; do
+    IFS=: read -r pname pslug prev <<<"$p"
     pin_input "$pname" "$pslug" "$prev" || return 1
   done
+  cp "$LOCK" "$cached"
+}
+
+# Reset to the baseline, then move every input to its tip. --refresh so a tip
+# resolved less than an hour ago (nix's tarball-ttl) is not mistaken for current;
+# the whole point of the run is to find out what is actually newest.
+update_all() {
+  cp "$BASELINE_LOCK" "$LOCK"
+  nix flake update --flake "$FLAKE_DIR" --no-warn-dirty --refresh \
+    >"$LOGDIR/update-all.log" 2>&1 || {
+    echo "error: nix flake update failed" >&2
+    cat "$LOGDIR/update-all.log" >&2
+    exit 1
+  }
+}
+
+# The recipe for "everything decided so far", plus whatever extra tokens are
+# passed. Read at call time, so it always reflects the current KEPT/PINS.
+state_tokens() {
+  TOKENS=()
+  local n p
+  for n in "${KEPT[@]}"; do TOKENS+=("tip:$n"); done
+  for p in "${PINS[@]}"; do TOKENS+=("pin:$p"); done
+  TOKENS+=("$@")
+}
+
+# --- Running nix --------------------------------------------------------------
+# Trials take minutes, so silence is indistinguishable from a hang. Default is a
+# single self-erasing elapsed-time line on a terminal; -v hands nix the terminal
+# instead and keeps the log as a copy.
+
+run_nix() {
+  local log="$1" outf="$2" start=$SECONDS rc=0 pid
+  shift 2
+  if [ "$VERBOSE" -eq 1 ]; then
+    # A pipeline rather than a process substitution, so the log is complete by
+    # the time the caller reads it back looking for the failure.
+    { "$@" 2>&1 >"$outf" | tee -a "$log" >&2; } || rc=$?
+  elif [ "$TTY" -eq 1 ]; then
+    "$@" >"$outf" 2>>"$log" &
+    pid=$!
+    while kill -0 "$pid" 2>/dev/null; do
+      # Quiet for the first few seconds: most trials are answered from the .drv
+      # cache, and a line that appears and vanishes again is just flicker. Those
+      # short trials are also why the poll starts tight — a full second of
+      # latency on each of twenty cache hits is a fifth of the run.
+      if [ $((SECONDS - start)) -lt 3 ]; then
+        sleep 0.2
+      else
+        printf '\r      · %s' "$(fmt_dur $((SECONDS - start)))"
+        sleep 1
+      fi
+    done
+    wait "$pid" || rc=$?
+    printf '\r\033[K'
+  else
+    "$@" >"$outf" 2>>"$log" || rc=$?
+  fi
+  return "$rc"
 }
 
 # --- Trials -------------------------------------------------------------------
@@ -295,7 +437,7 @@ apply_state() {
 # and costs nothing at all. Building the .drv directly then skips the second
 # evaluation `nix build` on the flake attr would otherwise do.
 
-declare -A DRV_VERDICT DRV_TRIAL LOCK_CHECKED
+declare -A DRV_VERDICT DRV_TRIAL DRV_OUT LOCK_CHECKED
 
 abort_if_interrupted() {
   local rc="$1" log="$2"
@@ -304,6 +446,24 @@ abort_if_interrupted() {
     echo "interrupted." >&2
     exit 130
   fi
+}
+
+# A build that died because the disk filled up or the daemon went away says
+# nothing about the inputs, and every trial after it would inherit the same fate.
+abort_if_fatal() {
+  local log="$1"
+  if grep -qaE 'No space left on device|cannot connect to daemon|Disk quota exceeded' "$log"; then
+    KEEP_LOGS=1
+    echo >&2
+    report_error "$log" >&2
+    die "the build environment failed, not the inputs — nothing can be concluded"
+  fi
+}
+
+# Network flakiness would otherwise be recorded as "this revision is broken" and
+# hold an input back for the rest of the run, so it is worth one retry.
+is_transient() {
+  grep -qaE 'unable to download|Couldn.t resolve host|Temporary failure in name resolution|Connection reset by peer|error: unable to load|HTTP error 5[0-9][0-9]|Operation timed out|SSL peer certificate' "$1"
 }
 
 # Pull the one line worth reading out of a nix failure. An evaluation trace
@@ -321,16 +481,24 @@ report_error() {
 }
 
 # Build (and optionally check) the current lock. Returns nonzero on any failure.
+# $1 is the label this state is remembered by when a later trial turns out to be
+# byte-identical to it.
 trial() {
-  local tag="$1" log="$LOGDIR/$1.log" start=$SECONDS elapsed rc out drv
+  local label="$1" tag log start=$SECONDS elapsed rc drv attempt
 
+  TRIAL_N=$((TRIAL_N + 1))
+  tag="$(printf 't%02d' "$TRIAL_N")"
+  log="$LOGDIR/$tag.log"
   : >"$log"
+  printf '%s: %s\n' "$tag" "$label" >>"$log"
+
   EVALS=$((EVALS + 1))
   rc=0
-  out="$(nix path-info --derivation --no-warn-dirty "$TARGET" 2>"$log")" || rc=$?
-  drv="${out%%$'\n'*}"
+  run_nix "$log" "$WORKDIR/drv" nix path-info --derivation --no-warn-dirty "$TARGET" || rc=$?
+  drv="$(head -n1 "$WORKDIR/drv" 2>/dev/null || true)"
   if [ "$rc" -ne 0 ] || [ -z "$drv" ]; then
     abort_if_interrupted "$rc" "$log"
+    abort_if_fatal "$log"
     printf '    ✗ evaluation failed (%ds)\n' "$((SECONDS - start))"
     report_error "$log"
     return 1
@@ -338,6 +506,7 @@ trial() {
 
   if [ -n "${DRV_VERDICT[$drv]-}" ]; then
     if [ "${DRV_VERDICT[$drv]}" = ok ]; then
+      TRIAL_OUT="${DRV_OUT[$drv]}"
       printf '    ✓ builds (identical to %s)\n' "${DRV_TRIAL[$drv]}"
       check_lock "$log" "$start"
       return
@@ -346,19 +515,31 @@ trial() {
     return 1
   fi
 
-  BUILDS=$((BUILDS + 1))
-  rc=0
-  nix build --no-link --no-warn-dirty "$drv^*" >>"$log" 2>&1 || rc=$?
-  elapsed=$((SECONDS - start))
   DRV_TRIAL[$drv]="$tag"
-  if [ "$rc" -ne 0 ]; then
+  for attempt in 1 2; do
+    BUILDS=$((BUILDS + 1))
+    rc=0
+    run_nix "$log" "$WORKDIR/out" \
+      nix build --no-link --print-out-paths --no-warn-dirty "$drv^*" || rc=$?
+    [ "$rc" -eq 0 ] && break
     abort_if_interrupted "$rc" "$log"
+    abort_if_fatal "$log"
+    if [ "$attempt" -eq 1 ] && is_transient "$log"; then
+      printf '    … network trouble, retrying once\n'
+      continue
+    fi
+    break
+  done
+  elapsed=$((SECONDS - start))
+  if [ "$rc" -ne 0 ]; then
     DRV_VERDICT[$drv]=bad
     printf '    ✗ failed (%ds)\n' "$elapsed"
     report_error "$log"
     return 1
   fi
   DRV_VERDICT[$drv]=ok
+  DRV_OUT[$drv]="$(head -n1 "$WORKDIR/out" 2>/dev/null || true)"
+  TRIAL_OUT="${DRV_OUT[$drv]}"
   printf '    ✓ builds (%ds)\n' "$elapsed"
   check_lock "$log" "$start"
 }
@@ -374,7 +555,7 @@ check_lock() {
     return 1
   fi
   rc=0
-  nix flake check --no-warn-dirty "$FLAKE_DIR" >>"$log" 2>&1 || rc=$?
+  run_nix "$log" /dev/null nix flake check --no-warn-dirty "$FLAKE_DIR" || rc=$?
   if [ "$rc" -ne 0 ]; then
     abort_if_interrupted "$rc" "$log"
     LOCK_CHECKED[$hash]=bad
@@ -386,7 +567,16 @@ check_lock() {
   printf '    ✓ flake check passed (%ds)\n' "$((SECONDS - start))"
 }
 
-# --- The GitHub side of the bisect --------------------------------------------
+# Compose "everything decided so far plus these extra tokens" and build it.
+try_state() {
+  local label="$1"
+  shift
+  state_tokens "$@"
+  compose "${TOKENS[@]}" || return 1
+  trial "$label"
+}
+
+# --- Where candidate revisions come from --------------------------------------
 
 # gh is authenticated and has the higher rate limit, so prefer it; fall back to
 # plain curl (60 req/h unauthenticated, or set GITHUB_TOKEN).
@@ -400,52 +590,164 @@ gh_json() {
   fi
 }
 
-# The tip of $ref as it stood at the end of $day. Days are the right granularity
-# here — it is the unit the breakage is actually measured in ("nixpkgs broke
-# yesterday"), and it keeps the candidate list to a handful instead of the
-# thousands of individual commits between two lock positions.
-#
-# Resolved on demand and memoised: the search only ever visits a logarithmic
-# number of days, so asking GitHub about all of them up front would spend sixty
-# requests to use six.
-# The answer lands in DAY_REV_RESULT rather than on stdout: a command
-# substitution would run this in a subshell, and the memo would die with it.
-declare -A DAY_REV
-DAY_REV_RESULT=""
-day_rev() {
-  local slug="$1" ref="$2" day="$3" key="$1 $2 $3" out
-  if [ -z "${DAY_REV[$key]-}" ]; then
-    # A GitHub hiccup must not take the whole run down; an unresolved day is
-    # simply one the search cannot use.
-    out="$(gh_json "repos/$slug/commits?sha=$ref&until=${day}T23:59:59Z&per_page=1" |
-      jq -r '.[0].sha // empty' 2>/dev/null || true)"
-    DAY_REV[$key]="${out:--}"
-  fi
-  DAY_REV_RESULT="${DAY_REV[$key]}"
-  [ "$DAY_REV_RESULT" != "-" ]
+# The channel a nixpkgs input tracks, as a path in the release bucket. Only
+# nixpkgs has one; every other input falls through to the per-day search.
+channel_prefix() {
+  local owner="${1,,}" repo="${2,,}" ref="$3"
+  [ "$owner" = "nixos" ] && [ "$repo" = "nixpkgs" ] || return 1
+  case "$ref" in
+  nixpkgs-unstable) printf 'nixpkgs/\n' ;;
+  nixos-unstable | nixos-unstable-small) printf 'nixos/%s/\n' "${ref#nixos-}" ;;
+  nixos-[0-9][0-9].[0-9][0-9] | nixos-[0-9][0-9].[0-9][0-9]-small)
+    printf 'nixos/%s/\n' "${ref#nixos-}"
+    ;;
+  *) return 1 ;;
+  esac
 }
 
-# Test candidate day index $4 for input $1. Consecutive days often resolve to the
-# same commit (a quiet weekend on the branch), and the two ends of the range are
-# known before the search starts, so verdicts are cached per revision too.
-declare -A REV_VERDICT
-try_day() {
-  local name="$1" slug="$2" ref="$3" idx="$4" day rev rc
-  day="${CAND_DAYS[$idx]}"
-  if ! day_rev "$slug" "$ref" "$day"; then
-    printf '    %s  (no commit found; treating as unusable)\n' "$day"
+# Every release ever published under a channel, newest first, as
+# "serial<TAB>short-rev<TAB>name". The bucket lists lexicographically, which is
+# not chronological — `nixos-26.05.889` sorts after `nixos-26.05.7675` — so the
+# ordering comes from the serial in the name, which is a commit count and only
+# ever goes up. `marker` skips the decade of releases before the ones that could
+# possibly be in range; if that guess is wrong the caller notices, because the
+# input's current tip will not be in the list.
+s3_releases() {
+  local prefix="$1" marker="$2" url out names last
+  names=""
+  while :; do
+    url="https://nix-releases.s3.amazonaws.com/?prefix=$prefix&delimiter=/&max-keys=1000"
+    [ -n "$marker" ] && url="$url&marker=$marker"
+    out="$(curl -sfL --retry 2 "$url")" || return 1
+    last="$(printf '%s' "$out" | grep -o '<Prefix>[^<]*</Prefix>' |
+      sed 's|<[^>]*>||g' | tail -n1)"
+    names="$names$(printf '%s' "$out" | grep -o '<Prefix>[^<]*</Prefix>' |
+      sed 's|<[^>]*>||g; s|/$||; s|.*/||')
+"
+    printf '%s' "$out" | grep -q '<IsTruncated>true</IsTruncated>' || break
+    [ -n "$last" ] || break
+    marker="$last"
+  done
+  printf '%s\n' "$names" |
+    sed -nE 's/^((nixos|nixpkgs)-[0-9]+\.[0-9]+(pre|\.)([0-9]+)\.([0-9a-f]{7,}))$/\4\t\5\t\1/p' |
+    sort -k1,1nr
+}
+
+# Candidate list for one input, newest first. Index 0 is always the tip itself:
+# it was rejected on top of a smaller set of updates than the one in force now,
+# so it deserves a re-test — and if nothing has changed since, the .drv cache
+# answers for free. The far end of the list is the baseline, which is known good
+# and is represented by the index one past the end rather than by an entry.
+CAND_LABEL=()
+CAND_SPEC=()
+declare -A CAND_REV_MEMO
+
+build_candidates() {
+  local name="$1" slug="$2" ref="$3" prefix short relname ts day i
+  local owner="${slug%%/*}" repo="${slug#*/}"
+  CAND_LABEL=("$(day_of "${TIP_TS[$name]}") (tip)")
+  CAND_SPEC=("rev:${TIP_REV[$name]}")
+
+  if prefix="$(channel_prefix "$owner" "$repo" "$ref")"; then
+    local -a rel_short=() rel_name=()
+    local marker="" nameprefix="nixos-"
+    [ "$prefix" = "nixpkgs/" ] && nameprefix="nixpkgs-"
+    # A year before the tip is more history than --max-days can ever reach, and
+    # base 10 is explicit because `%y` yields a leading zero one decade in ten.
+    marker="$prefix$nameprefix$((10#$(date -u -d "@${TIP_TS[$name]}" +%y) - 1))."
+    local found=-1 idx=0
+    while IFS=$'\t' read -r _ short relname; do
+      rel_short+=("$short")
+      rel_name+=("$relname")
+      [ "${TIP_REV[$name]#"$short"}" != "${TIP_REV[$name]}" ] && found="$idx"
+      idx=$((idx + 1))
+    done < <(s3_releases "$prefix" "$marker" || true)
+
+    if [ "$found" -ge 0 ]; then
+      for ((i = found + 1; i < ${#rel_short[@]}; i++)); do
+        [ "${#CAND_SPEC[@]}" -lt "$MAX_DAYS" ] || break
+        # The baseline ends the list: it is the known-good far end, not a candidate.
+        [ "${BASE_REV[$name]#"${rel_short[i]}"}" != "${BASE_REV[$name]}" ] && break
+        CAND_LABEL+=("${rel_name[i]}")
+        CAND_SPEC+=("chan:$prefix:${rel_name[i]}")
+      done
+      CAND_KIND="channel releases"
+      return 0
+    fi
+    printf '    (tip is not a published %s release; falling back to commits)\n' "$ref"
+  fi
+
+  # One candidate per day, from the day before the tip back to the baseline's own
+  # day. Days are the right granularity for anything that is not a channel: it is
+  # the unit a breakage is actually measured in ("home-manager broke yesterday"),
+  # and it keeps the list to a handful instead of the thousands of commits
+  # between two lock positions. Revisions are resolved against the tip's own
+  # history rather than the branch, so a branch that moves mid-run cannot change
+  # what is being searched.
+  ts=$((TIP_TS[$name] - 86400))
+  while [ "$ts" -ge "${BASE_TS[$name]}" ] && [ "${#CAND_SPEC[@]}" -lt "$MAX_DAYS" ]; do
+    day="$(day_of "$ts")"
+    CAND_LABEL+=("$day")
+    CAND_SPEC+=("day:$slug:${TIP_REV[$name]}:$day")
+    ts=$((ts - 86400))
+  done
+  CAND_KIND="daily commits"
+}
+
+# Turn candidate $1 into a full revision, memoised. Resolved on demand because
+# the search only ever visits a logarithmic number of them, so resolving the
+# whole list up front would spend sixty requests to use six.
+resolve_cand() {
+  local i="$1"
+  local spec="${CAND_SPEC[$i]}" out="" pfx nm slug ref day
+  if [ -n "${CAND_REV_MEMO[$i]-}" ]; then
+    CAND_REV="${CAND_REV_MEMO[$i]}"
+    [ "$CAND_REV" != - ]
+    return
+  fi
+  case "$spec" in
+  rev:*) out="${spec#rev:}" ;;
+  chan:*)
+    IFS=: read -r _ pfx nm <<<"$spec"
+    out="$(curl -sfL --retry 2 "https://releases.nixos.org/$pfx$nm/git-revision" || true)"
+    ;;
+  day:*)
+    IFS=: read -r _ slug ref day <<<"$spec"
+    out="$(gh_json "repos/$slug/commits?sha=$ref&until=${day}T23:59:59Z&per_page=1" |
+      jq -r '.[0].sha // empty' 2>/dev/null || true)"
+    ;;
+  esac
+  out="$(printf '%s' "$out" | tr -dc '0-9a-f')"
+  [[ "$out" =~ ^[0-9a-f]{40}$ ]] || out=-
+  CAND_REV_MEMO[$i]="$out"
+  CAND_REV="$out"
+  [ "$out" != - ]
+}
+
+# Verdicts are cached per revision as well as per .drv: consecutive candidate
+# days often resolve to the same commit (a quiet weekend on the branch).
+# REV_TS records how old each tried revision turned out to be, so the result can
+# be compared against the baseline at the end.
+declare -A REV_VERDICT REV_TS
+
+try_cand() {
+  local name="$1" slug="$2" i="$3" rev rc=0
+  if ! resolve_cand "$i"; then
+    printf '    %-38s (could not resolve; skipping)\n' "${CAND_LABEL[$i]}"
     return 1
   fi
-  rev="$DAY_REV_RESULT"
+  rev="$CAND_REV"
   if [ -n "${REV_VERDICT[$rev]-}" ]; then
-    printf '    %s  %s  (already known: %s)\n' "$day" "${rev:0:10}" "${REV_VERDICT[$rev]}"
-    [ "${REV_VERDICT[$rev]}" = ok ] && return 0
-    return 1
+    printf '    %-38s %s  (already known: %s)\n' \
+      "${CAND_LABEL[$i]}" "${rev:0:10}" "${REV_VERDICT[$rev]}"
+    [ "${REV_VERDICT[$rev]}" = ok ]
+    return
   fi
-  printf '    %s  %s\n' "$day" "${rev:0:10}"
-  rc=0
-  apply_state "$name $slug $rev" || return 1
-  trial "bisect-$name-${rev:0:8}" || rc=$?
+  printf '    %-38s %s\n' "${CAND_LABEL[$i]}" "${rev:0:10}"
+  try_state "bisect $name@${rev:0:8}" "pin:$name:$slug:$rev" || rc=$?
+  # Read back from the lock the trial actually used, so the age is the composed
+  # one and not something inferred from the candidate's label.
+  REV_TS[$rev]="$(locked_ts "$name")"
   if [ "$rc" -eq 0 ]; then REV_VERDICT[$rev]=ok; else REV_VERDICT[$rev]=bad; fi
   return "$rc"
 }
@@ -465,12 +767,17 @@ else
   cp "$ORIG_LOCK" "$BASELINE_LOCK"
 fi
 
-cp "$BASELINE_LOCK" "$LOCK"
 declare -A BASE_REV BASE_TS
 while IFS=$'\t' read -r name rev ts; do
   BASE_REV[$name]="$rev"
   BASE_TS[$name]="$ts"
-done < <(lock_revs)
+done < <(lock_revs "$BASELINE_LOCK")
+
+# Checked against the baseline rather than the tips so a typo costs nothing.
+for name in ${ONLY[@]+"${ONLY[@]}"}; do
+  [ -n "${BASE_REV[$name]-}" ] ||
+    die "no input named '$name' in the $BASELINE lock (have: ${!BASE_REV[*]})"
+done
 
 # --- What is even available ---------------------------------------------------
 echo "Checking for input updates..."
@@ -481,14 +788,30 @@ while IFS=$'\t' read -r name rev ts; do
   TIP_TS[$name]="$ts"
 done < <(lock_revs)
 
+wanted() {
+  local n
+  [ "${#ONLY[@]}" -eq 0 ] && return 0
+  for n in "${ONLY[@]}"; do [ "$n" = "$1" ] && return 0; done
+  return 1
+}
+
+# The tip lock is the one that has every input flake.nix declares; an input added
+# since the baseline was committed is simply not in the baseline at all. There is
+# no older revision to fall back to for those, so they ride along at their tip in
+# every trial and are neither searched nor held back.
 UPDATABLE=()
-for name in $(printf '%s\n' "${!BASE_REV[@]}" | sort); do
-  if [ "${BASE_REV[$name]}" != "${TIP_REV[$name]-}" ]; then
+for name in $(printf '%s\n' "${!TIP_REV[@]}" | sort); do
+  if [ -z "${BASE_REV[$name]-}" ]; then
+    printf '  + %-24s new input, always at its tip (%s)\n' "$name" \
+      "$(day_of "${TIP_TS[$name]}")"
+  elif [ "${BASE_REV[$name]}" = "${TIP_REV[$name]}" ]; then
+    printf '  = %-24s unchanged (%s)\n' "$name" "$(day_of "${BASE_TS[$name]}")"
+  elif ! wanted "$name"; then
+    printf '  - %-24s update available, not selected\n' "$name"
+  else
     UPDATABLE+=("$name")
     printf '  ↻ %-24s %s → %s\n' "$name" \
       "$(day_of "${BASE_TS[$name]}")" "$(day_of "${TIP_TS[$name]}")"
-  else
-    printf '  = %-24s unchanged (%s)\n' "$name" "$(day_of "${BASE_TS[$name]}")"
   fi
 done
 echo
@@ -498,7 +821,7 @@ if [ "${#UPDATABLE[@]}" -eq 0 ]; then
   # left exactly as found rather than being overwritten with an untested lock.
   cp "$ORIG_LOCK" "$LOCK"
   SUCCESS=1
-  echo "Every input is already at its tip — nothing to search, flake.lock untouched."
+  echo "Nothing to search — flake.lock untouched."
   exit 0
 fi
 
@@ -513,83 +836,66 @@ if [ "$DRY_RUN" -eq 1 ]; then
   exit 0
 fi
 
-# The all-at-tips lock is exactly what `apply` would compute for the full set,
+# The all-at-tips lock is exactly what `compose` would compute for the full set,
 # and it has just been computed, so hand it to the cache instead of refetching.
-cp "$LOCK" "$LOCKCACHE/$(lock_key "${UPDATABLE[@]}").lock"
+if [ "${#ONLY[@]}" -eq 0 ]; then
+  ALL_TOKENS=()
+  for name in "${UPDATABLE[@]}"; do ALL_TOKENS+=("tip:$name"); done
+  cp "$LOCK" "$LOCKCACHE/$(lock_key "${ALL_TOKENS[@]}").lock"
+fi
 
 echo "Verifying the baseline builds..."
 cp "$BASELINE_LOCK" "$LOCK"
-if ! trial baseline; then
+if ! trial "baseline"; then
   KEEP_LOGS=1
   echo >&2
   echo "error: the $BASELINE baseline does not build on its own." >&2
   echo "Nothing can be concluded about the inputs until that is fixed." >&2
   exit 1
 fi
+BASELINE_OUT="$TRIAL_OUT"
 echo
 
-# --- Fast path: everything at once --------------------------------------------
-echo "Trying all ${#UPDATABLE[@]} update(s) together..."
-apply "${UPDATABLE[@]}"
-if trial all; then
-  SUCCESS=1
-  echo
-  echo "All inputs updated cleanly — flake.lock written."
-  printf 'Verified in %s (%d build(s), %d evaluation(s)).\n' \
-    "$(printf '%dm%02ds' $(((SECONDS - RUN_START) / 60)) $(((SECONDS - RUN_START) % 60)))" \
-    "$BUILDS" "$EVALS"
-  exit 0
-fi
-echo
+# --- Which inputs can reach their tips ----------------------------------------
+# Binary partitioning rather than one trial per input: the whole set is tried
+# first (the common case is that it just works, and that is then the only build),
+# and a set that fails is split in half and each half retried on top of whatever
+# has already been accepted. One culprit among eleven inputs costs about seven
+# trials instead of eleven, and because every trial is "what we have kept so far,
+# plus this half", an input that only breaks in combination with another is still
+# caught — there is no separate combine-and-narrow pass.
+#
+# The result is a maximal set, not necessarily the largest one: an input rejected
+# early is not retried against the larger set that later accumulates. That is
+# what the bisect's index 0 — the tip — is for.
+absorb() {
+  local -a list=("$@")
+  local n="${#list[@]}" half x
+  [ "$n" -gt 0 ] || return 0
 
-# --- Per-input: which ones are safe on their own ------------------------------
-echo "Testing each input on its own against the baseline..."
-GREEN=()
-RED=()
-i=0
-for name in "${UPDATABLE[@]}"; do
-  i=$((i + 1))
-  printf '  [%d/%d] %s\n' "$i" "${#UPDATABLE[@]}" "$name"
-  apply "$name"
-  if trial "only-$name"; then
-    GREEN+=("$name")
+  local -a add=()
+  for x in "${list[@]}"; do add+=("tip:$x"); done
+  if [ "$n" -eq "${#UPDATABLE[@]}" ]; then
+    printf '  all %d input(s) at their tips\n' "$n"
   else
-    RED+=("$name")
+    printf '  keeping %d, trying: %s\n' "${#KEPT[@]}" "${list[*]}"
   fi
-done
-echo
+  if try_state "tips: ${list[*]}" "${add[@]}"; then
+    KEPT+=("${list[@]}")
+    return 0
+  fi
+  if [ "$n" -eq 1 ]; then
+    RED+=("${list[0]}")
+    return 0
+  fi
+  half=$((n / 2))
+  absorb "${list[@]:0:half}"
+  absorb "${list[@]:half}"
+}
 
-if [ "${#GREEN[@]}" -eq 0 ]; then
-  # Not an exit: there may still be a working revision short of the tip for
-  # these, which is exactly the case the bisect is for.
-  KEPT=()
-  echo "No input can move forward to its tip on its own."
-  echo
-else
-  # --- Combine the safe ones --------------------------------------------------
-  # Green-alone does not imply green-together, so the combination is tested too,
-  # and narrowed one input at a time if it fails.
-  echo "Combining the ${#GREEN[@]} input(s) that passed alone..."
-  apply "${GREEN[@]}"
-  if trial combined; then
-    KEPT=("${GREEN[@]}")
-  else
-    echo
-    echo "  Combination failed — adding them one at a time instead."
-    KEPT=()
-    for name in "${GREEN[@]}"; do
-      printf '  + %s\n' "$name"
-      apply "${KEPT[@]}" "$name"
-      if trial "with-$name"; then
-        KEPT+=("$name")
-      else
-        RED+=("$name")
-        printf '      (dropped: breaks in combination)\n'
-      fi
-    done
-  fi
-  echo
-fi
+echo "Searching for the newest set of inputs that build together..."
+absorb "${UPDATABLE[@]}"
+echo
 
 # --- Bisect the held-back inputs ----------------------------------------------
 # Everything above chose only between "input at baseline" and "input at tip", so
@@ -597,15 +903,22 @@ fi
 # than the newest revision that would actually have worked.
 #
 # Candidates run newest-first, and the search starts at the newest and walks
-# back, so a breakage introduced yesterday costs a single build. The stride
-# doubles (1, 2, 4, 8…) so a boundary far from the tip does not cost one build
-# per day either, and the bracket that straddles the boundary is then
-# binary-searched: best case 1 build, worst case ~2·log2(days).
+# back, so a breakage introduced yesterday costs a single build.
 #
-# This assumes the boundary is monotone — that once a revision builds, older ones
-# do too. Breakages get introduced and later fixed, so that holds over the short
-# windows involved here, but a fix-then-rebreak inside the window can make it
-# settle on a working revision that is not strictly the newest one.
+# The first --linear candidates are checked one at a time. That part needs no
+# assumptions at all: everything newer has been tried and failed, so the first
+# one that builds is provably the newest that does. Past that the stride doubles
+# (1, 2, 4, 8…) and the bracket that straddles the boundary is binary-searched,
+# which costs ~2·log2(candidates) instead of one build per candidate.
+#
+# Only the skipping part assumes the boundary is monotone — that once a revision
+# builds, older ones do too. Breakages get introduced and later fixed, so a
+# window can genuinely read bad-good-bad-good from the tip backwards, and a
+# search that skips can land on the older good stretch and throw away the newer
+# one. Scanning the newest candidates one by one is what buys that back, and it
+# is worth the builds precisely there: a day of freshness lost when you are one
+# day behind matters, the same day lost when you are forty behind does not.
+# `--linear 0` skips from the start, a large `--linear` never skips.
 if [ "$BISECT" -eq 1 ] && [ "${#RED[@]}" -gt 0 ]; then
   echo "Bisecting ${#RED[@]} held-back input(s) for their newest working revision..."
   for name in "${RED[@]}"; do
@@ -617,64 +930,63 @@ if [ "$BISECT" -eq 1 ] && [ "${#RED[@]}" -gt 0 ]; then
       continue
     fi
 
-    # One candidate per day, from the day before the tip back to the baseline's
-    # own day. The tip is already known bad and the baseline already known good,
-    # so both ends are seeded as verdicts rather than tested.
-    CAND_DAYS=()
-    ts=$((TIP_TS[$name] - 86400))
-    while [ "$ts" -ge "${BASE_TS[$name]}" ] && [ "${#CAND_DAYS[@]}" -lt "$MAX_DAYS" ]; do
-      CAND_DAYS+=("$(day_of "$ts")")
-      ts=$((ts - 86400))
-    done
-    REV_VERDICT["${TIP_REV[$name]}"]=bad
+    CAND_REV_MEMO=()
+    CAND_KIND=""
+    build_candidates "$name" "$slug" "$ref"
+    n="${#CAND_SPEC[@]}"
+    # The baseline is the known-good far end of the range, one index past the
+    # list. Everything in between is what the search actually visits.
     REV_VERDICT["${BASE_REV[$name]}"]=ok
-
-    if [ "${#CAND_DAYS[@]}" -eq 0 ]; then
-      printf '  %s: no days between baseline and tip to try\n' "$name"
-      continue
-    fi
-    printf '  %s: %d candidate day(s), newest first\n' "$name" "${#CAND_DAYS[@]}"
+    printf '  %s: %d candidate(s) from %s, newest first\n' "$name" "$n" "$CAND_KIND"
 
     lo=-1 # newest index known to fail
-    hi=-1 # oldest index known to build
+    hi="$n"
     step=1
     idx=0
-    while [ "$idx" -lt "${#CAND_DAYS[@]}" ]; do
-      if try_day "$name" "$slug" "$ref" "$idx"; then
+    while [ "$idx" -lt "$n" ]; do
+      if try_cand "$name" "$slug" "$idx"; then
         hi="$idx"
         break
       fi
       lo="$idx"
       idx=$((idx + step))
-      step=$((step * 2))
+      # One at a time while a build still buys a day of freshness worth having.
+      if [ "$idx" -ge "$LINEAR" ]; then step=$((step * 2)); fi
     done
-
-    if [ "$hi" -lt 0 ]; then
-      printf '    → nothing newer than the baseline builds; staying at baseline\n'
-      continue
-    fi
-    # Narrow (lo, hi] down to the newest revision that still builds.
+    # Narrow (lo, hi] down to the newest revision that still builds. hi may still
+    # be the baseline here, which is what makes the untested tail of a fully
+    # failed walk get searched rather than written off.
     while [ $((hi - lo)) -gt 1 ]; do
       mid=$(((lo + hi) / 2))
-      if try_day "$name" "$slug" "$ref" "$mid"; then
+      if try_cand "$name" "$slug" "$mid"; then
         hi="$mid"
       else
         lo="$mid"
       fi
     done
 
-    day="${CAND_DAYS[$hi]}"
-    day_rev "$slug" "$ref" "$day"
-    rev="$DAY_REV_RESULT"
-    # The walk can land on the baseline itself when nothing in between builds;
-    # that is not an improvement and must not become a pin.
-    if [ "$rev" = "${BASE_REV[$name]}" ]; then
+    if [ "$hi" -lt "$n" ]; then
+      resolve_cand "$hi" || die "lost the revision the bisect settled on for $name"
+      rev="$CAND_REV"
+    else
+      rev="${BASE_REV[$name]}"
+    fi
+    # The search can land at or below the baseline: a day-granular walk's oldest
+    # candidate is the day the baseline was locked, and a channel list runs past
+    # the baseline entirely when the baseline is not itself a published release.
+    # Older than what we started with is not an improvement and must not become
+    # a pin, so the test is on age and not just on revision equality.
+    if [ "$hi" -ge "$n" ] || [ "$rev" = "${BASE_REV[$name]}" ] ||
+      [ "${REV_TS[$rev]:-0}" -le "${BASE_TS[$name]}" ]; then
       printf '    → nothing newer than the baseline builds; staying at baseline\n'
       continue
     fi
-    PINS+=("$name $slug $rev")
-    BISECTED+=("$name $day $rev")
-    printf '    → newest working: %s (%s)\n' "$day" "${rev:0:10}"
+    PINS+=("$name:$slug:$rev")
+    BISECTED+=("$name"$'\t'"${CAND_LABEL[$hi]}"$'\t'"$rev")
+    # The label is the candidate that was probed, which for a daily search is a
+    # day and not the revision's own date — the summary at the end reports the
+    # date the lock actually ends up with.
+    printf '    → newest working candidate: %s → %s\n' "${CAND_LABEL[$hi]}" "${rev:0:10}"
   done
   echo
 fi
@@ -684,11 +996,14 @@ fi
 # reported, then build it as a whole. The steps above each verified a state, but
 # the composition of all of them is its own state, and it is the one being
 # written. Thanks to the .drv cache this is usually free.
-apply_state || die "could not recompose the winning combination"
+state_tokens
+compose "${TOKENS[@]}" || die "could not recompose the winning combination"
 
 if [ "${#KEPT[@]}" -gt 0 ] || [ "${#BISECTED[@]}" -gt 0 ]; then
   echo "Verifying the result as a whole..."
-  if ! trial final; then
+  if trial "final"; then
+    FINAL_OUT="$TRIAL_OUT"
+  else
     KEEP_LOGS=1
     echo
     echo "The combination that each step accepted does not build together." >&2
@@ -705,7 +1020,7 @@ STILL_BACK=()
 for name in "${RED[@]}"; do
   pinned=0
   for b in "${BISECTED[@]}"; do
-    [ "${b%% *}" = "$name" ] && pinned=1
+    [ "${b%%$'\t'*}" = "$name" ] && pinned=1
   done
   [ "$pinned" -eq 0 ] && STILL_BACK+=("$name")
 done
@@ -721,15 +1036,19 @@ if [ "${#KEPT[@]}" -eq 0 ] && [ "${#BISECTED[@]}" -eq 0 ]; then
   fi
 else
   echo "Wrote flake.lock (verified):"
+  # Dates come from the lock that was actually written, so the report cannot
+  # describe something other than what is on disk.
+  declare -A NEW_TS
+  while IFS=$'\t' read -r name rev ts; do NEW_TS[$name]="$ts"; done < <(lock_revs)
   for name in "${KEPT[@]}"; do
     printf '  at tip     %-22s %s → %s\n' "$name" \
-      "$(day_of "${BASE_TS[$name]}")" "$(day_of "${TIP_TS[$name]}")"
+      "$(day_of "${BASE_TS[$name]}")" "$(day_of "${NEW_TS[$name]}")"
   done
   for b in "${BISECTED[@]}"; do
-    read -r bname bday brev <<<"$b"
+    IFS=$'\t' read -r bname _ brev <<<"$b"
     printf '  bisected   %-22s %s → %s (%s), tip was %s\n' \
-      "$bname" "$(day_of "${BASE_TS[$bname]}")" "$bday" "${brev:0:10}" \
-      "$(day_of "${TIP_TS[$bname]}")"
+      "$bname" "$(day_of "${BASE_TS[$bname]}")" "$(day_of "${NEW_TS[$bname]}")" \
+      "${brev:0:10}" "$(day_of "${TIP_TS[$bname]}")"
   done
 fi
 
@@ -737,9 +1056,20 @@ for name in "${STILL_BACK[@]}"; do
   printf '  held back  %-22s stays at %s\n' "$name" "$(day_of "${BASE_TS[$name]}")"
 done
 
+# What the update actually amounts to, in packages rather than in revisions.
+# Both closures are in the store already, so this is a local comparison.
+if [ -n "$BASELINE_OUT" ] && [ -n "$FINAL_OUT" ] && [ "$BASELINE_OUT" != "$FINAL_OUT" ] &&
+  nix store diff-closures "$BASELINE_OUT" "$FINAL_OUT" >"$WORKDIR/diff" 2>/dev/null &&
+  [ -s "$WORKDIR/diff" ]; then
+  echo
+  echo "Closure changes vs the baseline:"
+  head -n 25 "$WORKDIR/diff" | sed 's/^/  /'
+  lines="$(wc -l <"$WORKDIR/diff")"
+  [ "$lines" -gt 25 ] && printf '  … and %d more\n' "$((lines - 25))"
+fi
+
 printf '\nDone in %s (%d build(s), %d evaluation(s)).\n' \
-  "$(printf '%dm%02ds' $(((SECONDS - RUN_START) / 60)) $(((SECONDS - RUN_START) % 60)))" \
-  "$BUILDS" "$EVALS"
+  "$(fmt_dur $((SECONDS - RUN_START)))" "$BUILDS" "$EVALS"
 
 if [ "${#STILL_BACK[@]}" -gt 0 ]; then
   echo

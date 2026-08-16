@@ -881,8 +881,23 @@ for slug in "${todo[@]}"; do
     base="$(sanitize "$title")"
 
     titledir="$dest/$author_dir/$base"
-    mkdir -p "$titledir"
-    mv -- "$epub_tmp" "$titledir/$base.epub"
+    # A directory that cannot be made is this book's failure, not the run's.
+    # Everything else that can go wrong with a single book - a 404, a 403, an
+    # empty body, an unreadable OPF - is warned about and stepped over, but a
+    # bare `mkdir -p` under set -e ended the whole run at the first author
+    # directory that would not take a write, abandoning every book after it
+    # with no summary, no warning list and no account of what had already been
+    # downloaded. A library like this usually lives on a NAS share, where one
+    # directory with the wrong owner is an ordinary Tuesday and a fortnight-long
+    # sync is a lot to lose to it. The mv is guarded with it because they fail
+    # together: the epub comes from the scratch directory, so on a library
+    # mounted elsewhere that move is a copy, and a full disk stops it.
+    if ! mkdir -p "$titledir" || ! mv -- "$epub_tmp" "$titledir/$base.epub"; then
+      warn "$slug: could not write $author_dir/$base"
+      failed=$((failed + 1))
+      progress "failed" "$slug"
+      continue
+    fi
     relpath="${titledir#"$dest_prefix"}"
     printf '%s\t%s\n' "$slug" "$relpath" >>"$index_file"
     indexed_path["$slug"]="$relpath"
@@ -890,7 +905,16 @@ for slug in "${todo[@]}"; do
 
   titledir="$dest/$relpath"
   base="${relpath##*/}"
-  mkdir -p "$titledir"
+  # Same again for a book the ledger already knows: the directory is recreated
+  # here because the formats it is short get written into it, and a book whose
+  # directory has become unwritable since must not take the rest of the catalog
+  # down with it.
+  if ! mkdir -p "$titledir"; then
+    warn "$relpath: could not create the book directory"
+    failed=$((failed + 1))
+    progress "failed" "$relpath"
+    continue
+  fi
 
   ok=1
   for i in "${!url_exts[@]}"; do

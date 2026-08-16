@@ -17,9 +17,15 @@ drtv_init() {
   use_stubs yt-dlp curl
   DRTV_LIB="$TMP/library"
   DRTV_SCEN="$TMP/scenario.json"
-  # A case may set up more than one scenario; each starts from an empty library.
+  # A case may set up more than one scenario; each starts from an empty library
+  # and from empty stub logs. The logs matter as much as the library: they are
+  # where "how many extractions did that cost" is read from, and a count taken
+  # after the second scenario would otherwise quietly include the first one's
+  # calls. The curl stub's per-URL consume counters live here too, and a new
+  # scenario redeclares its URLs, so those have to go with them.
   rm -rf "$DRTV_LIB"
   mkdir -p "$DRTV_LIB"
+  rm -f "$STUBLOG"/*
   export YTDLP_SCENARIO="$DRTV_SCEN"
   export CURL_MAP="$TMP/curl-map"
   : >"$CURL_MAP"

@@ -40,6 +40,15 @@ subshell. Have a helper set a variable instead of printing one.
 second sees an empty stream and the verdict is silently wrong. Start with
 `combo="$(cat)"`.
 
+**A scenario script that does _not_ read stdin used to SIGPIPE its writer**, and
+under the stub's `pipefail` that inverted the verdict: `sim_check <<'EOF'` /
+`exit 0` / `EOF` — the obvious way to write "everything passes" — made every
+check fail. Worse, it was a race between the writer and the script's startup, so
+a `printf` on the left won often enough to look fine while `combo_of` (which
+shells out to jq) lost every time, and only `sim_check` appeared broken. The
+`nix` stub now feeds all three scenario scripts through a file. Any new stub that
+hands a payload to a case-supplied script should do the same rather than pipe it.
+
 **`grep -c` prints `0` and exits 1** on no match, so `grep -c … || echo 0`
 prints "0\n0" and every numeric assertion against it fails confusingly. Count
 with `awk` in helpers.
@@ -77,4 +86,13 @@ than improvising.
 **prettier formats CLAUDE.md** via the pre-commit hook, and `nix flake check`
 discards a hook's auto-fix and only prints the diff. Run
 `/nix/store/*prettier*/bin/prettier --write CLAUDE.md` directly instead of
-applying a printed diff by hand.
+applying a printed diff by hand. The glob matches more than one store path, and
+the extra ones are then passed to prettier as _files_ — the "No parser could be
+inferred" lines that follow are that, not a failure to format. Read the
+`CLAUDE.md … (unchanged|Nms)` line for the real answer.
+
+**The library's author directory is the _sanitized_ name.** A test that
+pre-creates one to set its permissions has to spell it as `sanitize` leaves it —
+`"Milne, A. A."` files under `Milne, A. A`, trailing period trimmed. Creating the
+untrimmed spelling makes a directory the script never touches, and the case then
+passes while testing nothing.

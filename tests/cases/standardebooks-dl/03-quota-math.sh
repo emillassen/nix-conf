@@ -19,7 +19,17 @@ assert_eq "the long window is six hours" 21600 "$LONG_WINDOW"
 assert_eq "the long limit is the measured 100" 100 "$LONG_MAX"
 
 quota_file="$TMP/quota"
+# The lock helpers come along even though the arithmetic does not need them:
+# quota_load takes the lock around its read-prune-write, and leaving them out
+# made every call here print "quota_lock_hold: command not found" and carry on.
+# A passing case that writes errors to stderr teaches you to stop reading it,
+# and it meant the one guarantee quota_load has beyond arithmetic — that the
+# rewrite is atomic against another run's append — was not being exercised at all.
+require_tool flock
+quota_lock="$TMP/quota.lock"
+quota_lock_held=0
 extract_funcs "$SEDL" "$TMP/quota-funcs.sh" \
+  quota_lock_hold quota_lock_free \
   quota_load quota_used quota_record quota_wait_for quota_wait fmt_duration
 # shellcheck source=/dev/null
 . "$TMP/quota-funcs.sh"

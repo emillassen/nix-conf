@@ -33,8 +33,8 @@ Three programs, roughly 2,950 lines of non-trivial bash:
 | `pkgs/standardebooks-dl/…-dl.sh` | ~940  | a rate-limited catalog sync with an on-disk quota ledger             |
 | `pkgs/drtv-dl/drtv-dl.sh`        | ~820  | a yt-dlp wrapper with skip detection and Jellyfin sidecar generation |
 
-A hermetic suite for all three **already exists** in `tests/` — 43 cases, ~509
-assertions, a full offline run in about 25 seconds. The job is to extend it and
+A hermetic suite for all three **already exists** in `tests/` — 50 cases, ~615
+assertions, a full offline run in about 40 seconds. The job is to extend it and
 find defects that are still in there. Building a second harness alongside the
 first is the worst available outcome.
 
@@ -214,7 +214,8 @@ assumption in both directions; keep it passing.
 `require_tool`, which falls back to the Nix store.
 
 **A green suite proves nothing about a route it never takes.** Cases redirect
-stdout to a file, so every TTY-only branch is unexercised. Check
+stdout to a file, so a TTY-only branch is unexercised unless the case supplies a
+pty itself (`script -qec`, as `26-tty-and-verbose` does). Check
 `references/findings.md` before claiming coverage.
 
 The remaining traps — bash 5.2's `&` in a substitution replacement, quote

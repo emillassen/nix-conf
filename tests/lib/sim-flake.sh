@@ -159,6 +159,21 @@ sim_channel_releases() {
     "$prefix" "$xml" >>"$CURL_MAP"
 }
 
+# Pads a channel's listing with COUNT more releases, keys only — no git-revision
+# entry and no timestamp, because a candidate is resolved only when it is
+# actually probed and these sit past the baseline the walk stops at. Their names
+# carry an older version than the real releases', so they sort ahead of them and
+# the tip ends up beyond the first page the bucket will serve. That is not a
+# contrivance: a page holds 1000 keys, nixos/unstable/ holds a decade of them,
+# and a channel publishing several a day fills a year's marker window.
+sim_channel_filler() {
+  local prefix="$1" count="$2" version="${3:-25.05}"
+  local xml="$SIM/s3-${prefix//\//_}.keys" i
+  for ((i = 1; i <= count; i++)); do
+    printf '%snixos-%spre%06d.0000001/\n' "$prefix" "$version" "$i" >>"$xml"
+  done
+}
+
 # --- Reading results back --------------------------------------------------------
 lock_rev() {
   jq -r --arg n "$1" '

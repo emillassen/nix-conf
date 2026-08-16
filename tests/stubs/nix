@@ -58,6 +58,21 @@ combo_of() {
   printf '%s' "$out"
 }
 
+# Hand the combination to a scenario script through a file, never through a
+# pipe. A body that does not read stdin — `exit 0` is the obvious way to write
+# "everything builds" — leaves the writer with EPIPE, and with pipefail set that
+# turns an unconditional pass into an unconditional failure. Worse, it is a race
+# between the writer and the script's own startup, so a `printf` on the left wins
+# often enough to look fine while a slower producer loses every time.
+feed() {
+  local script="$1" combo="$2" rc=0 f
+  f="$(mktemp)"
+  printf '%s' "$combo" >"$f"
+  "$script" <"$f" || rc=$?
+  rm -f "$f"
+  return "$rc"
+}
+
 ts_of_rev() {
   local rev="$1" r t
   while IFS=$'\t' read -r r t; do
@@ -169,7 +184,7 @@ flake)
     dir=""
     for a in "$@"; do [[ "$a" == -* ]] || dir="$a"; done
     if [[ -x "$SIM/check.sh" ]]; then
-      combo_of "$dir/flake.lock" | "$SIM/check.sh" || {
+      feed "$SIM/check.sh" "$(combo_of "$dir/flake.lock")" || {
         echo "error: flake check failed" >&2
         exit 1
       }
@@ -187,7 +202,7 @@ path-info)
   [[ -f "$lock" ]] || die "path-info: no lock at $lock"
   combo="$(combo_of "$lock")"
   if [[ -x "$SIM/eval.sh" ]]; then
-    printf '%s' "$combo" | "$SIM/eval.sh" || {
+    feed "$SIM/eval.sh" "$combo" || {
       echo "error: evaluation aborted" >&2
       exit 1
     }
@@ -208,7 +223,7 @@ build)
   combo="$(cat "$SIM/drvs/$hash")"
   printf '%s\n\n' "$combo" >>"$STUBLOG/builds.log"
   rc=0
-  printf '%s' "$combo" | "$SIM/verdict.sh" || rc=$?
+  feed "$SIM/verdict.sh" "$combo" || rc=$?
   if [[ "$rc" -ne 0 ]]; then
     exit "$rc"
   fi

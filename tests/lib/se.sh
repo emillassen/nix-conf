@@ -17,7 +17,16 @@ se_init() {
   SE_LIB="$TMP/library"
   SE_SITE="$TMP/site"
   SE_SITEMAP="$SE_SITE/sitemap.xml"
+  # A second se_init in one case starts over completely: an empty library, an
+  # unspent quota ledger and empty stub logs. Leaving any of the three behind is
+  # a quiet way for the second scenario to be judged on the first one's
+  # leftovers — a book already on disk, a budget already spent, a request
+  # already counted — and each of those reads as a plausible result rather than
+  # as a mistake. The curl stub's per-URL consume counters go too, since the new
+  # scenario redeclares its URLs from scratch.
+  rm -rf "$SE_LIB" "$SE_SITE" "$TMP/state"
   mkdir -p "$SE_LIB" "$SE_SITE"
+  rm -f "$STUBLOG"/*
   export CURL_MAP="$TMP/curl-map"
   : >"$CURL_MAP"
   # The ledger is per machine, not per library, and lives under XDG_STATE_HOME.

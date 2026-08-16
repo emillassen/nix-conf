@@ -99,8 +99,14 @@ left exactly as found" actually means.
 TIPREV TIPTS`, `sim_write`, `sim_verdict` (heredoc; stdin is the combination,
 exit 0 = builds), `sim_check`, `sim_reaching`, `sim_rev`, `sim_gh_day`,
 `sim_gh_dead`, `sim_channel_releases PREFIX VERSION SEP` (stdin:
-`serial<TAB>fullrev<TAB>ts`). Read results with `lock_rev`, `lock_ts`,
-`builds_run`, `build_combos`, `probed_indices`.
+`serial<TAB>fullrev<TAB>ts`), `sim_channel_filler PREFIX COUNT [VERSION]` (keys
+only, no revisions — pads a listing past the bucket's 1000-key page so the tip
+lands on page two). Read results with `lock_rev`, `lock_ts`, `builds_run`,
+`build_combos`, `probed_indices`.
+
+Unlike the other two builders, `sim_init` does **not** clear the stub logs; cases
+that call it twice do `rm -f "$STUBLOG/builds.log"` themselves, and several
+already rely on that.
 
 `idxrev N` makes a 40-hex revision whose first seven characters are the
 candidate index, so the ten characters flake-up-safe prints per probe _are_ the
@@ -114,6 +120,14 @@ reverse-engineering dates. `probed_indices "$STDOUT"` reads them back.
 **`drtv.sh`** — `drtv_init`, `drtv_meta URL JSON`, `drtv_video URL JSON`,
 `drtv_child PARENT CHILD`, `drtv_playlist URL`, `run_drtv`, `drtv_events`,
 `drtv_extractions`.
+
+`se_init` and `drtv_init` both **start over completely**: empty library, empty
+stub logs, and for `se_init` an unspent quota ledger. That matters for a case
+with two scenarios in it — a count taken after the second one would otherwise
+include the first one's calls, a book left on disk would be judged complete, and
+the curl stub's per-URL consume counters would still be part-way through the
+previous scenario's list. All three read as plausible results rather than as
+mistakes, which is why the reset is in the builder and not in the case.
 
 **`mkepub.py`** builds real zips, because the script reads them with the real
 `unzip`; a fixture that only pretends to be an epub tests the fixture. One flag
@@ -145,12 +159,25 @@ The synthetic `.drv` is a hash of the _reaching_ inputs only, so `.drv`-equality
 caching is genuinely exercised — including the case where an input's update does
 not reach the target and the trial must cost no build.
 
+`verdict.sh`, `eval.sh` and `check.sh` are all handed the combination through a
+**file**, never a pipe: a body that exits without reading stdin would otherwise
+SIGPIPE the writer and invert its own verdict. See `bash-traps.md`.
+
+A case that needs the terminal route through `run_nix` supplies its own pty —
+`require_tool script` and `script -qec "$cmd" /dev/null`, as
+`26-tty-and-verbose` does. `script` merges stderr into the pty, so for those runs
+everything arrives in `STDOUT` and `STDERR` is empty.
+
 **`curl`** — TSV at `$CURL_MAP`: `URLGLOB<TAB>STATUS<TAB>PAYLOAD`.
 
 - `@/abs/path` is served byte-for-byte, so real zips survive.
 - `-` is an empty body; `000` is a connection failure (exit 7).
 - `!s3 /abs/keyfile` answers as the nix-releases bucket does, **honouring the
-  `marker` parameter** — a caller's guess at a marker is part of the test.
+  `marker` and `max-keys` parameters** and echoing the request's own `prefix`
+  back as a bare `<Prefix>` ahead of the `CommonPrefixes`, exactly as S3 does. A
+  caller's guess at a marker is therefore part of the test, so is its handling of
+  `<IsTruncated>true</IsTruncated>`, and so is its not mistaking the echo for a
+  release. Pair it with `sim_channel_filler` to push a tip onto page two.
 - Several lines may match one glob: they are consumed in order and the last one
   sticks, which is how "429, 429, then 200" is written.
 

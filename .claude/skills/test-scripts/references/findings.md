@@ -8,7 +8,7 @@ re-chased.
 - [Refuted](#refuted)
 - [Corrected documentation](#corrected-documentation)
 - [Known gaps in coverage](#known-gaps-in-coverage)
-- [Open questions](#open-questions)
+- [Decided, deliberately left alone](#decided-deliberately-left-alone)
 
 ## Fixed, with a case that catches the regression
 
@@ -30,13 +30,14 @@ not re-report them as new.
 
 ### `pkgs/standardebooks-dl/standardebooks-dl.sh`
 
-| Finding                                                                                                                                                                               | Case                               |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| **High.** Trailing-slash `-d` left absolute paths in the ledger, so the next run re-downloaded the whole library — days of wall time against a 100-per-6h cap. Now one `dest_prefix`. | `02-dest-forms`                    |
-| `&amp;` was never unescaped (bash 5.2's `&` in a replacement), so every title with an ampersand got a directory named `Dr. Jekyll &amp; Mr. Hyde`.                                    | `08-epub-reading`, `01-first-sync` |
-| The quota ledger lost records with no lock, so two runs overran the site's limit. Now `flock`; `util-linux` added to runtimeInputs.                                                   | `06-quota-concurrency`             |
-| A 5xx failed a book outright, so a maintenance window turned the rest of the catalog into failures.                                                                                   | `05-fetch-backoff`                 |
-| `-n` created the library directory and an empty ledger.                                                                                                                               | `10-dry-run-and-catalog`           |
+| Finding                                                                                                                                                                                                                                                                                                              | Case                               |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| **High.** Trailing-slash `-d` left absolute paths in the ledger, so the next run re-downloaded the whole library — days of wall time against a 100-per-6h cap. Now one `dest_prefix`.                                                                                                                                | `02-dest-forms`                    |
+| `&amp;` was never unescaped (bash 5.2's `&` in a replacement), so every title with an ampersand got a directory named `Dr. Jekyll &amp; Mr. Hyde`.                                                                                                                                                                   | `08-epub-reading`, `01-first-sync` |
+| The quota ledger lost records with no lock, so two runs overran the site's limit. Now `flock`; `util-linux` added to runtimeInputs.                                                                                                                                                                                  | `06-quota-concurrency`             |
+| A 5xx failed a book outright, so a maintenance window turned the rest of the catalog into failures.                                                                                                                                                                                                                  | `05-fetch-backoff`                 |
+| `-n` created the library directory and an empty ledger.                                                                                                                                                                                                                                                              | `10-dry-run-and-catalog`           |
+| **Medium.** A bare `mkdir -p` in the download loop ended the whole run at the first author directory that would not take a write: exit 1, no summary, no warning list, every book after it abandoned however far into a fortnight the run was. Guarded like every other per-book step now, as is the `mv` beside it. | `11-partial-failures`              |
 
 ### `pkgs/drtv-dl/drtv-dl.sh`
 
@@ -66,6 +67,21 @@ evidence.
   a build failure.** The final composition is byte-identical to a state already
   verified, so the `.drv` cache always answers it; only an evaluation failure
   gets there, which is what `09-final-verification-fails` uses.
+- **`s3_releases`' pagination is correct**, including the marker it carries over
+  (the last `CommonPrefix` of the page, which is what S3's own `NextMarker`
+  would be) and the request prefix S3 echoes back as a bare `<Prefix>` ahead of
+  them, which is filtered out by the release-name regex rather than mistaken for
+  a release (`27-s3-pagination`).
+- **The build-level retry cannot loop.** `attempt -eq 1` bounds it at two, and
+  the second attempt is not re-tested for transience (`24-fatal-and-build-retry`).
+- **`-v`'s `tee` pipeline does not swallow a failed build.** `set -o pipefail` is
+  in force, so the pipeline reports the build's status and not tee's
+  (`26-tty-and-verbose`).
+- **The flake-discovery chain resolves in the documented order**, and an
+  installed copy with no flake above it falls through to `$NH_FLAKE` rather than
+  to `$PWD` (`23-flake-discovery`). `NH_FLAKE=` set but empty falls to a `$PWD`
+  walk, which is the next fallback anyway, so the `${NH_FLAKE-…}` vs `:-` spelling
+  cannot mis-decide.
 
 ## Corrected documentation
 
@@ -78,29 +94,51 @@ previously written down. `12-linear-prefix-pays` is that window.
 ## Known gaps in coverage
 
 Not known bugs. Places a bug could sit unobserved, which is where a new pass
-should start.
+should start. Everything the last pass closed has been struck; what is left is
+genuinely uncovered.
 
-- **`run_nix`'s terminal branch.** Cases always redirect stdout to a file, so
-  `TTY=0` and the background-pid/progress-line path — and `-v`'s tee pipeline —
-  has never run. Both do real work with `wait` and exit codes.
-- **`abort_if_fatal`** (disk full, daemon gone) and the build-level
-  `is_transient` retry. The update-level retry is covered; the build one is not.
-- **`check_lock`'s `LOCK_CHECKED` cache.** `-k` is exercised for pass/fail, not
-  for reuse across two trials with the same lock.
-- **`find_flake_root`** and the `$NH_FLAKE` / `$PWD` discovery chain; every case
-  passes `-f`.
-- **`check_single_season`** in drtv-dl (the "this is one season of N" warning),
-  which needs a `production-cdn.dr-massive.com` entry in the curl map.
-- **`fetch_one`'s "200 with an empty body"** branch, and `migrate_layout`'s `mv`
-  failure branch.
+- **`s3_releases`' "no `CommonPrefixes` but truncated" page.** The pagination
+  loop takes its next marker from the last `<Prefix>`, which on such a page is
+  the echoed request prefix — the same value it already used, so the loop would
+  not advance. `IsTruncated` guards it and the shape looks unreachable against
+  the real bucket (everything under `nixos/unstable/` collapses into a common
+  prefix), but nothing proves it.
+- **`REV_VERDICT` and `REV_TS` are never reset between inputs** in the bisect
+  loop, while `CAND_REV_MEMO` and the `LOOKUPS_*` counters are. A verdict is
+  keyed on a revision alone, but it was reached under the `KEPT`/`PINS` state in
+  force at the time, and `PINS` grows as each input is settled. Two inputs would
+  have to share a repository for it to bite — nixpkgs and nixpkgs-stable do —
+  and their branches would have to share a revision inside the search window,
+  which is why this is a gap and not a finding.
+- **An unresolvable candidate counts as a failure** in the walk: it sets `lo`
+  and consumes a slot of the `--linear` prefix, so a GitHub hiccup over the
+  newest few days quietly weakens the prefix's "everything newer was tried and
+  failed" guarantee. `13-github-unreachable` covers the all-failed case, not a
+  partial one.
+- **`fetch_one`'s `mv` and `quota_record`** are still bare commands under
+  `set -e`, unlike the two `mkdir -p` calls beside them. Both are far less
+  reachable (the directory has just been proven writable, and the state dir is
+  created at startup), but they are the same class as the fixed defect.
 - **Subtitle and metadata embedding** (`--embed-subs`, ffmpeg) and yt-dlp's
   `--parse-metadata` engine are out of scope by design. Say so again rather than
   faking them badly.
 
-## Open questions
+## Decided, deliberately left alone
 
 - **drtv-dl's library-wide info.json sweep.** `find "$dest" -name '*.info.json'`
-  deletes every one it finds, so two concurrent runs into one library would eat
-  each other's sidecar material — the script already warns against concurrent
-  `-c` for the same reason. Left alone last pass as larger than the pass
-  warranted. Decide, rather than rediscovering it.
+  is run twice per run and deletes every file it finds, so two drtv-dl runs into
+  one library will eat each other's sidecar material: run B's NFO pass sees run
+  A's info.json for an episode still downloading, finds no video beside it, and
+  deletes the json and the thumb as litter. Run A then finishes with no sidecars
+  and says nothing.
+
+  Left as it is, on purpose, and this is the decision rather than a deferral.
+  The sweep being library-wide is what repairs an interrupted run — its
+  info.jsons are converted on the next ordinary run — and scoping it to the
+  current run would trade a real recovery path for a hazard the help text
+  already warns about under `-c` ("Don't use it while another drtv-dl is
+  downloading into the same library"). A correct narrowing needs per-run
+  provenance for sidecars, which nothing currently records; an mtime cutoff is
+  the cheap approximation and is wrong across any run long enough to matter.
+  Reopen only with a design for that provenance, not with a new report of the
+  symptom.

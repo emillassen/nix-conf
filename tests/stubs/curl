@@ -119,20 +119,44 @@ while :; do
   '@'*) bodyfile="${payload#@}" ;;
   '!s3 '*)
     keyfile="${payload#!s3 }"
-    marker=""
+    marker="" reqprefix="" maxkeys=1000 shown=0 truncated=false
     case "$url" in *'&marker='*)
       marker="${url##*&marker=}"
       marker="${marker%%&*}"
       ;;
     esac
+    case "$url" in *'?prefix='* | *'&prefix='*)
+      reqprefix="${url##*prefix=}"
+      reqprefix="${reqprefix%%&*}"
+      ;;
+    esac
+    case "$url" in *'max-keys='*)
+      maxkeys="${url##*max-keys=}"
+      maxkeys="${maxkeys%%&*}"
+      ;;
+    esac
     {
       printf '<?xml version="1.0" encoding="UTF-8"?>\n<ListBucketResult>\n'
+      # S3 echoes the request's own prefix back as a bare <Prefix>, ahead of the
+      # CommonPrefixes. It is not a release, and the caller has to not mistake it
+      # for one — so the stub emits it rather than serving a tidier listing than
+      # the bucket does.
+      printf '  <Prefix>%s</Prefix>\n' "$reqprefix"
       while IFS= read -r key; do
         [[ -n "$key" ]] || continue
         if [[ -n "$marker" ]] && ! [[ "$key" > "$marker" ]]; then continue; fi
+        # A page holds max-keys entries and says there are more. `nixos/unstable/`
+        # holds a decade of releases, so this is not hypothetical: a channel busy
+        # enough to publish a thousand of them inside the marker window puts its
+        # own tip on the second page.
+        if [[ "$shown" -ge "$maxkeys" ]]; then
+          truncated=true
+          break
+        fi
         printf '  <CommonPrefixes><Prefix>%s</Prefix></CommonPrefixes>\n' "$key"
+        shown=$((shown + 1))
       done < <(sort "$keyfile")
-      printf '  <IsTruncated>false</IsTruncated>\n</ListBucketResult>\n'
+      printf '  <IsTruncated>%s</IsTruncated>\n</ListBucketResult>\n' "$truncated"
     } >"$scratch"
     ;;
   *) printf '%s\n' "$payload" >"$scratch" ;;

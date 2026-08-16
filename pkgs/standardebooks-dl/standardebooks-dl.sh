@@ -21,11 +21,12 @@ files to download, so they are filtered out rather than probed on every run.
 
 Author name and title come from each ebook's own epub metadata (its file-as
 sort name), not guessed from the display name, so multi-word surnames and
-particles (von, de, van Gogh, ...) come out right. That sort name is the
-author directory verbatim - the same
-"Last, First" form Calibre's {author_sort} template produces (Milne, A. A.),
-and a plain mononym (Aesop, Homer, Anonymous, ...) where there is no first
-name. A library laid out by an older version, which split that name into
+particles (von, de, van Gogh, ...) come out right. That sort name becomes the
+author directory as it stands - the same "Last, First" form Calibre's
+{author_sort} template produces, and a plain mononym (Aesop, Homer,
+Anonymous, ...) where there is no first name. Only characters Windows and SMB
+reject are touched, which for an author does mean a trailing period goes:
+"Milne, A. A." is filed under "Milne, A. A", the same trim Calibre makes. A library laid out by an older version, which split that name into
 Last/First/ directories, is moved over to it automatically on the next run
 (-n excepted, being a dry run); no re-downloading involved.
 
@@ -126,7 +127,24 @@ fi
 base_url="https://standardebooks.org"
 ua="standardebooks-dl (personal library sync script)"
 
-mkdir -p "$dest"
+# The prefix every library-relative path below is made by stripping off an
+# absolute one. It has to be built rather than spelled "$dest/", because
+# `-d lib/` would then give "lib//", which prefix-matches nothing: the
+# "relative" path comes out still absolute, goes into the ledger that way, and
+# the next run looks for "$dest/$relpath" - a doubly-rooted path that cannot
+# exist. Every book then looks missing and the entire library is fetched again,
+# which against a cap of 100 files per six hours is days of wall time and a
+# great deal of a nonprofit's bandwidth. Built once here rather than at each of
+# the four places that strip it; "/" is the one library root that is nothing
+# but a slash, and comes out of this as itself.
+dest_prefix="$dest"
+while [[ "$dest_prefix" == */ ]]; do dest_prefix="${dest_prefix%/}"; done
+dest_prefix="$dest_prefix/"
+
+# -n is a dry run in every sense: it must not conjure the library into being
+# (a typo in -d would otherwise leave an empty directory behind) and, further
+# down, it must not leave a ledger in one that had none.
+[[ "$list_only" == 1 ]] || mkdir -p "$dest"
 
 warnings=()
 warn() {
@@ -149,7 +167,13 @@ unescape_xml() {
   s="${s//&gt;/>}"
   s="${s//&quot;/\"}"
   s="${s//&apos;/\'}"
-  s="${s//&amp;/&}"
+  # \& and not a bare &: since bash 5.2 an unescaped & in the *replacement* half
+  # of ${var//pat/rep} stands for whatever the pattern matched, so "&amp;" was
+  # being replaced by "&amp;" and this line did nothing at all. Every title with
+  # an ampersand in it - Jekyll & Hyde, Gilbert & Sullivan - got a directory
+  # named "Jekyll &amp; Hyde", and a cover href carrying the entity resolved to
+  # a zip path that is not in the zip, so the cover silently went missing.
+  s="${s//&amp;/\&}"
   printf '%s' "$s"
 }
 
@@ -269,7 +293,7 @@ current_relpath() {
 migrate_layout() {
   local dir rel new first surname moved=0 stuck=0
   while IFS= read -r -d '' dir; do
-    rel="${dir#"$dest"/}"
+    rel="${dir#"$dest_prefix"}"
     legacy_relpath "$rel" || continue
     # a book directory holds the book; anything else 3 deep is left alone
     [[ -n "$(find "$dir" -maxdepth 1 -type f -name '*.epub' -print -quit)" ]] || continue
@@ -343,7 +367,7 @@ rebuild_index() {
   while IFS= read -r -d '' epub; do
     scanned=$((scanned + 1))
     dir="${epub%/*}"
-    rel="${dir#"$dest"/}"
+    rel="${dir#"$dest_prefix"}"
     if ! slug="$(epub_slug "$epub")"; then
       warn "$rel: no Standard Ebooks identifier in ${epub##*/} - not indexed"
       unknown=$((unknown + 1))
@@ -362,8 +386,10 @@ rebuild_index() {
   return 0
 }
 
-# Both -n and the ordinary run read the ledger below, and -r appends to it.
-touch "$index_file"
+# Both -n and the ordinary run read the ledger below, and -r appends to it -
+# except under -n, which writes nothing, so the one reader it reaches has to
+# cope with the file not being there.
+[[ "$list_only" == 1 ]] || touch "$index_file"
 
 # -n is a dry run and stays read-only; the other modes migrate first so they
 # never operate on a mix of both layouts.
@@ -398,7 +424,7 @@ if [[ "$recheck" == 1 ]]; then
     if extract_cover "$epub" "$dir/cover.jpg"; then
       covers=$((covers + 1))
     else
-      warn "${dir#"$dest"/}: no readable cover in ${epub##*/}"
+      warn "${dir#"$dest_prefix"}: no readable cover in ${epub##*/}"
       cover_failed=$((cover_failed + 1))
     fi
   done < <(find "$dest" -type f -name '*.epub' \
@@ -458,9 +484,11 @@ fi
 echo "standardebooks-dl: ${#books[@]} published ebooks in the catalog" >&2
 
 declare -A indexed_path
-while IFS=$'\t' read -r slug relpath; do
-  [[ -n "$slug" ]] && indexed_path["$slug"]="$relpath"
-done <"$index_file"
+if [[ -f "$index_file" ]]; then
+  while IFS=$'\t' read -r slug relpath; do
+    [[ -n "$slug" ]] && indexed_path["$slug"]="$relpath"
+  done <"$index_file"
+fi
 
 fmt_duration() {
   local s="$1"
@@ -516,8 +544,35 @@ MIN_INTERVAL=30
 
 quota_dir="${XDG_STATE_HOME:-$HOME/.local/state}/standardebooks-dl"
 quota_file="$quota_dir/download-quota"
+quota_lock="$quota_dir/lock"
 mkdir -p "$quota_dir"
 touch "$quota_file"
+
+# Two runs sharing this ledger is a documented use, not an abuse: the cap is per
+# IP address, so "two libraries synced from here draw on one budget". But
+# pruning rewrites the whole file, and a rewrite that began before another run's
+# append landed drops that append on the floor - after which both runs believe
+# they have budget they have already spent, and the site answers 429. One lock
+# around read-prune-write, and around the append, makes that impossible.
+#
+# flock rather than a lock directory because the kernel releases it when the
+# process goes, which is what a job explicitly built to be interrupted needs; a
+# leftover lock directory would instead block every later run.
+quota_lock_held=0
+quota_lock_hold() {
+  # Where flock is missing (the script run outside its Nix wrapper) this falls
+  # back to the old, racy behaviour rather than refusing to run at all.
+  command -v flock >/dev/null 2>&1 || return 0
+  exec 9>"$quota_lock"
+  flock 9
+  quota_lock_held=1
+}
+
+quota_lock_free() {
+  [[ "$quota_lock_held" == 1 ]] || return 0
+  quota_lock_held=0
+  exec 9>&-
+}
 
 # Reads the ledger into `stamps` (ascending), dropping everything that has
 # aged out of the long window, and writes the pruned list back so it cannot
@@ -526,6 +581,7 @@ quota_load() {
   local now="$1" cutoff s
   cutoff=$((now - LONG_WINDOW))
   stamps=()
+  quota_lock_hold
   while read -r s; do
     [[ "$s" =~ ^[0-9]+$ ]] || continue
     [[ "$s" -ge "$cutoff" ]] && stamps+=("$s")
@@ -535,6 +591,7 @@ quota_load() {
   else
     : >"$quota_file"
   fi
+  quota_lock_free
 }
 
 quota_used() {
@@ -544,7 +601,9 @@ quota_used() {
 }
 
 quota_record() {
+  quota_lock_hold
   date +%s >>"$quota_file"
+  quota_lock_free
 }
 
 # How long until `count` drops to `limit`: the oldest (count - limit) entries
@@ -606,7 +665,7 @@ quota_wait() {
 # longer than the six-hour window, so outlasting it is the escape hatch: a 429
 # still coming back after that long is something other than the rate limit.
 fetch_url() {
-  local url="$1" out="$2" code backoff=60 blocked=0
+  local url="$1" out="$2" code backoff=60 blocked=0 down=0
   while :; do
     if ! code="$(curl -s -o "$out" -w '%{http_code}' \
       --connect-timeout 15 --max-time 180 -A "$ua" -L "$url")"; then
@@ -626,6 +685,20 @@ fetch_url() {
         blocked=$((blocked + backoff))
         backoff=$((backoff * 2))
         [[ "$backoff" -gt 900 ]] && backoff=900
+        ;;
+      5*)
+        # The site being down or in maintenance is not a verdict on this book,
+        # and giving up on the first 5xx turns a ten-minute outage into a whole
+        # run's worth of failures: every remaining book gets its one paced
+        # request, fails, and is warned about, in the few minutes before the run
+        # reaches the end of the catalog. Unlike a 429 there is no window that
+        # guarantees recovery, so this is a small fixed budget - six minutes -
+        # rather than the six hours it is worth outlasting a rate limit for.
+        [[ "$down" -ge 3 ]] && return 1
+        down=$((down + 1))
+        [[ "$down" == 1 ]] && echo "standardebooks-dl: server error ($code)" \
+          "- waiting for the site to come back" >&2
+        sleep $((60 * down))
         ;;
       *)
         return 1
@@ -810,7 +883,7 @@ for slug in "${todo[@]}"; do
     titledir="$dest/$author_dir/$base"
     mkdir -p "$titledir"
     mv -- "$epub_tmp" "$titledir/$base.epub"
-    relpath="${titledir#"$dest"/}"
+    relpath="${titledir#"$dest_prefix"}"
     printf '%s\t%s\n' "$slug" "$relpath" >>"$index_file"
     indexed_path["$slug"]="$relpath"
   fi

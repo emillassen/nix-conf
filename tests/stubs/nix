@@ -1,0 +1,226 @@
+#!/usr/bin/env bash
+#
+# Programmable `nix`, enough of it to run flake-up-safe.sh's whole search
+# offline and deterministically.
+#
+# The universe lives in $FLAKE_SIM:
+#
+#   tips        name<TAB>rev<TAB>lastModified   where `nix flake update` lands
+#   tips-drift  same shape, optional             where a *non*-refresh update
+#                                                lands instead: nix's tarball-ttl
+#                                                cache expiring mid-run and the
+#                                                branch having moved since
+#   revs        rev<TAB>lastModified            every revision the sim knows of
+#   reaching    one input name per line         which inputs reach the target
+#                                               (absent = all of them do)
+#   verdict.sh  bash, gets the combination      exit 0 = this lock builds
+#   check.sh    optional, same shape            exit 0 = `nix flake check` passes
+#   diff        optional                        `nix store diff-closures` output
+#   pin-noop    optional flag file              --override-input stops writing
+#   update-fail optional, one input name/line   `nix flake update` fails for it
+#   update-fail-once  same, but consumed on use  a transient blip, not a wall
+#
+# The .drv path is a hash of the *reaching* inputs' revisions only, so an input
+# whose update does not reach the target composes to a .drv already on record
+# and its trial costs no build at all — which is precisely the claim the suite
+# has to be able to check.
+set -uo pipefail
+
+SIM="${FLAKE_SIM:?nix stub: FLAKE_SIM is not set}"
+printf '%s\n' "$*" >>"${STUBLOG:?}/nix.log"
+
+mkdir -p "$SIM/drvs"
+
+die() {
+  echo "error: $*" >&2
+  exit 1
+}
+
+# name<TAB>rev for every top-level input of a lock.
+lock_pairs() {
+  jq -r '
+    . as $l | $l.nodes.root.inputs | to_entries[]
+    | .key as $k
+    | (if (.value | type) == "string" then .value else .value[-1] end) as $n
+    | "\($k)\t\($l.nodes[$n].locked.rev)"
+  ' "$1"
+}
+
+# The revisions the target actually depends on, as a stable sorted string.
+combo_of() {
+  local lock="$1" name rev out=""
+  while IFS=$'\t' read -r name rev; do
+    if [[ -f "$SIM/reaching" ]] && ! grep -qxF "$name" "$SIM/reaching"; then
+      continue
+    fi
+    out+="$name=$rev"$'\n'
+  done < <(lock_pairs "$lock" | sort)
+  printf '%s' "$out"
+}
+
+ts_of_rev() {
+  local rev="$1" r t
+  while IFS=$'\t' read -r r t; do
+    [[ "$r" == "$rev" ]] && {
+      printf '%s' "$t"
+      return 0
+    }
+  done <"$SIM/revs"
+  printf '0'
+}
+
+# Rewrite one input's `locked` in place. Only locked moves — `original` keeps
+# the branch, exactly as real nix does for --override-input.
+set_locked() {
+  local lock="$1" name="$2" rev="$3" ts="$4" tmp
+  tmp="$(mktemp)"
+  jq --arg n "$name" --arg rev "$rev" --argjson ts "$ts" '
+    . as $l
+    | (if ($l.nodes.root.inputs[$n] | type) == "string"
+       then $l.nodes.root.inputs[$n] else $l.nodes.root.inputs[$n][-1] end) as $node
+    | .nodes[$node].locked.rev = $rev
+    | .nodes[$node].locked.lastModified = $ts
+    | .nodes[$node].locked.narHash = "sha256-" + $rev[0:16]
+  ' "$lock" >"$tmp" && mv -- "$tmp" "$lock"
+}
+
+cmd="${1:-}"
+shift || true
+
+case "$cmd" in
+eval)
+  # Only ever asked one thing: what nixosConfigurations exist.
+  printf '["fw13"]\n'
+  ;;
+
+flake)
+  sub="${1:-}"
+  shift || true
+  case "$sub" in
+  update)
+    dir="" names=() refresh=0
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+      --flake)
+        dir="$2"
+        shift
+        ;;
+      --refresh) refresh=1 ;;
+      --no-warn-dirty) ;;
+      -*) ;;
+      *) names+=("$1") ;;
+      esac
+      shift
+    done
+    [[ -n "$dir" ]] || die "flake update: no --flake given"
+    lock="$dir/flake.lock"
+    if [[ ${#names[@]} -eq 0 ]]; then
+      mapfile -t names < <(cut -f1 "$SIM/tips")
+    fi
+    for n in "${names[@]}"; do
+      if [[ -f "$SIM/update-fail" ]] && grep -qxF "$n" "$SIM/update-fail"; then
+        echo "error: unable to download 'github:x/$n': Couldn't resolve host name" >&2
+        exit 1
+      fi
+      if [[ -f "$SIM/update-fail-once" ]] && grep -qxF "$n" "$SIM/update-fail-once"; then
+        grep -vxF "$n" "$SIM/update-fail-once" >"$SIM/.uf" || true
+        mv -- "$SIM/.uf" "$SIM/update-fail-once"
+        echo "error: unable to download 'github:x/$n': Temporary failure in name resolution" >&2
+        exit 1
+      fi
+      table="$SIM/tips"
+      if [[ "$refresh" == 0 && -f "$SIM/tips-drift" ]] && grep -q "^$n	" "$SIM/tips-drift"; then
+        table="$SIM/tips-drift"
+      fi
+      while IFS=$'\t' read -r tn trev tts; do
+        [[ "$tn" == "$n" ]] || continue
+        set_locked "$lock" "$tn" "$trev" "$tts"
+      done <"$table"
+    done
+    ;;
+  lock)
+    dir="" name="" ref=""
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+      --override-input)
+        name="$2"
+        ref="$3"
+        shift 2
+        ;;
+      --no-warn-dirty) ;;
+      -*) ;;
+      *) dir="$1" ;;
+      esac
+      shift
+    done
+    [[ -n "$dir" ]] || die "flake lock: no flake directory given"
+    [[ -n "$name" ]] || die "flake lock: no --override-input given"
+    rev="${ref##*/}"
+    if [[ -f "$SIM/pin-fail" ]] && grep -qxF "$name" "$SIM/pin-fail"; then
+      echo "error: cannot pin $name" >&2
+      exit 1
+    fi
+    # The guard in pin_input exists because --override-input implying
+    # --no-write-lock-file keeps getting proposed upstream; this is that future.
+    [[ -f "$SIM/pin-noop" ]] && exit 0
+    set_locked "$dir/flake.lock" "$name" "$rev" "$(ts_of_rev "$rev")"
+    ;;
+  check)
+    dir=""
+    for a in "$@"; do [[ "$a" == -* ]] || dir="$a"; done
+    if [[ -x "$SIM/check.sh" ]]; then
+      combo_of "$dir/flake.lock" | "$SIM/check.sh" || {
+        echo "error: flake check failed" >&2
+        exit 1
+      }
+    fi
+    ;;
+  *) die "flake stub: unhandled subcommand '$sub'" ;;
+  esac
+  ;;
+
+path-info)
+  target=""
+  for a in "$@"; do [[ "$a" == -* ]] || target="$a"; done
+  dir="${target%%#*}"
+  lock="$dir/flake.lock"
+  [[ -f "$lock" ]] || die "path-info: no lock at $lock"
+  combo="$(combo_of "$lock")"
+  if [[ -x "$SIM/eval.sh" ]]; then
+    printf '%s' "$combo" | "$SIM/eval.sh" || {
+      echo "error: evaluation aborted" >&2
+      exit 1
+    }
+  fi
+  hash="$(printf '%s' "$combo" | sha256sum | cut -c1-32)"
+  printf '%s' "$combo" >"$SIM/drvs/$hash"
+  printf '%s\n' "$combo" >>"$STUBLOG/evals.log"
+  printf '/nix/store/%s-fw13.drv\n' "$hash"
+  ;;
+
+build)
+  drv=""
+  for a in "$@"; do [[ "$a" == -* ]] || drv="$a"; done
+  drv="${drv%^*}"
+  hash="${drv#/nix/store/}"
+  hash="${hash%-fw13.drv}"
+  [[ -f "$SIM/drvs/$hash" ]] || die "build: unknown derivation $drv"
+  combo="$(cat "$SIM/drvs/$hash")"
+  printf '%s\n\n' "$combo" >>"$STUBLOG/builds.log"
+  rc=0
+  printf '%s' "$combo" | "$SIM/verdict.sh" || rc=$?
+  if [[ "$rc" -ne 0 ]]; then
+    exit "$rc"
+  fi
+  printf '/nix/store/%s-fw13\n' "$hash"
+  ;;
+
+store)
+  if [[ "${1:-}" == diff-closures ]]; then
+    [[ -f "$SIM/diff" ]] || exit 1
+    cat "$SIM/diff"
+  fi
+  ;;
+
+*) die "nix stub: unhandled command '$cmd'" ;;
+esac

@@ -1,0 +1,351 @@
+#!/usr/bin/env bash
+#
+# Programmable yt-dlp: enough of it that drtv-dl's skip detection, sidecar
+# generation and progress accounting can be driven offline from a recorded
+# scenario instead of from dr.dk.
+#
+# The scenario is JSON at $YTDLP_SCENARIO:
+#
+#   { "playlists":     { "<url>": ["<child url>", ...] },
+#     "playlist_meta": { "<url>": { series, season_number, description, ... } },
+#     "videos":        { "<url>": { id, ext, series, season_number,
+#                                   episode_number, episode, title, ... } } }
+#
+# What is faithfully reproduced: the output-template language drtv-dl actually
+# uses (%%, %(a,b)s alternatives, %(field&TEXT|FALLBACK)s conditionals with {}
+# and {:02d}, and the ⧸ substitution yt-dlp makes for a slash inside a
+# replacement), the pl_infojson / pl_thumbnail / thumbnail output keys,
+# --flat-playlist versus a full extraction, --print in the order given,
+# --download-archive matched against the URL slug *before* extraction and
+# against the id after it, --write-info-json, --write-thumbnail and
+# --exec after_move:.
+#
+# What is not: --parse-metadata. Its four regexes are yt-dlp's own engine, not
+# drtv-dl's logic, so the stub applies their *effect* directly — strip a
+# "Series: " prefix that matches the series exactly, and synthesise movie_name
+# as "Title (Year)" for anything with no series — and the scenario supplies
+# titles as DR actually gives them.
+#
+# Every invocation is logged to $STUBLOG/yt-dlp.log, and every per-video
+# decision to $STUBLOG/ytdlp-events.log as "extract|skip-pre|skip-post <url>",
+# which is how a case proves an archived episode cost no extraction at all.
+set -uo pipefail
+
+printf '%s\n' "$*" >>"${STUBLOG:?}/yt-dlp.log"
+SCEN="${YTDLP_SCENARIO:?yt-dlp stub: YTDLP_SCENARIO is not set}"
+EVENTS="$STUBLOG/ytdlp-events.log"
+
+prints=()
+out_default=""
+out_thumbnail=""
+out_pl_thumbnail=""
+out_pl_infojson=""
+archive=""
+flat=0
+skip_download=0
+write_info=0
+write_thumb=0
+exec_cmd=""
+urls=()
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  --print)
+    prints+=("$2")
+    shift
+    ;;
+  --output | -o)
+    case "$2" in
+    thumbnail:*) out_thumbnail="${2#thumbnail:}" ;;
+    pl_thumbnail:*) out_pl_thumbnail="${2#pl_thumbnail:}" ;;
+    pl_infojson:*) out_pl_infojson="${2#pl_infojson:}" ;;
+    *) out_default="$2" ;;
+    esac
+    shift
+    ;;
+  --download-archive)
+    archive="$2"
+    shift
+    ;;
+  --exec)
+    exec_cmd="$2"
+    shift
+    ;;
+  --flat-playlist) flat=1 ;;
+  --skip-download) skip_download=1 ;;
+  --write-info-json) write_info=1 ;;
+  --no-write-info-json) write_info=0 ;;
+  --write-thumbnail) write_thumb=1 ;;
+  --parse-metadata | --sub-langs | --concurrent-fragments | --convert-thumbnails)
+    shift
+    ;;
+  --ignore-errors | --embed-metadata | --embed-subs) ;;
+  http*) urls+=("$1") ;;
+  -*) ;;
+  *) urls+=("$1") ;;
+  esac
+  shift
+done
+
+jqs() { jq -r "$@" "$SCEN"; }
+
+is_playlist() { jqs --arg u "$1" '(.playlists[$u] // null) != null'; }
+children() { jqs --arg u "$1" '.playlists[$u][]? // empty'; }
+has_video() { jqs --arg u "$1" '(.videos[$u] // null) != null'; }
+
+# The entry currently being rendered, as a flat name=value table, so field
+# lookups cost no jq once it is loaded.
+declare -A F
+
+load_entry() {
+  local u="$1" kind="$2" k v
+  F=()
+  while IFS=$'\t' read -r k v; do F["$k"]="$v"; done < <(
+    jqs --arg u "$u" --arg kind "$kind" '
+      (if $kind == "video" then .videos[$u] else .playlist_meta[$u] end) // {}
+      | to_entries[] | select((.value | type) != "array" and (.value | type) != "object")
+      | "\(.key)\t\(.value)"'
+  )
+  F["webpage_url"]="$u"
+  [[ -n "${F[extractor_key]:-}" ]] || F["extractor_key"]="DRTV"
+
+  # --parse-metadata's effect, applied directly. DRTV episode titles repeat the
+  # series name ("Gurli Gris: Slemme skildpadde"); the prefix comes off, but
+  # only when it matches the series exactly.
+  local s="${F[series]:-}"
+  if [[ -n "$s" ]]; then
+    [[ "${F[episode]:-}" == "$s: "* ]] && F["episode"]="${F[episode]#"$s": }"
+    [[ "${F[title]:-}" == "$s: "* ]] && F["title"]="${F[title]#"$s": }"
+  elif [[ -z "${F[movie_name]:-}" && -n "${F[title]:-}" ]]; then
+    # A film: movie_name is "Title (Year)", with the year dropped when DR has
+    # none for it.
+    if [[ -n "${F[release_year]:-}" ]]; then
+      F["movie_name"]="${F[title]} (${F[release_year]})"
+    else
+      F["movie_name"]="${F[title]}"
+    fi
+  fi
+}
+
+field() { printf '%s' "${F[$1]:-}"; }
+
+# A slash inside a replacement is sanitised by yt-dlp into U+29F8, so the path
+# segment stays one segment. That is exactly why drtv-dl's template keeps the
+# season directory as its own literal component.
+sanitize_field() { printf '%s' "${1//\//⧸}"; }
+
+render_spec() {
+  local spec="$1" name text fallback val alts n
+  if [[ "$spec" == *"&"* ]]; then
+    name="${spec%%&*}"
+    text="${spec#*&}"
+    fallback=""
+    if [[ "$text" == *"|"* ]]; then
+      fallback="${text#*|}"
+      text="${text%%|*}"
+    fi
+    val="$(field "$name")"
+    if [[ -n "$val" ]]; then
+      if [[ "$text" == *'{:02d}'* ]]; then
+        text="${text//'{:02d}'/$(printf '%02d' "$val")}"
+      fi
+      text="${text//'{}'/$val}"
+      printf '%s' "$(sanitize_field "$text")"
+    else
+      printf '%s' "$fallback"
+    fi
+    return
+  fi
+  IFS=, read -ra alts <<<"$spec"
+  for n in "${alts[@]}"; do
+    val="$(field "$n")"
+    [[ -n "$val" ]] && {
+      sanitize_field "$val"
+      return
+    }
+  done
+  printf 'NA'
+}
+
+expand_tmpl() {
+  local rest="$1" out="" head spec
+  while [[ "$rest" == *%* ]]; do
+    head="${rest%%%*}"
+    out+="$head"
+    rest="${rest#"$head"}"
+    if [[ "$rest" == %%* ]]; then
+      out+="%"
+      rest="${rest:2}"
+      continue
+    fi
+    if [[ "$rest" != '%('* ]]; then
+      out+="%"
+      rest="${rest:1}"
+      continue
+    fi
+    rest="${rest:2}"
+    spec="${rest%%)*}"
+    rest="${rest#*)}"
+    rest="${rest:1}" # the conversion character, s or q
+    out+="$(render_spec "$spec")"
+  done
+  printf '%s%s' "$out" "$rest"
+}
+
+url_slug() {
+  local u="${1%/}"
+  printf '%s' "${u##*/}"
+}
+
+in_archive() {
+  [[ -n "$archive" && -f "$archive" ]] || return 1
+  grep -qxF "drtv $1" "$archive"
+}
+
+# Real yt-dlp applies --parse-metadata to the info dict *before* it writes the
+# info.json, so the sidecars drtv-dl builds see the rewritten episode/title and
+# the synthesised movie_name, not what came off the wire.
+write_json() {
+  local u="$1" kind="$2" target="$3"
+  mkdir -p "${target%/*}"
+  jqs --arg u "$u" --arg kind "$kind" \
+    --arg episode "${F[episode]:-}" --arg title "${F[title]:-}" \
+    --arg movie_name "${F[movie_name]:-}" '
+    ((if $kind == "video" then .videos[$u] else .playlist_meta[$u] end) // {})
+    | . + {webpage_url: $u, extractor_key: (.extractor_key // "DRTV")}
+    | (if $episode == "" then . else .episode = $episode end)
+    | (if $title == "" then . else .title = $title end)
+    | (if $movie_name == "" then . else .movie_name = $movie_name end)' >"$target"
+}
+
+# Every leaf video under a set of URLs, plus the playlists walked through to
+# reach them.
+LEAVES=()
+WALKED=()
+collect() {
+  local u="$1" c
+  if [[ "$(is_playlist "$u")" == true ]]; then
+    WALKED+=("$u")
+    while IFS= read -r c; do
+      [[ -n "$c" ]] && collect "$c"
+    done < <(children "$u")
+    return
+  fi
+  LEAVES+=("$u")
+}
+
+# --- flat: one level down, no extraction -----------------------------------------
+if [[ "$flat" == 1 ]]; then
+  for u in ${urls[@]+"${urls[@]}"}; do
+    if [[ "$(is_playlist "$u")" == true ]]; then
+      mapfile -t kids < <(children "$u")
+    else
+      kids=("$u")
+    fi
+    for c in ${kids[@]+"${kids[@]}"}; do
+      if [[ "$(has_video "$c")" == true ]]; then
+        load_entry "$c" video
+      else
+        load_entry "$c" playlist
+      fi
+      # A flat entry has no known extension.
+      F["ext"]=""
+      for p in ${prints[@]+"${prints[@]}"}; do
+        case "$p" in
+        url | webpage_url) printf '%s\n' "$c" ;;
+        id) printf '%s\n' "${F[flat_id]:-$(field id)}" ;;
+        filename) printf '%s\n' "$(expand_tmpl "$out_default")" ;;
+        *) printf '%s\n' "$(field "$p")" ;;
+        esac
+      done
+    done
+  done
+  exit 0
+fi
+
+# --- full extraction ----------------------------------------------------------------
+for u in ${urls[@]+"${urls[@]}"}; do collect "$u"; done
+
+for pl in ${WALKED[@]+"${WALKED[@]}"}; do
+  load_entry "$pl" playlist
+  if [[ -n "$out_pl_infojson" && "$write_info" == 1 ]]; then
+    write_json "$pl" playlist "$(expand_tmpl "$out_pl_infojson").info.json"
+  fi
+  if [[ -n "$out_pl_thumbnail" && "$write_thumb" == 1 ]] &&
+    [[ "$(jqs --arg u "$pl" '[.playlist_meta[$u].thumbnails[]?] | length')" != 0 ]]; then
+    F["ext"]="jpg"
+    t="$(expand_tmpl "$out_pl_thumbnail")"
+    mkdir -p "${t%/*}"
+    printf 'playlist thumbnail\n' >"$t"
+  fi
+done
+
+status=0
+for v in ${LEAVES[@]+"${LEAVES[@]}"}; do
+  # An archive match is tested against what the *playlist* already knows — the
+  # id it listed, and the URL slug — before anything is extracted, which is what
+  # makes an already-present episode cost nothing. A scenario can give a video a
+  # "flat_id" different from its final "id" to model the case the second archive
+  # line exists for.
+  flat_id="$(jqs --arg u "$v" '.videos[$u] | (.flat_id // .id // "") | tostring')"
+  if [[ -n "$flat_id" ]] && in_archive "$flat_id"; then
+    printf 'skip-pre %s\n' "$v" >>"$EVENTS"
+    continue
+  fi
+  if in_archive "$(url_slug "$v")"; then
+    printf 'skip-pre %s\n' "$v" >>"$EVENTS"
+    continue
+  fi
+  if [[ "$(has_video "$v")" != true ]]; then
+    printf 'ERROR: [DRTV] %s: Video unavailable\n' "$v" >&2
+    status=1
+    continue
+  fi
+  load_entry "$v" video
+  if in_archive "$(field id)"; then
+    printf 'skip-post %s\n' "$v" >>"$EVENTS"
+    continue
+  fi
+  printf 'extract %s\n' "$v" >>"$EVENTS"
+
+  media="$(expand_tmpl "$out_default")"
+  # The sidecars share the media file's base name, extension stripped — the
+  # same thing drtv-dl reconstructs from the info.json path it finds.
+  base="${media%.*}"
+
+  if [[ "$write_info" == 1 ]]; then
+    write_json "$v" video "$base.info.json"
+  fi
+  if [[ "$write_thumb" == 1 && -n "$out_thumbnail" ]]; then
+    if [[ "$(jqs --arg u "$v" '[.videos[$u].thumbnails[]?] | length')" != 0 ]]; then
+      saved_ext="${F[ext]:-}"
+      F["ext"]="jpg"
+      t="$(expand_tmpl "$out_thumbnail")"
+      F["ext"]="$saved_ext"
+      mkdir -p "${t%/*}"
+      printf 'thumbnail\n' >"$t"
+    fi
+  fi
+
+  for p in ${prints[@]+"${prints[@]}"}; do
+    case "$p" in
+    url | webpage_url) printf '%s\n' "$v" ;;
+    id) printf '%s\n' "$(field id)" ;;
+    filename) printf '%s\n' "$media" ;;
+    *) printf '%s\n' "$(field "$p")" ;;
+    esac
+  done
+
+  [[ "$skip_download" == 1 ]] && continue
+
+  mkdir -p "${media%/*}"
+  printf 'video bytes for %s\n' "$(field id)" >"$media"
+  [[ -n "$archive" ]] && printf 'drtv %s\n' "$(field id)" >>"$archive"
+  if [[ -n "$exec_cmd" ]]; then
+    cmd="${exec_cmd#after_move:}"
+    cmd="${cmd//'%(filepath)q'/$(printf '%q' "$media")}"
+    sh -c "$cmd"
+  fi
+done
+
+exit "$status"

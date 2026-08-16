@@ -1,0 +1,161 @@
+#!/usr/bin/env bash
+#
+# Programmable curl. The scenario is a TSV at $CURL_MAP:
+#
+#   URLGLOB<TAB>STATUS<TAB>PAYLOAD
+#
+# PAYLOAD is `@/abs/path` for a file (served byte for byte, so a real zip comes
+# out the other end still a real zip), `-` for an empty body, or a literal line
+# (which for a 3xx is the redirect target).
+#
+# PAYLOAD `!s3 /abs/keyfile` answers as the nix-releases S3 bucket does: it
+# lists the keys in that file that sort *after* the request's `marker=`
+# parameter, so a caller's guess at a marker is genuinely part of the test
+# rather than something the stub quietly ignores.
+#
+# Several lines may match the same glob: they are consumed in order as that glob
+# is hit again and again, and the last one sticks — which is how "429, 429, then
+# 200" is expressed.
+#
+# STATUS 000 means the connection itself failed (curl exit 7).
+#
+# Supports the flags the three scripts actually pass: -o, -w (%{http_code} and
+# %{url_effective}), -f, -s/-S, -L, -A, -H, -I, -m, --connect-timeout,
+# --max-time, --retry.
+set -uo pipefail
+
+printf '%s\n' "$*" >>"${STUBLOG:?}/curl.log"
+
+MAP="${CURL_MAP:-}"
+
+out="" wfmt="" failonerror=0 follow=0 url=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  -o | --output)
+    out="$2"
+    shift
+    ;;
+  -w | --write-out)
+    wfmt="$2"
+    shift
+    ;;
+  -A | --user-agent | -H | --header | -m | --max-time | --connect-timeout | --retry)
+    shift
+    ;;
+  -*)
+    # bundled short flags: -fsSL, -sfL, ...
+    if [[ "$1" != --* && "$1" == -[a-zA-Z]* ]]; then
+      [[ "$1" == *f* ]] && failonerror=1
+      [[ "$1" == *L* ]] && follow=1
+    fi
+    case "$1" in
+    --fail) failonerror=1 ;;
+    --location) follow=1 ;;
+    esac
+    ;;
+  *) url="$1" ;;
+  esac
+  shift
+done
+
+printf '%s\n' "$url" >>"$STUBLOG/curl-urls.log"
+
+scratch="$(mktemp)"
+trap 'rm -f "$scratch"' EXIT
+
+emit() {
+  local bodyfile="$1" code="$2" effective="$3"
+  if [[ -n "$out" ]]; then
+    cat "$bodyfile" >"$out"
+  else
+    cat "$bodyfile"
+  fi
+  if [[ -n "$wfmt" ]]; then
+    local w="$wfmt"
+    w="${w//'%{http_code}'/$code}"
+    w="${w//'%{url_effective}'/$effective}"
+    printf '%b' "$w"
+  fi
+}
+
+lookup() {
+  # Prints STATUS<TAB>PAYLOAD for the current $url, honouring the
+  # consume-in-order rule.
+  local u="$1" pat status payload n=0 hits=() key
+  [[ -f "$MAP" ]] || return 1
+  while IFS=$'\t' read -r pat status payload; do
+    [[ -n "$pat" && "$pat" != '#'* ]] || continue
+    # shellcheck disable=SC2053 # glob match is the point
+    [[ "$u" == $pat ]] && hits+=("$status"$'\t'"$payload")
+  done <"$MAP"
+  [[ ${#hits[@]} -gt 0 ]] || return 1
+  key="$(printf '%s' "$u" | tr -c 'a-zA-Z0-9' '_')"
+  n=0
+  [[ -f "$STUBLOG/curl-n-$key" ]] && n="$(cat "$STUBLOG/curl-n-$key")"
+  printf '%s' "$((n + 1))" >"$STUBLOG/curl-n-$key"
+  [[ "$n" -ge ${#hits[@]} ]] && n=$((${#hits[@]} - 1))
+  printf '%s' "${hits[n]}"
+}
+
+hops=0
+while :; do
+  hops=$((hops + 1))
+  if [[ "$hops" -gt 10 ]]; then
+    echo "curl: (47) Maximum (10) redirects followed" >&2
+    exit 47
+  fi
+  if ! entry="$(lookup "$url")"; then
+    # Nothing in the scenario claims this URL. Treat it as a hard connection
+    # failure rather than inventing a body: a case that reaches an unexpected
+    # URL should notice.
+    echo "curl: (6) Could not resolve host" >&2
+    exit 6
+  fi
+  IFS=$'\t' read -r status payload <<<"$entry"
+
+  bodyfile="$scratch"
+  case "$payload" in
+  '-') : >"$scratch" ;;
+  '@'*) bodyfile="${payload#@}" ;;
+  '!s3 '*)
+    keyfile="${payload#!s3 }"
+    marker=""
+    case "$url" in *'&marker='*)
+      marker="${url##*&marker=}"
+      marker="${marker%%&*}"
+      ;;
+    esac
+    {
+      printf '<?xml version="1.0" encoding="UTF-8"?>\n<ListBucketResult>\n'
+      while IFS= read -r key; do
+        [[ -n "$key" ]] || continue
+        if [[ -n "$marker" ]] && ! [[ "$key" > "$marker" ]]; then continue; fi
+        printf '  <CommonPrefixes><Prefix>%s</Prefix></CommonPrefixes>\n' "$key"
+      done < <(sort "$keyfile")
+      printf '  <IsTruncated>false</IsTruncated>\n</ListBucketResult>\n'
+    } >"$scratch"
+    ;;
+  *) printf '%s\n' "$payload" >"$scratch" ;;
+  esac
+
+  if [[ "$status" == 000 ]]; then
+    echo "curl: (7) Failed to connect" >&2
+    exit 7
+  fi
+
+  case "$status" in
+  30[1237] | 308)
+    if [[ "$follow" == 1 ]]; then
+      url="$payload"
+      continue
+    fi
+    ;;
+  esac
+
+  if [[ "$failonerror" == 1 && "$status" -ge 400 ]]; then
+    echo "curl: (22) The requested URL returned error: $status" >&2
+    exit 22
+  fi
+  emit "$bodyfile" "$status" "$url"
+  exit 0
+done

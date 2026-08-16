@@ -94,6 +94,15 @@ if [[ $((links_only + check_only + recheck + clean_only)) -gt 1 ]]; then
   exit 1
 fi
 
+# `-d lib/` has to behave exactly like `-d lib`. Two different spellings of the
+# same file meet in this script - yt-dlp's -o template, which renders "lib//X",
+# and find, which reports "lib/X" - and the scanned_bases lookup that stops an
+# episode being counted twice compares one against the other. A trailing slash
+# makes that comparison miss every time, so the "N of M already on disk"
+# summary counts the sidecar repairs the playlist scan handed over a second
+# time. "/" is the one path that is nothing but a slash and keeps it.
+while [[ "$dest" == */ && "$dest" != / ]]; do dest="${dest%/}"; done
+
 # An interrupted run leaves yt-dlp's scratch files behind: the per-format
 # streams it had not merged yet, fragment parts, resume data. media_exists
 # below ignores them (its single-token extension rule), so they never cause a
@@ -326,16 +335,23 @@ meta_args=(
 )
 
 # A video counts as "on disk" when a file with the expected base name and a
-# single-token extension exists: leftovers like .part/.ytdl/.f<id>.mp4 from
-# aborted runs must not count as done, and neither do the NFO/image sidecars
-# generated below.
+# single-token extension exists: yt-dlp names its leftovers after the final
+# filename (Episode.mp4.part, Episode.mp4.ytdl, Episode.f137.mp4), so those all
+# carry two tokens and the rule rules them out, and the NFO/image sidecars
+# generated below are named explicitly. Subtitles and notes are named too: a
+# library of Danish television is exactly where an external .srt turns up, and
+# one sitting next to a video that is *not* there would otherwise mark the
+# episode downloaded for good.
 media_exists() {
   local f ext
   for f in "$1".*; do
     [[ -e "$f" ]] || continue
     ext="${f#"$1".}"
     [[ "$ext" == *.* ]] && continue
-    case "$ext" in nfo | jpg | jpeg | png | webp) continue ;; esac
+    case "$ext" in
+      nfo | jpg | jpeg | png | webp) continue ;;
+      srt | vtt | ass | ssa | sub | txt) continue ;;
+    esac
     return 0
   done
   return 1
@@ -564,32 +580,42 @@ started=$(date +%s)
 # line of a run, so the announcements and the summary listing drop it
 dest_abs="$(realpath -m -- "$dest")"
 
+# Nothing about the run is baked into the script text. The library path is
+# whatever the user passed to -d, and a single apostrophe in it - "Emil's
+# videos" - used to close the quoting around it and leave a script that does
+# not parse, so every announcement of an overnight run died with a syntax error
+# and the summary reported nothing downloaded. The values travel through the
+# environment instead, which yt-dlp hands on to --exec, and the heredoc is
+# quoted so the script below is literal.
+export DRTV_DEST="$dest_abs" DRTV_MANIFEST="$manifest"
+export DRTV_TOTAL="$remaining" DRTV_STARTED="$started"
+
 announce="$tmpdir/announce"
-cat >"$announce" <<EOF
+cat >"$announce" <<'EOF'
 #!/bin/sh
-rel="\$1"
-case "\$rel" in
-  '$dest_abs'/*) rel="\${rel#'$dest_abs'/}" ;;
+rel="$1"
+case "$rel" in
+  "$DRTV_DEST"/*) rel="${rel#"$DRTV_DEST"/}" ;;
 esac
-printf '%s\n' "\$rel" >>'$manifest'
-n=\$(wc -l <'$manifest')
-left=\$(($remaining - n))
-if [ '$remaining' -gt 0 ] && [ "\$left" -ge 0 ]; then
-  if [ "\$left" -gt 0 ]; then
-    eta=\$(((\$(date +%s) - $started) * left / n))
-    if [ "\$eta" -ge 3600 ]; then
-      human="\$((eta / 3600))h\$(printf '%02d' \$((eta % 3600 / 60)))m"
-    elif [ "\$eta" -ge 60 ]; then
-      human="\$((eta / 60))m"
+printf '%s\n' "$rel" >>"$DRTV_MANIFEST"
+n=$(wc -l <"$DRTV_MANIFEST")
+left=$((DRTV_TOTAL - n))
+if [ "$DRTV_TOTAL" -gt 0 ] && [ "$left" -ge 0 ]; then
+  if [ "$left" -gt 0 ]; then
+    eta=$((($(date +%s) - DRTV_STARTED) * left / n))
+    if [ "$eta" -ge 3600 ]; then
+      human="$((eta / 3600))h$(printf '%02d' $((eta % 3600 / 60)))m"
+    elif [ "$eta" -ge 60 ]; then
+      human="$((eta / 60))m"
     else
-      human="\${eta}s"
+      human="${eta}s"
     fi
-    printf 'drtv-dl: [%s/%s] finished: %s - %s left, ~%s\n' "\$n" '$remaining' "\$rel" "\$left" "\$human"
+    printf 'drtv-dl: [%s/%s] finished: %s - %s left, ~%s\n' "$n" "$DRTV_TOTAL" "$rel" "$left" "$human"
   else
-    printf 'drtv-dl: [%s/%s] finished: %s\n' "\$n" '$remaining' "\$rel"
+    printf 'drtv-dl: [%s/%s] finished: %s\n' "$n" "$DRTV_TOTAL" "$rel"
   fi
 else
-  printf 'drtv-dl: finished (%s this run): %s\n' "\$n" "\$rel"
+  printf 'drtv-dl: finished (%s this run): %s\n' "$n" "$rel"
 fi
 EOF
 chmod +x "$announce"
@@ -684,8 +710,12 @@ fix_placeholder_poster() {
     | (first | .url) // empty' "$json")"
   [[ -n "$url" ]] || return 0
   # the alternatives are often PNGs; DR's resize service transcodes on
-  # request, so ask for jpg to match the .jpg name the file keeps
-  url="${url//Format='png'/Format='jpg'}"
+  # request, so ask for jpg to match the .jpg name the file keeps. The pattern
+  # has to be quoted as a whole: bash removes quotes from the pattern half of
+  # ${var//pat/rep} before matching, so a bare Format='png' looks for
+  # Format=png without the apostrophes and never matches DR's URLs at all -
+  # which left every replaced poster a PNG under a .jpg name.
+  url="${url//"Format='png'"/"Format='jpg'"}"
   if curl -fsSL -m 30 -o "$target.tmp" "$url"; then
     mv -- "$target.tmp" "$target"
     echo "drtv-dl: replaced placeholder poster: $target"

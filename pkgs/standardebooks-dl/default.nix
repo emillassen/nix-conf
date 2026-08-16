@@ -11,6 +11,7 @@
   unzip,
   findutils,
   coreutils,
+  util-linux,
 }:
 writeShellApplication {
   name = "standardebooks-dl";
@@ -21,6 +22,7 @@ writeShellApplication {
     unzip # reads content.opf and the cover image out of the epub (it's a zip)
     findutils # sweeps the library for the epubs covers and the ledger come from
     coreutils
+    util-linux # flock, so two runs cannot lose each other's quota records
   ];
   text = builtins.readFile ./standardebooks-dl.sh;
 }

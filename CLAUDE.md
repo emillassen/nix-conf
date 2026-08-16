@@ -43,6 +43,16 @@ nh clean all
 
 # Custom packages can be built directly
 nix build .#devilutionx
+
+# The shell test suite: hermetic, offline, no network and no Nix daemon.
+# Takes ~30s. Not wired into `nix flake check` - run it by hand.
+./tests/run.sh                 # everything
+./tests/run.sh flake-up-safe   # only cases whose path matches
+KEEP_TMP=1 ./tests/run.sh drtv/04   # leave the case's temp dir behind
+
+# The other half of that: build the two pkgs/ derivations for real (which is
+# where shellcheck runs for them) and run each one's -h.
+./tests/build-check.sh
 ```
 
 Zsh abbreviations on the host: `ns`/`nsu` (rebuild/upgrade), `nix-clean`, `flake-up`, `fus`.
@@ -64,6 +74,11 @@ Where the bisect's candidates come from depends on the input. For a **nixpkgs in
 tracks a channel** they are the channel's own releases, listed from the `nix-releases` S3
 bucket (`?prefix=nixos/unstable/&delimiter=/`, one request; the directory names carry a
 short rev and a serial, and the full rev comes from each release's `git-revision` file).
+The listing starts at a `marker`, since `nixos/unstable/` holds a decade of releases: for a
+stable channel that marker is exact (every `nixos-25.05.*` release names its own channel),
+and only for a rolling channel is it guessed from the tip's calendar year, whose version
+number the name tracks. Guessing for a stable channel too used to skip its whole listing
+once the channel was over a year old, silently dropping the run back to a commit search.
 That matters because the branch's git history is mostly master commits the channel never
 pointed at, and only a channel bump has passed Hydra's `tested` job — bisecting to an
 arbitrary commit would lock in a revision cache.nixos.org has barely built, i.e. a local
@@ -72,19 +87,28 @@ rebuild of the world. The bucket lists lexicographically, which is _not_ chronol
 the name, which is a commit count and only goes up. Everything else falls back to one
 candidate per day, newest first, resolved through the GitHub API (`gh`, else curl) against
 the **tip's own history** rather than the branch, so a branch moving mid-run cannot change
-what is being searched. Index 0 of either list is the tip itself: it was rejected on top of
-a smaller set of updates than the one now in force, so it is worth re-testing, and if
-nothing changed since, the `.drv` cache answers for free.
+what is being searched. A search in which every one of those lookups failed reports that
+it could not resolve anything, distinctly from "nothing newer builds": an unreachable or
+rate-limited GitHub is not a verdict on the input, and nothing was built for it. Index 0
+of either list is the tip itself: it was rejected on top of a smaller set of updates than
+the one now in force, so it is worth re-testing, and if nothing changed since, the `.drv`
+cache answers for free.
 
 The search itself walks newest-first and checks the first `--linear` candidates (default 7)
 **one at a time**, then starts doubling its stride and binary-searches the bracket that
-straddles the boundary. The linear prefix needs no assumptions — everything newer has been
-tried and failed, so the first candidate that builds is provably the newest that does. Only
+straddles the boundary. `--linear N` means exactly N candidates, counted in probes made:
+counting the index reached instead left the stride at 1 for one step longer than asked, so
+the prefix was N+1 and `--linear 0` still checked two, with no way to ask for no prefix at
+all (`tests/cases/flake-up-safe/11-linear-walk-table.sh` pins the whole walk). The linear
+prefix needs no assumptions — everything newer has been tried and failed, so the first
+candidate that builds is provably the newest that does. Only
 the skipping part assumes the boundary is monotone, and that assumption is genuinely
 breakable: a window can read bad-good-bad-good from the tip backwards when one breakage was
 fixed and another introduced, and a pure doubling search then lands on the older good
-stretch. Measured on a synthetic window of exactly that shape, `--linear 0` settled 23 days
-behind the tip in 7 builds while the default found the true newest in 3. The prefix is
+stretch. Measured on a synthetic window of exactly that shape — the tip broken, one day
+back good, days 2–23 broken, day 24 and older good again — the default finds the true
+newest in 3 builds while `--linear 0` settles 23 days further back and pays 10
+(`tests/cases/flake-up-safe/12-linear-prefix-pays.sh` is that window). The prefix is
 where a build still buys a day of freshness worth having; past it, the cap matters more
 (nothing-works over a 60-candidate window costs ~15 builds instead of 60). A result that
 comes out no newer than the baseline is discarded rather than pinned — the check is on
@@ -95,12 +119,24 @@ Trials are keyed on the target's `.drv` path, so an input that does not reach th
 costs no build at all, and the composed result is built once more before it is written.
 Composed locks are cached by recipe, verdicts by revision as well as by `.drv`. A build
 that fails on a network error is retried once rather than being recorded as a broken
-revision; one that fails because the disk filled up aborts the run instead of blaming the
-inputs. The working tree's `flake.lock` is restored on any failure or Ctrl-C. The run ends
-with `nix store diff-closures` against the baseline, so the result is reported in packages
+revision, and so is a `nix flake update` — a dropped packet while resolving an input says
+nothing about the input and is not worth throwing a multi-hour run away for; one that fails
+because the disk filled up aborts the run instead of blaming the inputs. Composition does
+not `--refresh`, so it answers out of nix's `tarball-ttl` cache and a run longer than that
+hour can see a tip move under it; anything that drifts is pinned back to the revision the
+run recorded at the start, or two trials both saying "at its tip" would be testing two
+different things. Reading the lock walks a `follows` path in `root.inputs` (`["a","b"]` =
+root's input a, then that node's input b) rather than taking its last element, which names
+the right node only by coincidence — and llm-agents deliberately carrying its own nixpkgs
+node is exactly where the coincidence fails. The working tree's `flake.lock` is restored
+on any failure or Ctrl-C. The run ends with `nix store diff-closures` against the
+baseline, so the result is reported in packages
 and not only in revisions. `-f DIR` picks the flake (default: the script's own repo, else
 `$NH_FLAKE`, else the first `flake.nix` at or above `$PWD`), `-i NAME` restricts the search
-to one input, `-v` streams nix's own output instead of a progress line.
+to one input, `-v` streams nix's own output instead of a progress line. `-d N` is a count
+of candidates, not a span of days — a candidate is a day for a commit search and a release
+for a channel, and a rolling channel publishes several a day. `-t ATTR` names the build
+outright and is refused alongside `-H`.
 
 ## Architecture
 
@@ -118,8 +154,8 @@ Inputs: nixpkgs (nixos-unstable), nixpkgs-stable (26.05), disko, home-manager, n
 
 **pkgs/** — custom packages, exposed via the `additions` overlay and the `packages` output:
 
-- `drtv-dl` — yt-dlp wrapper downloading DRTV series/seasons/films with Jellyfin naming (`Series/Season 01/Series - S01E01 - Title.ext`); carries a yt-dlp patch (`DRTVSeasonIE` entries `url` → `url_transparent` so series/season metadata reaches the output template, plus show descriptions/poster images surfaced on playlist results), and skips videos already on disk via a throwaway `--download-archive` (episodes found by a flat playlist scan; films and `-r` rechecks by a `--skip-download` probe that also refreshes their sidecars), so existing files are never rewritten by the metadata/subtitle embed. Generates Jellyfin sidecars as it goes: `tvshow.nfo` + poster/season posters per series, `.nfo` + thumb per episode, `.nfo` + poster per film — all with `<lockdata>true</lockdata>` so Jellyfin keeps DR's metadata instead of mismatching via TVDB/TMDB (the info.json→NFO conversion is jq in the script). The playlist scan classifies three ways, not two: video + `.nfo` present → download archive; video present, `.nfo` missing → handed to the `--skip-download` probe, so an ordinary run repairs sidecar gaps for the few episodes that have one instead of needing `-r` over everything (`scanned_bases` keeps the probe from counting those twice); nothing on disk → download. The thumbnail is deliberately not part of that test — DR has none for some videos, which would re-probe them forever. Progress is `[n/total] finished: path - N left, ~ETA`, the total being what both scans found missing before the run started. `-c` deletes yt-dlp's leftover scratch files (`.part`, `.part-Frag*`, `.ytdl`, per-format streams) from interrupted runs — every run reports what it finds, but only `-c` removes it, since a fragment may belong to a concurrent run. `-n` covers films too (one `--skip-download` probe each) and warns when a URL answers nothing, which is how DR taking a film down shows up. Reads URLs from a `drtv-series.txt` in the library root when given none.
-- `standardebooks-dl` — pure-shell (curl + unzip) sync of a local Calibre-style library (`Last, First/Title/Title.{epub,azw3,kepub.epub,advanced.epub}` — one author directory, the epub's `file-as` sort name verbatim, same as Calibre's `{author_sort}`; an older `Last/First/Title` library is migrated in place on the next run, `-n` excepted — since the ledger otherwise keeps recreating legacy paths, the layout change alone would never reach books already synced) with the free ebooks at standardebooks.org. Enumerates the catalog from the site's `/sitemap` in one request, keeping only URLs ending in `/text` (the online reader) with the suffix stripped — the sitemap also lists ~2600 titles announced years ahead of their U.S. public-domain date, which have no files and used to cost a paced 404 probe every run; a published ebook has a `/text` subpage and a placeholder has none, and that filter was verified to reproduce all 31 pages of `/ebooks?per-page=48` exactly (1483 books). Author/title come from each epub's own `file-as` sort metadata, not the display name. A ledger (`DIR/.standardebooks-dl-index.tsv`) makes reruns incremental and resumable; it is a cache, not durable state — every SE epub carries its catalog URL as its OPF `dc:identifier` (translator segment included, so it _is_ the ledger's slug), so `rebuild_index` recovers the whole slug→path mapping from the epubs on disk, offline. That runs automatically when the ledger is missing/empty next to a non-empty library, and unconditionally under `-r`. Completeness is checked per format, not per folder (`media_count`/`media_exists` over all four extensions), and with `-s` rather than `-e` throughout, so a zero-byte file counts as missing instead of sticking forever. Lifts each book's embedded cover out as `cover.jpg` (path read from the epub's `cover-image` manifest item, so it's zero extra requests — Dolphin folder thumbnails + Calibre/Jellyfin artwork); `-r` backfills/repairs covers for an existing library straight from the local epubs (offline) and rebuilds the ledger in the same pass. Pacing is a quota ledger rather than a fixed delay (`quota_wait`/`quota_record` around every download, including the metadata probe): it mirrors the server's own algorithm — a timestamp per download the site actually served, in `${XDG_STATE_HOME:-~/.local/state}/standardebooks-dl/download-quota`, consulted before each request and slept against exactly (wait until the oldest ages out, never longer). It is keyed per machine, not per library, because the cap is per IP, and being on disk is the point: it survives restarts, where a fresh process would otherwise re-spend a budget already spent. `MIN_INTERVAL=30` only stops a whole window's budget going in a 90-second burst; the quota is the real constraint. A 429 now means the ledger disagrees with the server (lost ledger, browser downloads, shared NAT), so `fetch_url` waits it out with capped backoff for up to `LONG_WINDOW + 30m` instead of the old give-up-after-5-tries that marked good books failed — nothing can stay blocked longer than the 6h window, so outlasting it is the escape hatch. The old ≥8s/doubling-to-120s/never-recovering pacing was ~27x over the sustainable rate and assumed a penalty box that does not exist. A download 404 is still tolerated (counted as "no files offered", not a failure) for a book caught mid-publication or renamed since the sitemap was generated, but with the `/text` filter it should no longer happen routinely. A run surveys the whole catalog against disk before fetching anything (stat-only, no requests) to build the `todo` set, so it can report `[n/total] outcome: Author/Title - N left, ~ETA` per book — the ETA is elapsed-per-book extrapolated, and `todo` is also exactly what `-n` prints, so the two can't drift. Both `-n` and a real run also report files-to-fetch (counted per format, not per book), the resulting estimate (`files × 6h/100`) and current quota spend up front; `-n` lists both what's missing entirely and what's on disk but short a format (`slug (n/4 formats)`), without downloading.
+- `drtv-dl` — yt-dlp wrapper downloading DRTV series/seasons/films with Jellyfin naming (`Series/Season 01/Series - S01E01 - Title.ext`); carries a yt-dlp patch (`DRTVSeasonIE` entries `url` → `url_transparent` so series/season metadata reaches the output template, plus show descriptions/poster images surfaced on playlist results), and skips videos already on disk via a throwaway `--download-archive` (episodes found by a flat playlist scan; films and `-r` rechecks by a `--skip-download` probe that also refreshes their sidecars), so existing files are never rewritten by the metadata/subtitle embed. Generates Jellyfin sidecars as it goes: `tvshow.nfo` + poster/season posters per series, `.nfo` + thumb per episode, `.nfo` + poster per film — all with `<lockdata>true</lockdata>` so Jellyfin keeps DR's metadata instead of mismatching via TVDB/TMDB (the info.json→NFO conversion is jq in the script). The playlist scan classifies three ways, not two: video + `.nfo` present → download archive; video present, `.nfo` missing → handed to the `--skip-download` probe, so an ordinary run repairs sidecar gaps for the few episodes that have one instead of needing `-r` over everything (`scanned_bases` keeps the probe from counting those twice); nothing on disk → download. The thumbnail is deliberately not part of that test — DR has none for some videos, which would re-probe them forever. Progress is `[n/total] finished: path - N left, ~ETA`, the total being what both scans found missing before the run started. The progress announcer is a scratch `/bin/sh` script whose parameters arrive through the environment rather than being interpolated into its text — an apostrophe in the library path ("Emil's videos") otherwise closed the quoting and left a script that would not parse, so every progress line of an overnight run died silently. `-d` is normalised the same way standardebooks-dl's is, because the `-o` template renders `lib//X` where `find` reports `lib/X` and the `scanned_bases` lookup compares one against the other. `media_exists` excludes subtitle and text extensions as well as the NFO/image sidecars: an external `.srt` next to a video that is _not_ there would otherwise mark the episode downloaded for good. `-c` deletes yt-dlp's leftover scratch files (`.part`, `.part-Frag*`, `.ytdl`, per-format streams) from interrupted runs — every run reports what it finds, but only `-c` removes it, since a fragment may belong to a concurrent run. `-n` covers films too (one `--skip-download` probe each) and warns when a URL answers nothing, which is how DR taking a film down shows up. Reads URLs from a `drtv-series.txt` in the library root when given none.
+- `standardebooks-dl` — pure-shell (curl + unzip) sync of a local Calibre-style library (`Last, First/Title/Title.{epub,azw3,kepub.epub,advanced.epub}` — one author directory, the epub's `file-as` sort name verbatim, same as Calibre's `{author_sort}`; an older `Last/First/Title` library is migrated in place on the next run, `-n` excepted — since the ledger otherwise keeps recreating legacy paths, the layout change alone would never reach books already synced) with the free ebooks at standardebooks.org. Enumerates the catalog from the site's `/sitemap` in one request, keeping only URLs ending in `/text` (the online reader) with the suffix stripped — the sitemap also lists ~2600 titles announced years ahead of their U.S. public-domain date, which have no files and used to cost a paced 404 probe every run; a published ebook has a `/text` subpage and a placeholder has none, and that filter was verified to reproduce all 31 pages of `/ebooks?per-page=48` exactly (1483 books). Author/title come from each epub's own `file-as` sort metadata, not the display name. A ledger (`DIR/.standardebooks-dl-index.tsv`) makes reruns incremental and resumable; it is a cache, not durable state — every SE epub carries its catalog URL as its OPF `dc:identifier` (translator segment included, so it _is_ the ledger's slug), so `rebuild_index` recovers the whole slug→path mapping from the epubs on disk, offline. That runs automatically when the ledger is missing/empty next to a non-empty library, and unconditionally under `-r`. Completeness is checked per format, not per folder (`media_count`/`media_exists` over all four extensions), and with `-s` rather than `-e` throughout, so a zero-byte file counts as missing instead of sticking forever. Lifts each book's embedded cover out as `cover.jpg` (path read from the epub's `cover-image` manifest item, so it's zero extra requests — Dolphin folder thumbnails + Calibre/Jellyfin artwork); `-r` backfills/repairs covers for an existing library straight from the local epubs (offline) and rebuilds the ledger in the same pass. Pacing is a quota ledger rather than a fixed delay (`quota_wait`/`quota_record` around every download, including the metadata probe): it mirrors the server's own algorithm — a timestamp per download the site actually served, in `${XDG_STATE_HOME:-~/.local/state}/standardebooks-dl/download-quota`, consulted before each request and slept against exactly (wait until the oldest ages out, never longer). It is keyed per machine, not per library, because the cap is per IP, and being on disk is the point: it survives restarts, where a fresh process would otherwise re-spend a budget already spent. Two runs sharing that ledger is a documented use (the cap is per IP, so two libraries synced from one machine draw on one budget), and pruning rewrites the whole file, so read-prune-write and append are both taken under an `flock` on `$quota_dir/lock` — without it a rewrite that began before another run's append landed dropped that append, and both runs then believed they had budget they had already spent. `util-linux` is a runtimeInput for that flock; run outside the Nix wrapper the script falls back to the old lock-free behaviour rather than refusing to start. `MIN_INTERVAL=30` only stops a whole window's budget going in a 90-second burst; the quota is the real constraint. A 429 now means the ledger disagrees with the server (lost ledger, browser downloads, shared NAT), so `fetch_url` waits it out with capped backoff for up to `LONG_WINDOW + 30m` instead of the old give-up-after-5-tries that marked good books failed — nothing can stay blocked longer than the 6h window, so outlasting it is the escape hatch. The old ≥8s/doubling-to-120s/never-recovering pacing was ~27x over the sustainable rate and assumed a penalty box that does not exist. A 5xx gets a small fixed budget of its own (60s, 120s, 180s, then give up): the site being down is not a verdict on a book, and without it a ten-minute maintenance window turns every remaining book in a fortnight-long run into a failure in the few minutes it takes to reach the end of the catalog. A download 404 is still tolerated (counted as "no files offered", not a failure) for a book caught mid-publication or renamed since the sitemap was generated, but with the `/text` filter it should no longer happen routinely. A run surveys the whole catalog against disk before fetching anything (stat-only, no requests) to build the `todo` set, so it can report `[n/total] outcome: Author/Title - N left, ~ETA` per book — the ETA is elapsed-per-book extrapolated, and `todo` is also exactly what `-n` prints, so the two can't drift. Both `-n` and a real run also report files-to-fetch (counted per format, not per book), the resulting estimate (`files × 6h/100`) and current quota spend up front; `-n` lists both what's missing entirely and what's on disk but short a format (`slug (n/4 formats)`), without downloading — and without writing: no ledger, no library directory, no migration, no covers. `-d` is normalised into a single strip prefix (`dest_prefix`) before anything uses it, because `-d lib/` otherwise yields a `lib//` prefix that matches nothing, puts absolute paths in the ledger, and makes the next run re-download the entire library. The author directory is the epub's `file-as` sort name with only Windows/SMB-illegal characters touched, which does trim a trailing period: "Milne, A. A." files under "Milne, A. A", the same trim Calibre makes.
 
   **SE's rate limit, measured 2026-07-30** (their site is open source — `standardebooks/web`, `www/ebooks/download.php` + `lib/Constants.php` — and live probing matched the source exactly). It applies **only to `/ebooks/*/downloads/*`**; `/sitemap`, catalog pages and book pages are unlimited (60 requests in 23s all returned 200, and kept returning 200 while downloads were blocked). Two sliding windows over _recorded_ downloads per IP: **more than 35 in 30s**, or **more than 100 in 6h** → 429 (`SHORT_DOWNLOAD_COUNT = 35`, `LONG_DOWNLOAD_COUNT = 100`, both compared with strict `>`). Verified: request 37 of an unpaced burst was the first 429, and with 74 already on the clock exactly 27 more succeeded before 429 at cumulative 101. There is **no penalty box** — a 429 is rejected before `AddDownload`, so it is never recorded and being blocked cannot extend the block; recovery is purely the window draining (measured 31.9s after a burst whose first request was at t=0.33s). The `RateLimitedIps` table an over-limit IP lands in only feeds `EbookDownload::IsBot()` for download _statistics_, it does not block. Logged-in (Patrons Circle) users skip the limiter entirely. Placeholders 404 _before_ the rate check, so probing them never cost quota — only wall-clock. **Sustained ceiling is therefore 100 files / 6h = 216s per file**, i.e. 14.4 min/book at 4 formats, so a full catalog sync is inherently ~2 weeks of wall time; the old 8s pace was ~27x over it, which is why a day-long run stalled. Probe the limiter with `curl -I` — HEAD runs `download.php` so it counts and 429s identically, but moves no file body.
 
@@ -127,6 +163,48 @@ Inputs: nixpkgs (nixos-unstable), nixpkgs-stable (26.05), disko, home-manager, n
 
 - `vuescan` — unfree scanner binary fetched from a personal mirror (github.com/emillassen/binary-mirror releases), autoPatchelf'd; the release tag/URL interpolates `version`.
 - `devilutionx` — built from a pinned upstream master commit with vendored dependency pins (`FETCHCONTENT_SOURCE_DIR_*`); refresh with `pkgs/devilutionx/update.sh`.
+
+## Tests
+
+`tests/` holds a hermetic bash suite for the three big shell scripts
+(`flake-up-safe.sh`, `standardebooks-dl.sh`, `drtv-dl.sh`). It is **deliberately not part
+of `nix flake check`**: it needs no Nix daemon and no network, and keeping it out means
+`nix flake check` stays what it was. Run it with `./tests/run.sh`; it exits non-zero if any
+case fails, and a full run is about half a minute.
+
+- `tests/run.sh` — the runner. Arguments are substring filters on the case path.
+- `tests/lib/` — `assert.sh` (assertions that report case, expectation and actual, and keep
+  going), `harness.sh` (temp dirs, PATH assembly, preamble synthesis, `extract_funcs`),
+  `sim-flake.sh` / `se.sh` / `drtv.sh` (per-target scenario builders), `mkepub.py`.
+- `tests/stubs/` — programmable fakes for `nix`, `git`, `curl`, `gh`, `yt-dlp`, `date` and
+  `sleep`. Each reads a scenario file and logs its own invocations, which is what makes
+  "how many builds did that cost" and "was this episode extracted at all" assertable.
+- `tests/cases/<script>/NN-name.sh` — one case per file.
+
+Every case works in a fresh temp directory and points `TMPDIR` inside it, so the scratch
+directories the scripts make for themselves go too — `flake-up-safe.sh` deliberately
+_keeps_ its working directory whenever a run fails or holds an input back, which most of
+its cases do on purpose, and a full run would otherwise leave a few hundred of them in
+`/tmp`.
+
+Two things about the design are load-bearing. **The two `pkgs/` fragments have no shebang
+and no `set` line**: `writeShellApplication` supplies `set -o errexit/nounset/pipefail`, so
+running one with plain `bash file.sh` drops all three and hides exactly the class of bug
+worth hunting. The harness synthesizes that preamble itself
+(`tests/cases/harness/00-preamble.sh` guards the assumption). And **runtimeInputs are
+_prepended_ to PATH**, so a stub can never shadow the real `yt-dlp` or `curl` inside a
+built derivation — which is why the suite runs the raw fragment under its own preamble with
+PATH pointing at the stub directory, and leaves the real-derivation check to
+`tests/build-check.sh`.
+
+Nothing in the suite touches the network. For standardebooks.org that is not merely tidy: a
+hidden `/honeypot` link in their page header is wired to fail2ban with `maxretry = 1,
+bantime = 24h`.
+
+Extending the suite is what the `/test-scripts` skill
+(`.claude/skills/test-scripts/`) is for: its `references/` carry the stub contracts, the
+findings ledger (fixed, refuted, still uncovered) and the bash traps that have already
+cost a debugging round.
 
 ## Secrets (sops-nix + age)
 

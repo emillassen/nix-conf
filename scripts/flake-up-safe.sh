@@ -35,12 +35,16 @@
 #                       else $NH_FLAKE, else the first flake.nix at or above $PWD)
 #   -H, --host NAME     nixosConfiguration to build (default: the only one)
 #   -t, --target ATTR   build this flake attr instead of the host's toplevel
+#                       (names the build outright, so not alongside -H)
 #   -i, --input NAME    only consider this input (repeatable)
 #   -b, --baseline REF  known-good lock to fall back to: head (default) | worktree
 #   -k, --check         also require `nix flake check` to pass
 #   -B, --bisect        search held-back inputs for a working revision (default)
 #       --no-bisect     do not search; an input is either at its tip or at baseline
-#   -d, --max-days N    how far back the bisect will look (default 60)
+#   -d, --max-days N    how many candidates back the bisect will look (default
+#                       60). A candidate is a day for a commit search and a
+#                       release for a channel, and a rolling channel publishes
+#                       several a day, so this is a count and not a span
 #   -l, --linear N      how many candidates the bisect checks one at a time
 #                       before it starts skipping (default 7; 0 skips from the
 #                       start, a large N never skips)
@@ -189,6 +193,10 @@ command -v curl >/dev/null || die "curl not found in PATH"
 # needs no flag; with several, -H picks. A -t without a flake reference is taken
 # as an attr of this flake, so `-t devilutionx` works from any directory.
 if [ -n "$TARGET" ]; then
+  # -t names the thing to build outright, so a -H alongside it has nothing left
+  # to decide. Ignoring one of two contradictory flags is the kind of thing you
+  # find out about after a two-hour run built something else.
+  [ -z "$HOST" ] || die "--target and --host cannot be combined (-t already names what to build)"
   case "$TARGET" in
   *'#'*) ;;
   *) TARGET="$FLAKE_DIR#$TARGET" ;;
@@ -220,6 +228,7 @@ KEPT=()
 PINS=()
 BISECTED=()
 RED=()
+NORESOLVE=()
 
 RUN_START=$SECONDS
 BUILDS=0
@@ -260,14 +269,33 @@ fmt_dur() { printf '%dm%02ds' $(($1 / 60)) $(($1 % 60)); }
 # file already holds everything needed, and reading it costs no evaluation, no
 # network and no copy of the working tree into the store.
 
+# An entry in root.inputs is usually the node's name outright. A top-level
+# `follows` makes it a path to walk instead: ["a","b"] means "root's input a,
+# then that node's input b". The last element of such a path is an *input* name,
+# which is only by coincidence also the name of the node it leads to — and this
+# repo's own lock is exactly where the coincidence fails, since llm-agents
+# deliberately carries its own nixpkgs node. One `inputs.x.follows =
+# "llm-agents/nixpkgs"` line would then have every function below reporting,
+# comparing and pinning the wrong node's revision. So walk the path rather than
+# taking its last element, and let a path that leads nowhere fall through to the
+# defaults instead of aborting the run.
+# shellcheck disable=SC2016 # $l and $seg are jq variables, not shell ones
+JQ_NODE='
+  def node($l): if type == "string" then . else
+    reduce .[] as $seg ("root";
+      ($l.nodes[.].inputs // {})[$seg]
+      | if . == null then "" elif type == "string" then . else node($l) end)
+  end;
+'
+
 # name<TAB>rev<TAB>lastModified for every top-level input.
 lock_revs() {
-  jq -r '
+  jq -r "$JQ_NODE"'
     . as $l
     | $l.nodes.root.inputs
     | to_entries[]
     | .key as $name
-    | (if (.value | type) == "string" then .value else .value[-1] end) as $node
+    | (.value | node($l)) as $node
     | $l.nodes[$node].locked
     | "\($name)\t\(.rev // .narHash // "?")\t\(.lastModified // 0)"
   ' "${1:-$LOCK}"
@@ -275,10 +303,9 @@ lock_revs() {
 
 # The locked rev of one input, used to confirm a pin actually landed.
 locked_rev() {
-  jq -r --arg n "$1" '
+  jq -r --arg n "$1" "$JQ_NODE"'
     . as $l
-    | $l.nodes.root.inputs[$n] as $v
-    | (if ($v | type) == "string" then $v else $v[-1] end) as $node
+    | ($l.nodes.root.inputs[$n] | node($l)) as $node
     | $l.nodes[$node].locked.rev // ""
   ' "$LOCK"
 }
@@ -286,10 +313,9 @@ locked_rev() {
 # The locked timestamp of one input, which is how "is this actually newer than
 # the baseline" gets answered — revisions on their own carry no order.
 locked_ts() {
-  jq -r --arg n "$1" '
+  jq -r --arg n "$1" "$JQ_NODE"'
     . as $l
-    | $l.nodes.root.inputs[$n] as $v
-    | (if ($v | type) == "string" then $v else $v[-1] end) as $node
+    | ($l.nodes.root.inputs[$n] | node($l)) as $node
     | $l.nodes[$node].locked.lastModified // 0
   ' "$LOCK"
 }
@@ -297,10 +323,9 @@ locked_ts() {
 # owner/repo<TAB>ref for one input, taken from its `original` (the flake.nix
 # declaration), not its `locked` — the branch is what history to walk.
 input_origin() {
-  jq -r --arg n "$1" '
+  jq -r --arg n "$1" "$JQ_NODE"'
     . as $l
-    | $l.nodes.root.inputs[$n] as $v
-    | (if ($v | type) == "string" then $v else $v[-1] end) as $node
+    | ($l.nodes.root.inputs[$n] | node($l)) as $node
     | $l.nodes[$node].original
     | if .type != "github" then "" else "\(.owner)/\(.repo)\t\(.ref // "HEAD")" end
   ' "$LOCK"
@@ -336,11 +361,30 @@ pin_input() {
   [ "$got" = "$rev" ] || die "nix did not write the pin for $name (lock says '${got:0:10}', wanted ${rev:0:10})"
 }
 
+# One `nix flake update`, with the same single retry a build gets: resolving an
+# input is a network operation, a blip during one says nothing about the inputs,
+# and a run that has already spent an hour building should not be thrown away
+# for it. Returns non-zero once the retry has been spent too.
+run_flake_update() {
+  local log="$1" attempt rc
+  shift
+  for attempt in 1 2; do
+    rc=0
+    nix flake update --flake "$FLAKE_DIR" --no-warn-dirty "$@" >"$log" 2>&1 || rc=$?
+    [ "$rc" -eq 0 ] && return 0
+    if [ "$attempt" -eq 1 ] && is_transient "$log"; then
+      echo "    … network trouble resolving inputs, retrying once" >&2
+      continue
+    fi
+    return 1
+  done
+}
+
 # Reset to the baseline lock and apply a recipe. Tips first, pins second: a
 # `nix flake update` after a pin would undo it. Rebuilt from the baseline every
 # time, so trials never accumulate.
 compose() {
-  local key cached tips=() pins=() t p pname pslug prev
+  local key cached tips=() pins=() t p pname pslug prev origin slug
   key="$(lock_key "$@")"
   cached="$LOCKCACHE/$key.lock"
   if [ -f "$cached" ]; then
@@ -357,12 +401,30 @@ compose() {
   # `nix flake update` with no input arguments means "all", which is never what a
   # recipe asks for — the all-tips lock is composed from the full name list.
   if [ "${#tips[@]}" -gt 0 ]; then
-    nix flake update --flake "$FLAKE_DIR" --no-warn-dirty "${tips[@]}" \
-      >"$LOGDIR/update.log" 2>&1 || {
+    run_flake_update "$LOGDIR/update.log" "${tips[@]}" || {
       echo "error: nix flake update failed for: ${tips[*]}" >&2
       cat "$LOGDIR/update.log" >&2
       exit 1
     }
+    # Unlike update_all this deliberately does not --refresh, so it answers out
+    # of nix's tarball-ttl cache — and once that hour has passed, a branch that
+    # has moved since resolves to something newer than the tip this run recorded.
+    # The recipe cache is no defence: every distinct recipe runs its own update,
+    # and the halves the partition tries are all distinct recipes. Two trials
+    # that both claim "at its tip" would then be testing two different
+    # revisions, and the bisect would go on to search the history of one no
+    # trial actually used. Put anything that drifted back where the run started.
+    for t in "${tips[@]}"; do
+      [ "$(locked_rev "$t")" = "${TIP_REV[$t]}" ] && continue
+      origin="$(input_origin "$t")"
+      slug="${origin%%$'\t'*}"
+      if [ -z "$slug" ]; then
+        echo "      warning: $t moved during the run and is not a github input," \
+          "so this trial tests the newer revision" >&2
+        continue
+      fi
+      pin_input "$t" "$slug" "${TIP_REV[$t]}" || return 1
+    done
   fi
   for p in "${pins[@]}"; do
     IFS=: read -r pname pslug prev <<<"$p"
@@ -376,8 +438,7 @@ compose() {
 # the whole point of the run is to find out what is actually newest.
 update_all() {
   cp "$BASELINE_LOCK" "$LOCK"
-  nix flake update --flake "$FLAKE_DIR" --no-warn-dirty --refresh \
-    >"$LOGDIR/update-all.log" 2>&1 || {
+  run_flake_update "$LOGDIR/update-all.log" --refresh || {
     echo "error: nix flake update failed" >&2
     cat "$LOGDIR/update-all.log" >&2
     exit 1
@@ -650,11 +711,31 @@ build_candidates() {
 
   if prefix="$(channel_prefix "$owner" "$repo" "$ref")"; then
     local -a rel_short=() rel_name=()
-    local marker="" nameprefix="nixos-"
+    local marker="" nameprefix="nixos-" chanver
     [ "$prefix" = "nixpkgs/" ] && nameprefix="nixpkgs-"
-    # A year before the tip is more history than --max-days can ever reach, and
-    # base 10 is explicit because `%y` yields a leading zero one decade in ten.
-    marker="$prefix$nameprefix$((10#$(date -u -d "@${TIP_TS[$name]}" +%y) - 1))."
+    # The marker skips the decade of releases that could not possibly be in
+    # range. A stable channel names its own version in every release it
+    # publishes (nixos-25.05.7675.abcdef1), so there the marker can be exact.
+    # Only a rolling channel has to be guessed at, and there the version in the
+    # name tracks the calendar — 26.05pre… through the first half of 2026 — so a
+    # year before the tip is more history than --max-days can ever reach. Base
+    # 10 is explicit because `%y` yields a leading zero one decade in ten.
+    #
+    # Guessing for a stable channel as well used to skip its listing whole once
+    # the channel was more than a calendar year old: every nixos-25.05.* key
+    # sorts before a "nixos-26." marker, so the tip was not in the list and the
+    # run dropped silently back to a per-day commit search — a search of
+    # revisions Hydra never built, which is the one thing channel releases are
+    # here to avoid.
+    case "$ref" in
+    nixos-[0-9][0-9].[0-9][0-9] | nixos-[0-9][0-9].[0-9][0-9]-small)
+      chanver="${ref#nixos-}"
+      marker="$prefix$nameprefix${chanver%-small}."
+      ;;
+    *)
+      marker="$prefix$nameprefix$((10#$(date -u -d "@${TIP_TS[$name]}" +%y) - 1))."
+      ;;
+    esac
     local found=-1 idx=0
     while IFS=$'\t' read -r _ short relname; do
       rel_short+=("$short")
@@ -731,11 +812,17 @@ resolve_cand() {
 declare -A REV_VERDICT REV_TS
 
 try_cand() {
-  local name="$1" slug="$2" i="$3" rev rc=0
+  local name="$1" slug="$2" i="$3" rev rc=0 lookup=0
+  # Index 0 carries the tip's revision in the candidate itself; everything else
+  # has to be asked for. Only those count towards "could anything be resolved at
+  # all", or an unreachable GitHub would still look like one successful lookup.
+  case "${CAND_SPEC[$i]}" in rev:*) ;; *) lookup=1 ;; esac
   if ! resolve_cand "$i"; then
+    [ "$lookup" -eq 1 ] && LOOKUPS_FAILED=$((LOOKUPS_FAILED + 1))
     printf '    %-38s (could not resolve; skipping)\n' "${CAND_LABEL[$i]}"
     return 1
   fi
+  [ "$lookup" -eq 1 ] && LOOKUPS_OK=$((LOOKUPS_OK + 1))
   rev="$CAND_REV"
   if [ -n "${REV_VERDICT[$rev]-}" ]; then
     printf '    %-38s %s  (already known: %s)\n' \
@@ -774,7 +861,7 @@ while IFS=$'\t' read -r name rev ts; do
 done < <(lock_revs "$BASELINE_LOCK")
 
 # Checked against the baseline rather than the tips so a typo costs nothing.
-for name in ${ONLY[@]+"${ONLY[@]}"}; do
+for name in "${ONLY[@]}"; do
   [ -n "${BASE_REV[$name]-}" ] ||
     die "no input named '$name' in the $BASELINE lock (have: ${!BASE_REV[*]})"
 done
@@ -932,6 +1019,8 @@ if [ "$BISECT" -eq 1 ] && [ "${#RED[@]}" -gt 0 ]; then
 
     CAND_REV_MEMO=()
     CAND_KIND=""
+    LOOKUPS_OK=0
+    LOOKUPS_FAILED=0
     build_candidates "$name" "$slug" "$ref"
     n="${#CAND_SPEC[@]}"
     # The baseline is the known-good far end of the range, one index past the
@@ -943,15 +1032,23 @@ if [ "$BISECT" -eq 1 ] && [ "${#RED[@]}" -gt 0 ]; then
     hi="$n"
     step=1
     idx=0
+    probed=0
     while [ "$idx" -lt "$n" ]; do
       if try_cand "$name" "$slug" "$idx"; then
         hi="$idx"
         break
       fi
       lo="$idx"
+      # One at a time while a build still buys a day of freshness worth having,
+      # counted in probes made rather than in the index reached. The two are the
+      # same thing only until the stride grows, but the count is what --linear
+      # is defined as — and testing the already-advanced index instead left the
+      # stride at 1 for one step longer than asked, so `--linear 0` and
+      # `--linear 1` both still checked two candidates and there was no way to
+      # ask for no linear prefix at all.
+      probed=$((probed + 1))
+      if [ "$probed" -ge "$LINEAR" ]; then step=$((step * 2)); fi
       idx=$((idx + step))
-      # One at a time while a build still buys a day of freshness worth having.
-      if [ "$idx" -ge "$LINEAR" ]; then step=$((step * 2)); fi
     done
     # Narrow (lo, hi] down to the newest revision that still builds. hi may still
     # be the baseline here, which is what makes the untested tail of a fully
@@ -964,6 +1061,17 @@ if [ "$BISECT" -eq 1 ] && [ "${#RED[@]}" -gt 0 ]; then
         lo="$mid"
       fi
     done
+
+    # A search in which every lookup failed found nothing because it could not
+    # ask, not because nothing builds. Saying "no revision newer than the
+    # baseline builds" there would be asserting a build verdict about revisions
+    # that were never named, let alone built — and it would read as "give up on
+    # this input" when the honest advice is "try again when GitHub answers".
+    if [ "$LOOKUPS_FAILED" -gt 0 ] && [ "$LOOKUPS_OK" -eq 0 ]; then
+      NORESOLVE+=("$name")
+      printf '    → could not resolve any candidate revision; staying at baseline\n'
+      continue
+    fi
 
     if [ "$hi" -lt "$n" ]; then
       resolve_cand "$hi" || die "lost the revision the bisect settled on for $name"
@@ -1073,11 +1181,26 @@ printf '\nDone in %s (%d build(s), %d evaluation(s)).\n' \
 
 if [ "${#STILL_BACK[@]}" -gt 0 ]; then
   echo
-  if [ "$BISECT" -eq 1 ]; then
-    echo "No revision newer than the baseline builds for the held-back input(s)."
-    echo "Re-run in a few days, or fix the breakage in the config by hand."
-  else
+  if [ "$BISECT" -eq 0 ]; then
     echo "These stay at the baseline. Re-run without --no-bisect to search their"
     echo "history for the newest revision that does build."
+  else
+    # Two different reasons an input can be left behind, and only one of them is
+    # a statement about the input.
+    SEARCHED=()
+    for name in "${STILL_BACK[@]}"; do
+      unresolved=0
+      for b in "${NORESOLVE[@]}"; do [ "$b" = "$name" ] && unresolved=1; done
+      [ "$unresolved" -eq 0 ] && SEARCHED+=("$name")
+    done
+    if [ "${#SEARCHED[@]}" -gt 0 ]; then
+      echo "No revision newer than the baseline builds for: ${SEARCHED[*]}"
+      echo "Re-run in a few days, or fix the breakage in the config by hand."
+    fi
+    if [ "${#NORESOLVE[@]}" -gt 0 ]; then
+      echo "No candidate revision could be resolved for: ${NORESOLVE[*]}"
+      echo "That is GitHub being unreachable or rate-limited, not a verdict on those"
+      echo "inputs — nothing was built for them. Re-run when it answers again."
+    fi
   fi
 fi

@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+#
+# `gh api PATH` only. The scenario is a TSV at $GH_MAP:
+#
+#   PATHGLOB<TAB>PAYLOAD
+#
+# PAYLOAD is `@/abs/path`, `-` (the request fails, which is how an unreachable
+# or rate-limited GitHub is expressed), or a literal JSON string.
+set -uo pipefail
+
+printf '%s\n' "$*" >>"${STUBLOG:?}/gh.log"
+
+[[ "${1:-}" == api ]] || {
+  echo "gh stub: unhandled command '${1:-}'" >&2
+  exit 1
+}
+path="${2:-}"
+printf '%s\n' "$path" >>"$STUBLOG/gh-paths.log"
+
+MAP="${GH_MAP:-}"
+[[ -f "$MAP" ]] || {
+  echo "gh: no scenario map" >&2
+  exit 1
+}
+
+while IFS=$'\t' read -r pat payload; do
+  [[ -n "$pat" && "$pat" != '#'* ]] || continue
+  # shellcheck disable=SC2053
+  if [[ "$path" == $pat ]]; then
+    case "$payload" in
+    '-')
+      echo "gh: API rate limit exceeded" >&2
+      exit 1
+      ;;
+    '@'*) cat "${payload#@}" ;;
+    *) printf '%s\n' "$payload" ;;
+    esac
+    exit 0
+  fi
+done <"$MAP"
+
+echo "gh: not found" >&2
+exit 1

@@ -1,0 +1,13 @@
+# shellcheck settings for the suite. Three blanket disables, each because the
+# thing being flagged is how the suite is built rather than a mistake in it:
+#
+#   SC1091  every case sources its libraries through $TESTS_DIR, which cannot be
+#           resolved statically.
+#   SC2016  jq programs are single-quoted deliberately; $x inside one is a jq
+#           variable, not a shell one.
+#   SC2034  the libraries define names for the cases to use, and the cases
+#           define globals for functions extracted out of the scripts under
+#           test, so "unused here" is the normal state for both.
+disable=SC1091
+disable=SC2016
+disable=SC2034

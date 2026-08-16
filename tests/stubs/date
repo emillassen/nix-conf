@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+#
+# Real date for every formatting job, a fake clock for "what time is it now".
+# $FAKE_CLOCK names a file holding the current epoch seconds; the sleep stub
+# advances it, so a script that paces itself against the clock can be driven
+# through hours of waiting in milliseconds.
+set -uo pipefail
+
+if [[ -n "${FAKE_CLOCK:-}" && -f "$FAKE_CLOCK" ]]; then
+  case "$*" in
+  '+%s')
+    printf '%s\n' "$(cat "$FAKE_CLOCK")"
+    exit 0
+    ;;
+  esac
+fi
+exec env PATH="${HOST_PATH:?date stub: HOST_PATH is not set}" date "$@"

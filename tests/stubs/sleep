@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+#
+# Never actually sleeps: it records the requested duration and advances the fake
+# clock by it. A case can then assert the exact schedule a wait produced —
+# "60, 120, 240, 480" — in no time at all.
+set -uo pipefail
+
+printf '%s\n' "$1" >>"${STUBLOG:?}/sleep.log"
+
+if [[ -n "${FAKE_CLOCK:-}" && -f "$FAKE_CLOCK" ]]; then
+  now="$(cat "$FAKE_CLOCK")"
+  secs="${1%%.*}"
+  [[ "$secs" =~ ^[0-9]+$ ]] || secs=0
+  printf '%s' "$((now + secs))" >"$FAKE_CLOCK"
+fi
+exit 0

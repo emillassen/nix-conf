@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+#
+# flake-up-safe.sh asks git exactly one thing: what flake.lock looks like at
+# HEAD. $FLAKE_SIM/head.lock is that; delete it to simulate a checkout with no
+# committed lock (which is what --baseline worktree is for).
+set -uo pipefail
+
+SIM="${FLAKE_SIM:?git stub: FLAKE_SIM is not set}"
+printf '%s\n' "$*" >>"${STUBLOG:?}/git.log"
+
+args=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  -C)
+    shift 2
+    continue
+    ;;
+  esac
+  args+=("$1")
+  shift
+done
+
+case "${args[0]:-}" in
+show)
+  case "${args[1]:-}" in
+  'HEAD:./flake.lock')
+    [[ -f "$SIM/head.lock" ]] || {
+      echo "fatal: path 'flake.lock' does not exist in 'HEAD'" >&2
+      exit 128
+    }
+    cat "$SIM/head.lock"
+    ;;
+  *)
+    echo "git stub: unhandled show target '${args[1]:-}'" >&2
+    exit 128
+    ;;
+  esac
+  ;;
+*)
+  echo "git stub: unhandled command '${args[0]:-}'" >&2
+  exit 1
+  ;;
+esac

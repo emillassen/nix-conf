@@ -8,28 +8,6 @@
   # You can change versions, add patches, set compilation flags, anything really.
   # https://wiki.nixos.org/wiki/Overlays
   modifications = _final: prev: {
-    # nixpkgs made fmt 12 the default, but SDL_audiolib is deliberately pinned to
-    # a 2022 commit ("don't update to latest master as it will break some sounds
-    # in devilutionx"), and that revision only ever includes <fmt/core.h>. fmt 12
-    # moved the format API out of core.h, so every fmt::format call in it fails to
-    # compile. Its public headers and CMake/pkg-config files don't mention fmt at
-    # all, so this stays contained here — devilutionx itself still builds against
-    # the default fmt.
-    #
-    # TEMPORARY: upstream landed exactly this fix in nixpkgs 6d745118 (PR #552375,
-    # 2026-08-13), which as of 2026-08-15 is in master but not yet in the
-    # nixos-unstable branch we track. Once a `nix flake update` pulls it in, the
-    # override below produces the very same derivation upstream already does, and
-    # the warnIf fires on every evaluation telling you to delete this block. Don't
-    # silence it — that warning IS the expiry date.
-    SDL_audiolib =
-      let
-        pinned = prev.SDL_audiolib.override { fmt = prev.fmt_11; };
-      in
-      prev.lib.warnIf (pinned.drvPath == prev.SDL_audiolib.drvPath)
-        "overlays.modifications: the SDL_audiolib fmt_11 pin is now redundant (nixpkgs applies it itself) — delete it from overlays/default.nix"
-        pinned;
-
     # Upstream's portable tarball ships no .desktop file or icon, so the GUI
     # (which is what `filebot` with no arguments starts) is only reachable from
     # a terminal. Lift the app icons out of filebot.jar and add a launcher.

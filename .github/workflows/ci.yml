@@ -26,7 +26,7 @@ jobs:
           persist-credentials: false
 
       - name: Check flake health
-        uses: DeterminateSystems/flake-checker-action@v13
+        uses: DeterminateSystems/flake-checker-action@v14
         with:
           nixpkgs-keys: nixpkgs,nixpkgs-stable
 

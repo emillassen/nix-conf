@@ -68,7 +68,7 @@ Applications:
 │       └── steam.nix         # Gaming
 ├── modules/                  # Reusable NixOS / Home Manager modules
 ├── overlays/default.nix      # Custom package overlays
-├── pkgs/                     # Custom packages (drtv-dl, standardebooks-dl, vuescan, devilutionx)
+├── pkgs/                     # Custom packages (drtv-dl, standardebooks-dl, vuescan, devilutionx) + filebot pin
 ├── secrets/                  # Encrypted secrets (SOPS)
 └── scripts/                  # Installation and setup scripts
 ```

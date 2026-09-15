@@ -7,4 +7,7 @@ pkgs: {
   standardebooks-dl = pkgs.callPackage ./standardebooks-dl { };
   vuescan = pkgs.callPackage ./vuescan { };
   devilutionx = pkgs.callPackage ./devilutionx { };
+  # ./filebot overrides nixpkgs' filebot instead of adding one, so it is applied
+  # by the `modifications` overlay. Listing it here would make the `additions`
+  # overlay resolve its own `filebot` argument — infinite recursion.
 }

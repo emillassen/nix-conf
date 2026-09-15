@@ -96,6 +96,11 @@
           };
         in
         import ./pkgs pkgs
+        // {
+          # filebot can't live in ./pkgs (see there). `pkgs` is a plain nixpkgs
+          # here, so `nix build .#filebot` is the way to test an update.sh bump.
+          filebot = pkgs.callPackage ./pkgs/filebot { };
+        }
       );
       # Formatter for your nix files, available through 'nix fmt'
       # (nixfmt-tree = treefmt+nixfmt; plain nixfmt only reads stdin when nix

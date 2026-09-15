@@ -44,6 +44,9 @@ nh clean all
 # Custom packages can be built directly
 nix build .#devilutionx
 
+# Bump filebot to the latest upstream release (nixpkgs lags it by months).
+./pkgs/filebot/update.sh       # -n reports what would change, writes nothing
+
 # The shell test suite: hermetic, offline, no network and no Nix daemon.
 # Takes ~30s. Not wired into `nix flake check` - run it by hand.
 ./tests/run.sh                 # everything
@@ -144,7 +147,7 @@ outright and is refused alongside `-H`.
 
 Inputs: nixpkgs (nixos-unstable), nixpkgs-stable (26.05), disko, home-manager, nixos-hardware, nix-vscode-extensions, sops-nix, pre-commit-hooks (URL is `cachix/git-hooks.nix`, the renamed pre-commit-hooks.nix repo), nixvim, catppuccin, llm-agents. Every input follows the main nixpkgs **except `llm-agents`**, which keeps its own pinned nixpkgs on purpose so the numtide binary cache applies — do not add `follows` to it.
 
-- `nixos/configuration.nix` — Main system config. Imports hardware config, disks, KDE, and the `common/` modules, and wires in Home Manager. All nixpkgs overlays and config (allowUnfree) live **here** and serve both system and HM: `additions` (pkgs/), `modifications` (currently just `filebot`: upstream ships no launcher, so the overlay extracts the app icons from `filebot.jar` and adds a desktop entry), `stable-packages` (`pkgs.stable`), `nix-vscode-extensions` (`pkgs.vscode-marketplace.*`). The AI agents are deliberately not an overlay: they are referenced directly as `inputs.llm-agents.packages.<system>.*` (in `home.nix` and `config/vscode.nix`), the pattern upstream's README documents, so the numtide cache applies.
+- `nixos/configuration.nix` — Main system config. Imports hardware config, disks, KDE, and the `common/` modules, and wires in Home Manager. All nixpkgs overlays and config (allowUnfree) live **here** and serve both system and HM: `additions` (pkgs/), `modifications` (currently just `filebot`, whose whole expression lives in `pkgs/filebot/` — see below), `stable-packages` (`pkgs.stable`), `nix-vscode-extensions` (`pkgs.vscode-marketplace.*`). The AI agents are deliberately not an overlay: they are referenced directly as `inputs.llm-agents.packages.<system>.*` (in `home.nix` and `config/vscode.nix`), the pattern upstream's README documents, so the numtide cache applies.
 - `nixos/common/` — `pipewire.nix` (audio), `sops.nix` (secrets, see below), `yubikey.nix` (GPG agent + SSH support, yubikey-manager, touch detector), `cifs.nix` (NAS automounts at `/mnt/<share>` from 192.168.1.30, credentials via a sops template), `steam.nix` (+ gamemode, proton-ge), `catppuccin.nix` (system theming: SDDM, TTY, Plymouth).
 - `nixos/kde.nix` — active desktop (Plasma 6, SDDM on Wayland, autologin). `nixos/gnome.nix` exists but its import is commented out in `configuration.nix`.
 - `nixos/disks.nix` — Disko layout: GPT, 2G ESP, LUKS (`crypted`, discards allowed) with ext4 root. `passwordFile = /tmp/secret.key` is only used at install time.
@@ -162,6 +165,7 @@ Inputs: nixpkgs (nixos-unstable), nixpkgs-stable (26.05), disko, home-manager, n
   **Hazard:** a hidden `/honeypot` link in the site header is wired to fail2ban with `bantime = 24h, maxretry = 1` — a single GET firewall-bans the IP for 24 hours. Never follow SE links blindly; only construct download/catalog URLs.
 
 - `vuescan` — unfree scanner binary fetched from a personal mirror (github.com/emillassen/binary-mirror releases), autoPatchelf'd; the release tag/URL interpolates `version`.
+- `filebot` — nixpkgs' filebot with `version`/`src` repinned to the latest release on get.filebot.net, because nixpkgs lags by months (5.2.1 there against 5.3.0 upstream; NixOS/nixpkgs#533518 for 5.2.3 open since June); the rest of the derivation stays nixpkgs'. Also adds the `.desktop` file and icons upstream omits, extracted from `filebot.jar` — which has junk before the zip header, so `unzip` always exits 1 and the extracted file is tested instead of the status. Refresh with `pkgs/filebot/update.sh`: it reads the version off the portable-tarball link on filebot.net (there is no git repo, release feed or API) and refuses anything older than the pin, so a cached page can't downgrade the system. Deliberately **not** in `pkgs/default.nix` — it is applied by the `modifications` overlay and exposed separately in `flake.nix`, since an overlay that both defines and consumes `filebot` is infinite recursion; `nix build .#filebot` tests a bump.
 - `devilutionx` — built from a pinned upstream master commit with vendored dependency pins (`FETCHCONTENT_SOURCE_DIR_*`); refresh with `pkgs/devilutionx/update.sh`.
 
 ## Tests

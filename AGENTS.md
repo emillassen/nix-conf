@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to coding agents (Claude Code, Codex) when working with code in this repository.
 
 ## What This Is
 
@@ -239,3 +239,7 @@ Actions used: checkout@v7, determinate-nix-action@v3, magic-nix-cache-action@v14
 - Git: **work directly on `main` — do not create a branch to commit.** This is a single-user config repo with no human PR workflow and CI disabled, so a branch just leaves work stranded behind a merge the owner has to do by hand. Commit to `main` when asked to commit; `nix flake check` is the gate that would otherwise be a review. (The `update-*` and `claude/*` branches on the remote are bot-opened PR branches — leave them alone.)
 - Git: commits are GPG-signed by default (key on a YubiKey — a touch may be required). SSH remote operations also need the YubiKey; the `gh` CLI is authenticated and is the reliable path for GitHub API/HTTPS operations. Commit style: short imperative subject line, then a body explaining the why (see `git log`).
 - `pkgs.stable` = nixpkgs 26.05; the primary channel is nixos-unstable.
+
+## Model routing
+
+The user-level `model-routing` skill has the table. Module edits are Sonnet at medium, and `nix flake check -v` is the test. Anything touching boot, disko, LUKS, sops secrets or flake inputs is planned on Opus at high and reviewed by Codex. Check that an option exists in the pinned nixpkgs before using it: models invent NixOS options.

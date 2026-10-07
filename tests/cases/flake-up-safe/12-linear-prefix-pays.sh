@@ -4,7 +4,7 @@
 # search assumes, and a pure doubling search lands on the older good stretch.
 #
 # The window: the tip is broken, one day back builds (the true newest), days 2
-# through 23 are broken again, and days 24 and older build. CLAUDE.md quotes
+# through 23 are broken again, and days 24 and older build. AGENTS.md quotes
 # measured numbers for exactly this shape; these are those numbers, re-measured.
 . "${TESTS_DIR:?}/lib/harness.sh"
 . "$TESTS_DIR/lib/sim-flake.sh"

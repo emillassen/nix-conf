@@ -138,7 +138,7 @@ per edge: `--opf-path`, `--cover-href`, `--cover-href-xml`, `--cover-bytes`,
 
 Every stub logs its argv to `$STUBLOG/<name>.log`. That is what makes "how many
 builds did that cost" and "was this episode extracted at all" assertable, and it
-is the only way the efficiency claims in CLAUDE.md can be checked.
+is the only way the efficiency claims in AGENTS.md can be checked.
 
 **`nix`** — universe in `$FLAKE_SIM`:
 

@@ -83,13 +83,13 @@ disagree with the script over every title.
 scratchpad. `tests/build-check.sh` already does this correctly; copy it rather
 than improvising.
 
-**prettier formats CLAUDE.md** via the pre-commit hook, and `nix flake check`
+**prettier formats AGENTS.md** via the pre-commit hook, and `nix flake check`
 discards a hook's auto-fix and only prints the diff. Run
-`/nix/store/*prettier*/bin/prettier --write CLAUDE.md` directly instead of
+`/nix/store/*prettier*/bin/prettier --write AGENTS.md` directly instead of
 applying a printed diff by hand. The glob matches more than one store path, and
 the extra ones are then passed to prettier as _files_ — the "No parser could be
 inferred" lines that follow are that, not a failure to format. Read the
-`CLAUDE.md … (unchanged|Nms)` line for the real answer.
+`AGENTS.md … (unchanged|Nms)` line for the real answer.
 
 **The library's author directory is the _sanitized_ name.** A test that
 pre-creates one to set its permissions has to spell it as `sanitize` leaves it —

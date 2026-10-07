@@ -2,7 +2,7 @@
 # --max-days caps the *candidate list length*, not a span of days. For a
 # channel-tracking nixpkgs a candidate is a release and unstable publishes
 # several a day, so -d 3 reaches nowhere near three days back. This pins the
-# behaviour; the help text and CLAUDE.md are what had to change.
+# behaviour; the help text and AGENTS.md are what had to change.
 . "${TESTS_DIR:?}/lib/harness.sh"
 . "$TESTS_DIR/lib/sim-flake.sh"
 test_init "flake-up-safe: --max-days counts candidates"

@@ -97,7 +97,7 @@ way to end up with a second half-harness.
 ## Procedure A: orient
 
 1. Run `./tests/run.sh` and confirm it is green.
-2. Read the "Tests" section of CLAUDE.md, then `tests/lib/harness.sh`.
+2. Read the "Tests" section of AGENTS.md, then `tests/lib/harness.sh`.
 3. Read `references/findings.md`, especially "Known gaps in coverage" and
    "Open questions" — that is the backlog this pass draws from.
 4. Pick targets. `flake-up-safe.sh` stays the highest-value of the three: it is
@@ -131,7 +131,7 @@ Work from a hypothesis to a failing test to a fix, in that order.
    these scripts' most important guarantees are about files they leave behind or
    restore, and `assert_files_identical` is what "left exactly as found" means.
 4. Assert on stub invocation counts where the claim is about cost — `builds_run`,
-   `drtv_extractions`, `stub_count curl-urls`. The efficiency claims in CLAUDE.md
+   `drtv_extractions`, `stub_count curl-urls`. The efficiency claims in AGENTS.md
    are only testable that way.
 5. Keep the suite offline, hermetic and under a minute.
 6. Run shellcheck on everything added: it is not on the interactive PATH, so use
@@ -151,10 +151,10 @@ reasoning that produced those two.
 
 ## Procedure E: keep the documentation true
 
-CLAUDE.md documents all three scripts in unusual detail and each script carries
+AGENTS.md documents all three scripts in unusual detail and each script carries
 its own usage block. Behaviour changes update both in the same pass; stale docs
-here are loud. After editing CLAUDE.md run
-`/nix/store/*prettier*/bin/prettier --write CLAUDE.md` — `nix flake check`
+here are loud. After editing AGENTS.md run
+`/nix/store/*prettier*/bin/prettier --write AGENTS.md` — `nix flake check`
 discards the hook's auto-fix and only prints a diff.
 
 After touching a `pkgs/**/*.sh`, run `./tests/build-check.sh`: those builds are

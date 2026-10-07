@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Property 3: a breakage that only exists in combination. `a` alone builds, `b`
-# alone builds, `a`+`b` together do not. CLAUDE.md claims the partition scheme
+# alone builds, `a`+`b` together do not. AGENTS.md claims the partition scheme
 # catches this without a separate combine pass, because every trial is
 # "everything kept so far, plus this half". Prove it.
 . "${TESTS_DIR:?}/lib/harness.sh"

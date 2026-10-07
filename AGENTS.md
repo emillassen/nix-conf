@@ -206,7 +206,7 @@ hidden `/honeypot` link in their page header is wired to fail2ban with `maxretry
 bantime = 24h`.
 
 Extending the suite is what the `/test-scripts` skill
-(`.claude/skills/test-scripts/`) is for: its `references/` carry the stub contracts, the
+(`.agents/skills/test-scripts/`) is for: its `references/` carry the stub contracts, the
 findings ledger (fixed, refuted, still uncovered) and the bash traps that have already
 cost a debugging round.
 

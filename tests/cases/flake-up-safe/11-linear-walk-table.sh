@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Property 11a: `--linear N` means "the first N candidates are checked one at a
-# time, then the stride starts doubling". Both --help and CLAUDE.md say so, and
+# time, then the stride starts doubling". Both --help and AGENTS.md say so, and
 # in particular say that 0 skips from the start.
 #
 # This pins the whole walk, because the walk is the part of the bisect that

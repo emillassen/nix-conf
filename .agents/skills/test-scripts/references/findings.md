@@ -85,7 +85,7 @@ evidence.
 
 ## Corrected documentation
 
-CLAUDE.md's measured claim for the bad-good-bad-good window was half right. On a
+AGENTS.md's measured claim for the bad-good-bad-good window was half right. On a
 window of that shape — tip broken, one day back good, days 2–23 broken, day 24
 and older good — the default does find the true newest in 3 builds, and
 `--linear 0` does settle 23 days further back, but it pays 10 builds, not the 7

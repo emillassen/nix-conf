@@ -6,7 +6,7 @@ My personal [NixOS](https://nixos.org/) configuration using [Nix Flakes](https:/
 
 | Hostname |       Hardware        |      CPU       | RAM  |       GPU       | Desktop |
 | :------: | :-------------------: | :------------: | :--: | :-------------: | :-----: |
-|  `fw13`  | Framework 13 7040 AMD | AMD Ryzen 7040 | 32GB | AMD Radeon 780M |   KDE   |
+|  `fw13`  | Framework 13 7040 AMD | AMD Ryzen 7040 | 64GB | AMD Radeon 780M |   KDE   |
 
 ## What's Set Up
 

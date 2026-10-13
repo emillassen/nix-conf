@@ -4,7 +4,7 @@ This file provides guidance to coding agents (Claude Code, Codex) when working w
 
 ## What This Is
 
-A NixOS flake configuration for a Framework 13 7040 AMD laptop (host `fw13`, 32GB RAM, Radeon 780M iGPU), running KDE Plasma 6 on Wayland. Single host, single user (`emil`, zsh, home at `/home/emil`). Home Manager is integrated as a NixOS module, shares the system nixpkgs instance (`home-manager.useGlobalPkgs = true`), and installs `home.packages` through the system closure at `/etc/profiles/per-user/emil` (`useUserPackages = true` — not the mutable `~/.nix-profile`, whose GC root `nh clean` 4.4.0 deletes, nh issue #722). `README.md` has a feature overview.
+A NixOS flake configuration for a Framework 13 7040 AMD laptop (host `fw13`, 64GB RAM, Radeon 780M iGPU), running KDE Plasma 6 on Wayland. Single host, single user (`emil`, zsh, home at `/home/emil`). Home Manager is integrated as a NixOS module, shares the system nixpkgs instance (`home-manager.useGlobalPkgs = true`), and installs `home.packages` through the system closure at `/etc/profiles/per-user/emil` (`useUserPackages = true` — not the mutable `~/.nix-profile`, whose GC root `nh clean` 4.4.0 deletes, nh issue #722). `README.md` has a feature overview.
 
 ## Build and Development Commands
 

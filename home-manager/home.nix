@@ -55,6 +55,7 @@
       #bambu-studio # PC Software for BambuLab's 3D printers
       # bat, btop and lazygit are configured as programs in config/catppuccin.nix
       # so Catppuccin can theme them.
+      blender # 3D modelling suite
       bottom # System monitor (btm command)
       blisp # In-System-Programming (ISP) tool & library
       calibre # E-book management application

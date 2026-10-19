@@ -121,7 +121,7 @@
     ]
     # AI coding agents, referenced directly from the flake's packages output as
     # upstream's README documents (built against its own pinned nixpkgs, so the
-    # numtide binary cache applies). claude-code is declared in config/vscode.nix.
+    # numtide binary cache applies). claude-code and codex are declared in config/vscode.nix.
     ++ (with inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}; [
       opencode # Open source coding agent
       gemini-cli # Google Gemini CLI agent

@@ -13,9 +13,10 @@
     with pkgs;
     lib.mkAfter [
       ansible-lint
-      # CLI backing the claude-code VSCode extension (direct flake reference
-      # per upstream's README, keeping its binary cache)
+      # CLIs backing the claude-code and codex VSCode extensions (direct flake
+      # references per upstream's README, keeping its binary cache)
       inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}.claude-code
+      inputs.llm-agents.packages.${pkgs.stdenv.hostPlatform.system}.codex
       nixd
       nixfmt
       pre-commit
@@ -41,6 +42,7 @@
         vscode-marketplace.jeff-hykin.better-dockerfile-syntax
         vscode-marketplace.jeff-hykin.better-nix-syntax
         vscode-marketplace.jnoortheen.nix-ide
+        vscode-marketplace.openai.chatgpt
         vscode-marketplace.ms-python.python
         vscode-marketplace.ms-python.vscode-pylance
         vscode-marketplace.pkief.material-icon-theme

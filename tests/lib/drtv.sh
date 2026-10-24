@@ -14,7 +14,7 @@ DRTV_LIB=""
 DRTV_SCEN=""
 
 drtv_init() {
-  use_stubs yt-dlp curl
+  use_stubs yt-dlp curl ffprobe ffmpeg systemd-inhibit
   DRTV_LIB="$TMP/library"
   DRTV_SCEN="$TMP/scenario.json"
   # A case may set up more than one scenario; each starts from an empty library

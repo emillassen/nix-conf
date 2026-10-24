@@ -11,6 +11,10 @@
 #     "videos":        { "<url>": { id, ext, series, season_number,
 #                                   episode_number, episode, title, ... } } }
 #
+# A video may also carry a "payload": what the downloaded file contains, in
+# place of the default "video bytes for <id>". The ffprobe and ffmpeg stubs
+# read their verdict on a download from it.
+#
 # What is faithfully reproduced: the output-template language drtv-dl actually
 # uses (%%, %(a,b)s alternatives, %(field&TEXT|FALLBACK)s conditionals with {}
 # and {:02d}, and the ⧸ substitution yt-dlp makes for a slash inside a
@@ -339,7 +343,7 @@ for v in ${LEAVES[@]+"${LEAVES[@]}"}; do
   [[ "$skip_download" == 1 ]] && continue
 
   mkdir -p "${media%/*}"
-  printf 'video bytes for %s\n' "$(field id)" >"$media"
+  printf '%s\n' "${F[payload]:-video bytes for $(field id)}" >"$media"
   [[ -n "$archive" ]] && printf 'drtv %s\n' "$(field id)" >>"$archive"
   if [[ -n "$exec_cmd" ]]; then
     cmd="${exec_cmd#after_move:}"

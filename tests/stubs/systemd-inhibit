@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+#
+# systemd-inhibit that takes no lock: it records its argv and runs the command
+# it was given, so a case can see what was held around what. With
+# SYSTEMD_INHIBIT_REFUSE=1 it fails the way a polkit refusal does - without
+# running the command at all.
+set -uo pipefail
+
+printf '%s\n' "$*" >>"${STUBLOG:?}/systemd-inhibit.log"
+if [[ "${SYSTEMD_INHIBIT_REFUSE:-0}" == 1 ]]; then
+  echo "Failed to inhibit: Access denied" >&2
+  exit 1
+fi
+while [[ $# -gt 0 && "$1" == --* ]]; do shift; done
+exec "$@"

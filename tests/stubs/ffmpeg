@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+#
+# ffmpeg, as far as drtv-dl's download check uses it: a decode to the null
+# muxer. A video whose payload says "corrupt" decodes with the errors a
+# zero-filled stretch of H.264 produces - and, like the real thing, exits 0
+# anyway, which is why the check reads the error output instead.
+set -uo pipefail
+
+printf '%s\n' "$*" >>"${STUBLOG:?}/ffmpeg.log"
+file=""
+while [[ $# -gt 0 ]]; do
+  if [[ "$1" == -i ]]; then
+    file="$2"
+    shift
+  fi
+  shift
+done
+if [[ ! -f "$file" ]]; then
+  printf '%s: No such file or directory\n' "$file" >&2
+  exit 1
+fi
+case "$(cat -- "$file")" in
+*corrupt*)
+  printf '[h264 @ 0x5f458639cd00] Invalid NAL unit size (0 > 2682).\n' >&2
+  printf '[h264 @ 0x5f458639cd00] missing picture in access unit with size 2686\n' >&2
+  ;;
+esac
+exit 0

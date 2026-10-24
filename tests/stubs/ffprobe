@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+#
+# ffprobe, as far as drtv-dl's download check asks it anything: the streams of
+# a downloaded video, as "codec_type,duration" lines. The yt-dlp stub writes
+# each "video" from the scenario's payload, and the payload decides the answer:
+#
+#   ...no-audio...     a video stream and nothing else
+#   ...short-video...  video that stops at 80s of a 305s episode
+#   anything else      a whole 300s episode
+set -uo pipefail
+
+printf '%s\n' "$*" >>"${STUBLOG:?}/ffprobe.log"
+file=""
+while [[ $# -gt 0 ]]; do
+  if [[ "$1" == -i ]]; then
+    file="$2"
+    shift
+  fi
+  shift
+done
+if [[ ! -f "$file" ]]; then
+  printf '%s: No such file or directory\n' "$file" >&2
+  exit 1
+fi
+case "$(cat -- "$file")" in
+*no-audio*) printf 'video,300.000000\n' ;;
+*short-video*) printf 'video,80.000000\naudio,305.080000\n' ;;
+*) printf 'video,300.000000\naudio,300.000000\n' ;;
+esac

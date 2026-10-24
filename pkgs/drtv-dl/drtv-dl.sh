@@ -40,6 +40,16 @@ fetch, with a rolling estimate of the time left:
 
   drtv-dl: [7/23] finished: Gurli Gris/Season 10/... - 16 left, ~1h12m
 
+Each downloaded video is checked before it counts: flushed to disk and read
+back past the page cache, it must have both an audio and a video stream of
+the same length, and decode without errors (about 30s for a half-hour
+episode). One that fails is moved to .drtv-broken/ in the library root, which
+Jellyfin is told to skip, and named in the summary; the next run downloads it
+again, and the broken copy is deleted once a good one arrives. A fragment
+yt-dlp cannot fetch fails that video instead of leaving a gap in it, and the
+download holds a sleep inhibitor, so an idle suspend cannot cut it short
+(closing a laptop's lid still suspends).
+
 Options:
   -d DIR   root of your TV library (default: current directory)
   -l       don't download; print the episode links instead, one per line
@@ -290,15 +300,18 @@ fi
 
 # Scratch files for the rest of the run: the throwaway download archive fed
 # to yt-dlp, the list of files this run actually downloaded (printed in the
-# summary), and yt-dlp's captured stderr (its WARNING/ERROR lines are
-# repeated in the summary, where they can't scroll out of sight).
+# summary), the ones that arrived but failed the check in the announce hook
+# below, and yt-dlp's captured stderr (its WARNING/ERROR lines are repeated in
+# the summary, where they can't scroll out of sight).
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 archive="$tmpdir/archive"
 manifest="$tmpdir/manifest"
+broken="$tmpdir/broken"
 errlog="$tmpdir/errlog"
 : >"$archive"
 : >"$manifest"
+: >"$broken"
 : >"$errlog"
 
 # One template serves both layouts. Films (/drtv/program/ URLs) carry no
@@ -587,18 +600,84 @@ dest_abs="$(realpath -m -- "$dest")"
 # and the summary reported nothing downloaded. The values travel through the
 # environment instead, which yt-dlp hands on to --exec, and the heredoc is
 # quoted so the script below is literal.
-export DRTV_DEST="$dest_abs" DRTV_MANIFEST="$manifest"
+export DRTV_DEST="$dest_abs" DRTV_MANIFEST="$manifest" DRTV_BROKEN="$broken"
 export DRTV_TOTAL="$remaining" DRTV_STARTED="$started"
 
+# The hook is also where each video is checked, since it fires once the file
+# is in its final place - after the merge, the embedding and the move onto a
+# NAS, any of which can be the step that broke it. None of the failures this
+# looks for make yt-dlp complain: a video whose fragments ran out early (the
+# picture stops while the sound plays on), one saved without its audio, and
+# one with holes of zero bytes where a suspend lost the share's writes. A video
+# that fails goes to .drtv-broken/ under the library root rather than being
+# deleted: the next run sees it missing and downloads it again, but if DR has
+# taken the episode down by then, a copy with a broken stretch still beats
+# none. A copy that passes deletes the broken one it replaces.
 announce="$tmpdir/announce"
 cat >"$announce" <<'EOF'
 #!/bin/sh
-rel="$1"
+f="$1"
+rel="$f"
 case "$rel" in
   "$DRTV_DEST"/*) rel="${rel#"$DRTV_DEST"/}" ;;
 esac
-printf '%s\n' "$rel" >>"$DRTV_MANIFEST"
-n=$(wc -l <"$DRTV_MANIFEST")
+quarantine="$DRTV_DEST/.drtv-broken"
+
+# Prints what is wrong with the video, or nothing.
+check() {
+  # Write the file out and drop it from the page cache before reading it back:
+  # otherwise a write the share lost is served intact from local memory, and
+  # the check passes the very file it exists to catch.
+  if ! dd of="$1" oflag=nocache conv=notrunc,fdatasync count=0 status=none 2>/dev/null; then
+    echo "it could not be written out to disk"
+    return
+  fi
+  problem="$(ffprobe -v error -show_entries stream=codec_type,duration -of csv=p=0 -i "$1" 2>/dev/null |
+    awk -F, '
+      $1 == "video" && v == "" { v = $2 }
+      $1 == "audio" && a == "" { a = $2 }
+      END {
+        if (v == "") print "it has no video stream"
+        else if (a == "") print "it has no audio stream"
+        else if (v + 0 > 0 && a + 0 > 0 && (v - a > 2 || a - v > 2))
+          printf "its video lasts %ds but its audio %ds\n", v, a
+      }')"
+  if [ -n "$problem" ]; then
+    echo "$problem"
+    return
+  fi
+  # ffmpeg exits 0 after decoding garbage, so its error output is the verdict;
+  # the first line says enough, and stopping there spares the rest of a decode
+  # whose answer is already known.
+  err="$(ffmpeg -nostdin -hide_banner -v error -i "$1" -map 0:v:0 -map 0:a:0 -f null - 2>&1 | head -n 1)"
+  if [ -n "$err" ]; then
+    echo "it does not decode cleanly ($err)"
+  fi
+}
+
+reason="$(check "$f")"
+if [ -n "$reason" ]; then
+  q="$quarantine/$rel"
+  if mkdir -p "$(dirname -- "$q")" && : >"$quarantine/.ignore" && mv -f -- "$f" "$q"; then
+    where="moved to .drtv-broken/"
+  else
+    where="could not be moved aside"
+  fi
+  printf '%s\t%s\t%s\n' "$rel" "$reason" "$where" >>"$DRTV_BROKEN"
+  label="BROKEN"
+  detail="$rel - $reason; $where"
+else
+  if [ -e "$quarantine/$rel" ]; then
+    rm -f -- "$quarantine/$rel"
+    rmdir -p --ignore-fail-on-non-empty -- "$(dirname -- "$quarantine/$rel")" 2>/dev/null || true
+  fi
+  printf '%s\n' "$rel" >>"$DRTV_MANIFEST"
+  label="finished"
+  detail="$rel"
+fi
+
+# a broken video still took its turn, so it counts towards the position
+n=$(cat -- "$DRTV_MANIFEST" "$DRTV_BROKEN" | wc -l)
 left=$((DRTV_TOTAL - n))
 if [ "$DRTV_TOTAL" -gt 0 ] && [ "$left" -ge 0 ]; then
   if [ "$left" -gt 0 ]; then
@@ -610,24 +689,47 @@ if [ "$DRTV_TOTAL" -gt 0 ] && [ "$left" -ge 0 ]; then
     else
       human="${eta}s"
     fi
-    printf 'drtv-dl: [%s/%s] finished: %s - %s left, ~%s\n' "$n" "$DRTV_TOTAL" "$rel" "$left" "$human"
+    printf 'drtv-dl: [%s/%s] %s: %s - %s left, ~%s\n' "$n" "$DRTV_TOTAL" "$label" "$detail" "$left" "$human"
   else
-    printf 'drtv-dl: [%s/%s] finished: %s\n' "$n" "$DRTV_TOTAL" "$rel"
+    printf 'drtv-dl: [%s/%s] %s: %s\n' "$n" "$DRTV_TOTAL" "$label" "$detail"
   fi
 else
-  printf 'drtv-dl: finished (%s this run): %s\n' "$n" "$rel"
+  printf 'drtv-dl: %s (%s this run): %s\n' "$label" "$n" "$detail"
 fi
 EOF
 chmod +x "$announce"
+
+# A machine that suspends mid-download can lose what it had not yet written
+# out: on a network share the client gives up on the stalled writes, and the
+# file is left with holes of zero bytes (the check above catches those after
+# the fact). Hold a sleep inhibitor for the download - logind's and KDE's idle
+# suspend honour it, closing a laptop's lid does not. Taking one needs logind
+# and a polkit grant, which an SSH session may not get, and systemd-inhibit
+# runs nothing at all when refused, so try it once and download unprotected,
+# with a warning, rather than not at all.
+inhibit=()
+if command -v systemd-inhibit >/dev/null 2>&1; then
+  if systemd-inhibit --what=sleep --who=drtv-dl --why="Downloading from DRTV" true 2>/dev/null; then
+    inhibit=(systemd-inhibit --what=sleep --who=drtv-dl --why="Downloading from DRTV")
+  else
+    warn "could not block suspend (systemd-inhibit was refused);" \
+      "a suspend mid-download can leave a broken file"
+  fi
+fi
 
 # no exec (the shell kind): the trap above must clean up the scratch dir, and
 # the NFO pass below must still run (yt-dlp's exit status is re-raised at the
 # end). stderr is teed through the pipeline - shown live and kept for the
 # summary; the pipeline keeps stdout (fd 3) untouched so the progress bar
 # still renders on the terminal.
+#
+# yt-dlp skips a fragment that still fails after its retries and saves the
+# video anyway - one whose picture stops early, or that jumps. Aborting that
+# video instead leaves the episode missing, so the next run fetches it again.
 status=0
 {
-  yt-dlp \
+  "${inhibit[@]}" yt-dlp \
+    --abort-on-unavailable-fragments \
     --embed-metadata \
     --sub-langs all --embed-subs \
     --concurrent-fragments 6 \
@@ -642,6 +744,19 @@ status=0
     --exec "after_move:$announce %(filepath)q" \
     "${args[@]}" 2>&1 1>&3 | tee -a "$errlog" >&2
 } 3>&1 || status=$?
+
+# The videos the announce hook rejected count as failed downloads: each one is
+# repeated in the summary, and the run exits non-zero even when yt-dlp didn't.
+broken_n=0
+while IFS=$'\t' read -r rel reason where; do
+  broken_n=$((broken_n + 1))
+  if [[ "$where" == moved* ]]; then
+    warn "$rel failed its check: $reason; moved to ${dest}/.drtv-broken - the next run downloads it again"
+  else
+    warn "$rel failed its check: $reason; it could not be moved aside, so the next run" \
+      "will take it for downloaded - delete it to have it fetched again"
+  fi
+done <"$broken"
 
 # Turn every info.json from this run into a Jellyfin NFO
 # (https://jellyfin.org/docs/general/server/metadata/nfo/) and delete it -
@@ -788,6 +903,14 @@ while IFS= read -r -d '' f; do
   leftover_bytes=$((leftover_bytes + $(stat -c %s "$f" 2>/dev/null || echo 0)))
 done < <(find_leftovers)
 
+# Broken videos this run or an earlier one set aside. Each is deleted once a
+# retry passes; one still there after DR has dropped the episode is the only
+# copy left, so it is pointed out rather than cleaned up.
+quarantined=0
+if [[ -d "$dest/.drtv-broken" ]]; then
+  quarantined="$(find "$dest/.drtv-broken" -type f ! -name .ignore | grep -c '' || true)"
+fi
+
 {
   echo
   echo "drtv-dl: ---- run summary ----"
@@ -800,6 +923,9 @@ done < <(find_leftovers)
   fi
   if [[ "$leftover_n" -gt 0 ]]; then
     echo "drtv-dl: $leftover_n leftover file(s) from interrupted runs, $(fmt_size "$leftover_bytes") - remove with: drtv-dl -d ${dest} -c"
+  fi
+  if [[ "$quarantined" -gt 0 ]]; then
+    echo "drtv-dl: $quarantined broken video(s) kept in ${dest}/.drtv-broken - each is deleted once a retry downloads a good copy"
   fi
   if [[ ${#warnings[@]} -gt 0 || -n "$issues" || "$status" -ne 0 ]]; then
     echo "drtv-dl: warnings and errors:"
@@ -819,4 +945,7 @@ done < <(find_leftovers)
   fi
 } >&2
 
+if [[ "$status" -eq 0 && "$broken_n" -gt 0 ]]; then
+  status=1
+fi
 exit "$status"

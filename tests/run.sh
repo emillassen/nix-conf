@@ -5,8 +5,9 @@
 #
 #   ./tests/run.sh                 everything
 #   ./tests/run.sh flake           only cases whose path matches "flake"
-#   ./tests/run.sh drtv/07         a single case
+#   ./tests/run.sh drtv-dl/07      a single case
 #   KEEP_TMP=1 ./tests/run.sh …    leave each case's temp dir behind
+#   CASE_TIMEOUT=300 ./tests/run.sh   per-case limit in seconds (default 120)
 #
 # Exits non-zero if any case fails.
 
@@ -47,9 +48,17 @@ start=$SECONDS
 for f in "${cases[@]}"; do
   rel="${f#"$TESTS_DIR"/cases/}"
   printf '\n== %s\n' "$rel"
-  if bash "$f"; then
+  # A deadline per case: the cases exercise locking and waiting, and a
+  # regression there (a lock that is never released, a wait that never ends)
+  # would otherwise hang the whole run with no summary at all. --kill-after,
+  # since the case's EXIT trap gets the TERM first and a hung child may not.
+  rc=0
+  timeout --kill-after=10 "${CASE_TIMEOUT:-120}" bash "$f" || rc=$?
+  if [[ "$rc" -eq 0 ]]; then
     pass=$((pass + 1))
   else
+    [[ "$rc" -eq 124 || "$rc" -eq 137 ]] &&
+      printf '  FAIL %s: no result after %ss\n' "$rel" "${CASE_TIMEOUT:-120}"
     fail=$((fail + 1))
     failed+=("$rel")
   fi

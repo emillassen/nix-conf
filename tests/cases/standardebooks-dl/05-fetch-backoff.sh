@@ -77,3 +77,19 @@ fetch_url https://x/dead "$TMP/got5" 2>/dev/null || rc=$?
 assert_eq "but not forever" 1 "$rc"
 assert_eq "on a small fixed budget, unlike a 429" "60 120 180" \
   "$(stub_log sleep | tr '\n' ' ' | sed 's/ $//')"
+
+# --- a 200 whose transfer then breaks --------------------------------------------
+# curl prints the status it got even when the body never finished arriving (18
+# partial file, 23 write error, 28 timeout), and the site counts the download the
+# moment it answers. So this is neither a success nor a request that cost nothing:
+# fetch_url has its own answer for it, and the callers record it in the quota.
+: >"$CURL_MAP"
+rm -f "$STUBLOG"/curl-n-*
+printf 'https://x/cut\t200!18\thalf a book\n' >>"$CURL_MAP"
+rc=0
+fetch_url https://x/cut "$TMP/got-cut" 2>/dev/null || rc=$?
+assert_eq "a served-but-broken transfer is its own answer" 3 "$rc"
+printf 'https://x/never\t000\t-\n' >>"$CURL_MAP"
+rc=0
+fetch_url https://x/never "$TMP/got-never" 2>/dev/null || rc=$?
+assert_eq "while a connection that never got an answer is still plain failure" 1 "$rc"

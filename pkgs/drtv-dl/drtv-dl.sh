@@ -14,13 +14,16 @@ Episodes whose file already exists on disk are skipped up front via a cheap
 playlist scan (one API request per season) instead of being re-extracted
 one webpage at a time on every run. Films never appear in a playlist, so
 they are probed with a metadata-only extraction instead; either way,
-existing video files are never re-downloaded or rewritten.
+existing video files are never re-downloaded or rewritten. An empty file at
+a video's name does not count as one: it is removed and the video fetched.
 
 Jellyfin NFO files and artwork are generated alongside the downloads:
 tvshow.nfo, poster and season posters per series, an .nfo and thumb image
 per episode, and an .nfo plus poster per film. The NFOs carry
 <lockdata>true</lockdata>, so Jellyfin keeps DR's metadata instead of
-guessing (often wrongly) via TVDB/TMDB.
+guessing (often wrongly) via TVDB/TMDB. Only DR's own .info.json files are
+turned into NFOs and removed; ones other tools left in the library are not
+touched.
 
 With no URLs, they are read from a drtv-series.txt in the library root
 (see -d): one series or season URL per line; blank lines, #-comments and
@@ -119,11 +122,25 @@ while [[ "$dest" == */ && "$dest" != / ]]; do dest="${dest%/}"; done
 # wrong skip - but nothing removes them either, and a half-fetched video stream
 # is not free. Only yt-dlp's own scratch names are matched: subtitle and image
 # files are left alone, since those may well be the user's own.
+#
+# A per-format stream is named Ep.f137.mp4, which is also what a finished video
+# looks like when its title happens to end in ".f" and digits ("Kamera.f1").
+# The finished one has its NFO beside it under that same base; a stream never
+# does (its episode's NFO is Ep.nfo), so that is what tells them apart.
+#
+# -H everywhere this script hands $dest to find: a library root given as a
+# symlink is otherwise examined as the link itself and never descended into.
 find_leftovers() {
-  find "$dest" -regextype posix-extended -type f \
+  local f
+  while IFS= read -r -d '' f; do
+    if [[ "${f##*/}" =~ \.f[0-9]+\.[a-z0-9]+$ && -e "${f%.*}.nfo" ]]; then
+      continue
+    fi
+    printf '%s\0' "$f"
+  done < <(find -H "$dest" -regextype posix-extended -type f \
     \( -name '*.part' -o -name '*.part-Frag*' -o -name '*.ytdl' -o -name '*.temp' \
     -o -name '*.fvideo_*' -o -name '*.faudio_*' -o -regex '.*\.f[0-9]+\.[a-z0-9]+' \) \
-    -print0
+    -print0)
 }
 
 fmt_size() {
@@ -149,7 +166,21 @@ fmt_duration() {
 }
 
 # -c needs no URLs, so it runs before the subscription-file fallback below.
+#
+# "No leftover files" is a claim about the library, so it is only made after
+# the library could actually be read: a mistyped -d used to print find's error
+# and then that, and exit 0. The listing goes through a file rather than a
+# process substitution, whose exit status is lost, and a file that would not go
+# fails the run as well.
 if [[ "$clean_only" == 1 ]]; then
+  if [[ ! -d "$dest" ]]; then
+    echo "drtv-dl: $dest is not a directory" >&2
+    exit 1
+  fi
+  listing="$(mktemp)"
+  trap 'rm -f "$listing"' EXIT
+  clean_rc=0
+  find_leftovers >"$listing" || clean_rc=1
   removed=0
   freed=0
   while IFS= read -r -d '' f; do
@@ -158,14 +189,19 @@ if [[ "$clean_only" == 1 ]]; then
       removed=$((removed + 1))
       freed=$((freed + size))
       echo "drtv-dl: removed ${f#"$dest"/}"
+    else
+      clean_rc=1
     fi
-  done < <(find_leftovers)
-  if [[ "$removed" -eq 0 ]]; then
+  done <"$listing"
+  if [[ "$clean_rc" != 0 ]]; then
+    echo "drtv-dl: could not go through all of $dest - see the errors above" >&2
+  elif [[ "$removed" -eq 0 ]]; then
     echo "drtv-dl: no leftover files in $dest" >&2
-  else
+  fi
+  if [[ "$removed" -gt 0 ]]; then
     echo "drtv-dl: removed $removed leftover file(s), freeing $(fmt_size "$freed")" >&2
   fi
-  exit 0
+  exit "$clean_rc"
 fi
 
 # With no URLs, fall back to the subscription file in the library root.
@@ -354,11 +390,13 @@ meta_args=(
 # generated below are named explicitly. Subtitles and notes are named too: a
 # library of Danish television is exactly where an external .srt turns up, and
 # one sitting next to a video that is *not* there would otherwise mark the
-# episode downloaded for good.
+# episode downloaded for good. So would an empty file, or a directory, at the
+# video's name - neither of them is a video (drop_empty_media below deals with
+# the empty file).
 media_exists() {
   local f ext
   for f in "$1".*; do
-    [[ -e "$f" ]] || continue
+    [[ -f "$f" && -s "$f" ]] || continue
     ext="${f#"$1".}"
     [[ "$ext" == *.* ]] && continue
     case "$ext" in
@@ -368,6 +406,27 @@ media_exists() {
     return 0
   done
   return 1
+}
+
+# media_exists no longer counts an empty video, but yt-dlp still does: any file
+# at the final name is "already downloaded" to it, so an empty one would be
+# skipped by the download as well and stay empty for good. There is nothing in
+# it to lose, so it goes, and the download fetches the episode again. Not under
+# -n, which only reports it missing.
+drop_empty_media() {
+  local f ext
+  for f in "$1".*; do
+    [[ -f "$f" && ! -s "$f" ]] || continue
+    ext="${f#"$1".}"
+    [[ "$ext" == *.* ]] && continue
+    case "$ext" in
+      nfo | jpg | jpeg | png | webp) continue ;;
+      srt | vtt | ass | ssa | sub | txt) continue ;;
+    esac
+    if rm -f -- "$f"; then
+      echo "drtv-dl: removed empty ${f#"$dest"/}; downloading it again" >&2
+    fi
+  done
 }
 
 # Re-running on a series normally re-extracts every episode (webpage + stream
@@ -413,23 +472,37 @@ if [[ "$recheck" == 0 && ${#playlist_urls[@]} -gt 0 ]]; then
       season_urls+=("$url")
     fi
   done
+  # Both scans run through files rather than process substitutions so that
+  # their exit status survives: with --ignore-errors yt-dlp carries on past a
+  # playlist it cannot read and exits 1 at the end, and -n has to know - a list
+  # of what is missing that silently left a season out reads as "you have it".
+  # (An ordinary run does not need telling: the download pass tries the same
+  # URLs and reports them itself.)
+  scan_failed=0
   # A flat scan of a series stops at its seasons, so expand those first.
   if [[ ${#serie_urls[@]} -gt 0 ]]; then
+    yt-dlp --ignore-errors --flat-playlist --print url "${serie_urls[@]}" \
+      >"$tmpdir/seasons" 2>"$tmpdir/scan-errors" || scan_failed=1
     while IFS= read -r line; do
       [[ "$line" == http* ]] && season_urls+=("$line")
-    done < <(yt-dlp --ignore-errors --flat-playlist --print url "${serie_urls[@]}" 2>/dev/null || true)
+    done <"$tmpdir/seasons"
   fi
 
   if [[ ${#season_urls[@]} -gt 0 ]]; then
+    yt-dlp --ignore-errors --flat-playlist "${meta_args[@]}" \
+      --output "$outtmpl" --print id --print filename --print url "${season_urls[@]}" \
+      >"$tmpdir/episodes" 2>>"$tmpdir/scan-errors" || scan_failed=1
     while IFS= read -r id && IFS= read -r name && IFS= read -r url; do
       scanned=$((scanned + 1))
       # flat-playlist entries have no known extension, so this is ".NA" - but
       # strip whatever is there, the same way the film probe below has to
       base="${name%.*}"
       scanned_bases["$base"]=1
+      [[ "$check_only" == 1 ]] || drop_empty_media "$base"
       if media_exists "$base"; then
         present=$((present + 1))
-        if [[ -e "$base.nfo" ]]; then
+        # -s: an NFO cut off by an interrupted write is empty, and is no sidecar
+        if [[ -s "$base.nfo" ]]; then
           if [[ "$check_only" == 0 ]]; then
             printf 'drtv %s\n' "$id" >>"$archive"
           fi
@@ -442,8 +515,7 @@ if [[ "$recheck" == 0 && ${#playlist_urls[@]} -gt 0 ]]; then
       elif [[ "$check_only" == 1 ]]; then
         printf '%s\n' "${base#"$dest/"}"
       fi
-    done < <(yt-dlp --ignore-errors --flat-playlist "${meta_args[@]}" \
-      --output "$outtmpl" --print id --print filename --print url "${season_urls[@]}" 2>/dev/null || true)
+    done <"$tmpdir/episodes"
     if [[ "$check_only" == 0 ]]; then
       if [[ "$scanned" -gt 0 ]]; then
         echo "drtv-dl: $present of $scanned episodes already on disk; skipping those" >&2
@@ -460,6 +532,10 @@ if [[ "$recheck" == 0 && ${#playlist_urls[@]} -gt 0 ]]; then
   elif [[ "$check_only" == 1 && "$probe_has_url" == 0 ]]; then
     echo "drtv-dl: -n: could not expand the URLs into season playlists" >&2
     exit 1
+  fi
+  if [[ "$check_only" == 1 && "$scan_failed" == 1 ]]; then
+    warn "some series or seasons could not be scanned, so this list is incomplete:"
+    grep -E '^ERROR:' "$tmpdir/scan-errors" | sort -u | sed 's/^/drtv-dl:   /' >&2 || true
   fi
 fi
 
@@ -504,8 +580,20 @@ if [[ "$check_only" == 1 ]]; then
   if [[ "$sidecar_missing" -gt 0 ]]; then
     echo "drtv-dl: $sidecar_missing more are on disk without an .nfo - an ordinary run repairs those" >&2
   fi
+  [[ "${scan_failed:-0}" == 0 ]] || exit 1
   exit 0
 fi
+
+# Both info.json sweeps below go over the whole library, which is what lets
+# them pick up an interrupted run's jsons on the next one. But the library may
+# well hold other tools' downloads too - yt-dlp writes info.jsons for every
+# site - and those are neither this script's to turn into NFOs nor its to
+# delete. Every json DR's extractors write says so in extractor_key (DRTV,
+# DRTVSeason, DRTVSeries). One that does not parse belongs to no one this can
+# tell, and is left alone too.
+is_dr_json() {
+  jq -e '(.extractor_key // "") | startswith("DRTV")' "$1" >/dev/null 2>&1
+}
 
 # yt-dlp re-runs its metadata/subtitle embedding on any file that already
 # exists, rewriting the whole video in place just to change nothing - on a
@@ -533,6 +621,8 @@ if [[ "$probe_has_url" == 1 ]]; then
   while IFS= read -r -d '' f; do
     base="${f%.info.json}"
     case "${base##*/}" in tvshow | season[0-9]*) continue ;; esac
+    is_dr_json "$f" || continue
+    drop_empty_media "$base"
     # an episode handed over by the playlist scan for sidecar repair is already
     # in its tallies; counting it again here would inflate both halves of the
     # "N of M already on disk" summary
@@ -552,7 +642,7 @@ if [[ "$probe_has_url" == 1 ]]; then
         "\(.extractor_key | ascii_downcase) \(.webpage_url // "" | rtrimstr("/") | split("/") | (last // "") | select(. != ""))"' \
         "$f" >>"$archive" || true
     fi
-  done < <(find "$dest" -name '*.info.json' -type f -print0)
+  done < <(find -H "$dest" -name '*.info.json' -type f -print0)
   scanned=$((scanned + probe_scanned))
   present=$((present + probe_present))
   if [[ "$probe_present" -gt 0 ]]; then
@@ -788,6 +878,22 @@ media_nfo="$xml_esc"'
   "  <lockdata>true</lockdata>",
   "</\($root)>"'
 
+# Writes an NFO beside its final name and renames it into place. A redirect
+# straight onto the NFO truncates it before jq has produced a byte, so a run
+# cut off in between, or a jq that fails, left an empty NFO - which then passed
+# for a sidecar and was never repaired - or emptied a good one.
+write_nfo() {
+  local filter="$1" json="$2" target="$3"
+  if jq -r "$filter" "$json" >"$target.tmp" && [[ -s "$target.tmp" ]] &&
+    mv -- "$target.tmp" "$target"; then
+    echo "drtv-dl: wrote $target"
+    return 0
+  fi
+  rm -f -- "$target.tmp"
+  warn "could not turn ${json#"$dest"/} into ${target##*/}; left as it was"
+  return 1
+}
+
 # When only a season playlist was processed (season URL subscriptions, or a
 # series whose own artwork is missing), promote a season poster to the
 # series poster Jellyfin looks for.
@@ -843,19 +949,24 @@ fix_placeholder_poster() {
 while IFS= read -r -d '' f; do
   dir="${f%/*}"
   base="${f%.info.json}"
+  if ! is_dr_json "$f"; then
+    # a json that parses but is some other extractor's is simply not ours; one
+    # that does not parse may be a DR one cut off, so it is worth a word
+    jq -e . "$f" >/dev/null 2>&1 ||
+      warn "${f#"$dest"/} does not parse; left in place"
+    continue
+  fi
   case "${base##*/}" in
     tvshow)
-      jq -r "$tvshow_nfo" "$f" >"$dir/tvshow.nfo"
-      echo "drtv-dl: wrote $dir/tvshow.nfo"
+      write_nfo "$tvshow_nfo" "$f" "$dir/tvshow.nfo" || continue
       fix_placeholder_poster "$f" "$dir/poster.jpg"
       ensure_poster "$dir"
       ;;
     season[0-9]*)
       # a season playlist only stands in for the series when nothing has
       # written the series-level files yet
-      if [[ ! -e "$dir/tvshow.nfo" ]]; then
-        jq -r "$tvshow_nfo" "$f" >"$dir/tvshow.nfo"
-        echo "drtv-dl: wrote $dir/tvshow.nfo"
+      if [[ ! -s "$dir/tvshow.nfo" ]]; then
+        write_nfo "$tvshow_nfo" "$f" "$dir/tvshow.nfo" || continue
       fi
       fix_placeholder_poster "$f" "$dir/${base##*/}-poster.jpg"
       ensure_poster "$dir"
@@ -868,8 +979,7 @@ while IFS= read -r -d '' f; do
         rm -f -- "$f"
         continue
       fi
-      jq -r "$media_nfo" "$f" >"$base.nfo"
-      echo "drtv-dl: wrote $base.nfo"
+      write_nfo "$media_nfo" "$f" "$base.nfo" || continue
       # films get DR's portrait poster too; episodes carry no poster id
       # and film folders inherit nothing from a series playlist
       poster_url="$(jq -r --arg ph "$placeholder_image" 'if .series then empty
@@ -882,7 +992,7 @@ while IFS= read -r -d '' f; do
       ;;
   esac
   rm -f -- "$f"
-done < <(find "$dest" -name '*.info.json' -type f -print0)
+done < <(find -H "$dest" -name '*.info.json' -type f -print0)
 
 # Repeat everything easy to miss in a long scrollback: what arrived on disk,
 # and every warning - the script's own and yt-dlp's - once more at the end.

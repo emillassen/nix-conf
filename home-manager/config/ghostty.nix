@@ -18,7 +18,10 @@
       window-padding-y = 0;
       window-theme = "ghostty";
       gtk-tabs-location = "bottom";
-      clipboard-read = "allow";
+      # A program asking for the clipboard (OSC 52, over SSH too) gets a prompt
+      # rather than the contents: with "allow" anything in a terminal could read
+      # a password copied from Bitwarden without a word.
+      clipboard-read = "ask";
       clipboard-paste-protection = false;
       shell-integration = "zsh";
     };

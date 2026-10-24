@@ -42,6 +42,8 @@ walk_for() {
   rm -f "$STUBLOG"/curl-n-* "$STUBLOG/builds.log"
   run_flake_up_safe -f "$FLAKE" -d 40 -l "$linear"
   SEQ="$(probed_indices "$STDOUT")"
+  # Every walk ends in "nothing newer builds", which is a completed run.
+  assert_exit "--linear $linear: the run completes" 0
 }
 
 # --linear 0: no linear prefix at all. Index 0 is always visited (it is the tip,

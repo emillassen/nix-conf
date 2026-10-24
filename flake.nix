@@ -95,12 +95,17 @@
             config.allowUnfree = true;
           };
         in
-        import ./pkgs pkgs
-        // {
-          # filebot can't live in ./pkgs (see there). `pkgs` is a plain nixpkgs
-          # here, so `nix build .#filebot` is the way to test an update.sh bump.
-          filebot = pkgs.callPackage ./pkgs/filebot { };
-        }
+        # Only what builds on this system: vuescan is an x86_64 binary, and
+        # exporting it for aarch64-linux anyway made `nix flake check
+        # --all-systems` and `nix flake show` trip over it there.
+        nixpkgs.lib.filterAttrs (_: nixpkgs.lib.meta.availableOn pkgs.stdenv.hostPlatform) (
+          import ./pkgs pkgs
+          // {
+            # filebot can't live in ./pkgs (see there). `pkgs` is a plain nixpkgs
+            # here, so `nix build .#filebot` is the way to test an update.sh bump.
+            filebot = pkgs.callPackage ./pkgs/filebot { };
+          }
+        )
       );
       # Formatter for your nix files, available through 'nix fmt'
       # (nixfmt-tree = treefmt+nixfmt; plain nixfmt only reads stdin when nix
@@ -169,19 +174,31 @@
                 excludes = [ "^secrets/.*" ];
               };
 
+              # Every value outside the sops metadata has to be an ENC[...]
+              # string. Grepping for "sops:" passed a file whose values had been
+              # put back in plaintext under its metadata block, or one that only
+              # mentioned "sops:" in a comment. Checks the files pre-commit hands
+              # it (nested ones included), not a glob of its own.
               sops-encrypted = {
                 enable = true;
                 name = "sops-encrypted";
                 entry = "${pkgs.writeShellScript "check-sops" ''
-                  for file in secrets/*.yaml; do
-                    [[ "$file" == "secrets/*.yaml" ]] && continue
-                    if [[ "$file" != *".sops.yaml" ]]; then
-                      if ! grep -q "sops:" "$file"; then
-                        echo "ERROR: $file appears unencrypted!"
-                        exit 1
-                      fi
+                  status=0
+                  for file in "$@"; do
+                    if ! plain="$(${pkgs.yq-go}/bin/yq -o=json '.' "$file" | ${pkgs.jq}/bin/jq -r '
+                        if type != "object" or (has("sops") | not) then "(no sops metadata)"
+                        else del(.sops) | paths(scalars) as $p | getpath($p)
+                          | select(type != "string" or (startswith("ENC[") | not))
+                          | $p | map(tostring) | join(".") end')"; then
+                      echo "ERROR: $file could not be read as YAML"
+                      status=1
+                    elif [[ -n "$plain" ]]; then
+                      echo "ERROR: $file has values sops has not encrypted:"
+                      sed 's/^/  /' <<<"$plain"
+                      status=1
                     fi
                   done
+                  exit "$status"
                 ''}";
                 files = "^secrets/.*\\.yaml$";
               };

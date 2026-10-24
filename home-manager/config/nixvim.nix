@@ -20,6 +20,10 @@
       swapfile = false;
       backup = false;
 
+      # Treesitter folding (below) with every fold open when a file opens;
+      # zc / zM close them on demand.
+      foldlevelstart = 99;
+
       number = true;
       relativenumber = true;
 
@@ -53,13 +57,15 @@
     };
 
     plugins = {
+      # Top-level options, not `settings`: with nvim-treesitter's main branch,
+      # `settings` reaches only the legacy configs module, and folding there
+      # did nothing at all (foldmethod stayed manual). highlight and indent
+      # still worked through a compatibility shim nixvim marks for removal.
       treesitter = {
         enable = true;
-        settings = {
-          highlight.enable = true;
-          indent.enable = true;
-          folding.enable = true;
-        };
+        highlight.enable = true;
+        indent.enable = true;
+        folding.enable = true;
       };
 
       fugitive.enable = true;
@@ -97,6 +103,9 @@
               type = "padding";
               val = 2;
             }
+            # `shortcut` is only the letter drawn beside a button; the key that
+            # presses it is `keymap` (what alpha's dashboard.button() builds).
+            # With shortcuts alone, the letters on screen did nothing.
             {
               type = "group";
               val = [
@@ -106,6 +115,16 @@
                   on_press.__raw = "function() vim.cmd[[enew]] end";
                   opts = {
                     shortcut = "n";
+                    keymap = [
+                      "n"
+                      "n"
+                      "<Cmd>enew<CR>"
+                      {
+                        noremap = true;
+                        silent = true;
+                        nowait = true;
+                      }
+                    ];
                     position = "center";
                     cursor = 3;
                     width = 50;
@@ -119,6 +138,16 @@
                   on_press.__raw = "function() vim.cmd[[Explore]] end";
                   opts = {
                     shortcut = "e";
+                    keymap = [
+                      "n"
+                      "e"
+                      "<Cmd>Explore<CR>"
+                      {
+                        noremap = true;
+                        silent = true;
+                        nowait = true;
+                      }
+                    ];
                     position = "center";
                     cursor = 3;
                     width = 50;
@@ -132,6 +161,16 @@
                   on_press.__raw = "function() vim.cmd[[browse oldfiles]] end";
                   opts = {
                     shortcut = "r";
+                    keymap = [
+                      "n"
+                      "r"
+                      "<Cmd>browse oldfiles<CR>"
+                      {
+                        noremap = true;
+                        silent = true;
+                        nowait = true;
+                      }
+                    ];
                     position = "center";
                     cursor = 3;
                     width = 50;
@@ -145,6 +184,16 @@
                   on_press.__raw = "function() vim.cmd[[Git | only]] end";
                   opts = {
                     shortcut = "g";
+                    keymap = [
+                      "n"
+                      "g"
+                      "<Cmd>Git | only<CR>"
+                      {
+                        noremap = true;
+                        silent = true;
+                        nowait = true;
+                      }
+                    ];
                     position = "center";
                     cursor = 3;
                     width = 50;
@@ -158,6 +207,16 @@
                   on_press.__raw = "function() vim.cmd[[e ~/Documents/scratch.md]] end";
                   opts = {
                     shortcut = "s";
+                    keymap = [
+                      "n"
+                      "s"
+                      "<Cmd>e ~/Documents/scratch.md<CR>"
+                      {
+                        noremap = true;
+                        silent = true;
+                        nowait = true;
+                      }
+                    ];
                     position = "center";
                     cursor = 3;
                     width = 50;
@@ -171,6 +230,16 @@
                   on_press.__raw = "function() vim.cmd[[e ~/Documents/nix-conf/flake.nix]] end";
                   opts = {
                     shortcut = "c";
+                    keymap = [
+                      "n"
+                      "c"
+                      "<Cmd>e ~/Documents/nix-conf/flake.nix<CR>"
+                      {
+                        noremap = true;
+                        silent = true;
+                        nowait = true;
+                      }
+                    ];
                     position = "center";
                     cursor = 3;
                     width = 50;
@@ -184,6 +253,16 @@
                   on_press.__raw = "function() vim.cmd[[Tutor]] end";
                   opts = {
                     shortcut = "t";
+                    keymap = [
+                      "n"
+                      "t"
+                      "<Cmd>Tutor<CR>"
+                      {
+                        noremap = true;
+                        silent = true;
+                        nowait = true;
+                      }
+                    ];
                     position = "center";
                     cursor = 3;
                     width = 50;
@@ -197,6 +276,16 @@
                   on_press.__raw = "function() vim.cmd[[qa]] end";
                   opts = {
                     shortcut = "q";
+                    keymap = [
+                      "n"
+                      "q"
+                      "<Cmd>qa<CR>"
+                      {
+                        noremap = true;
+                        silent = true;
+                        nowait = true;
+                      }
+                    ];
                     position = "center";
                     cursor = 3;
                     width = 50;

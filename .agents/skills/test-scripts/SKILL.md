@@ -25,16 +25,21 @@ trailing phrase narrows it further, `all` or nothing means all three. An
 argument naming something that is not one of the three scripts is a focus hint —
 still cover all three.
 
-Three programs, roughly 2,950 lines of non-trivial bash:
+Three programs, roughly 3,500 lines of non-trivial bash:
 
 | file                             | lines | what it is                                                           |
 | -------------------------------- | ----- | -------------------------------------------------------------------- |
-| `scripts/flake-up-safe.sh`       | ~1200 | a search algorithm over flake input revisions                        |
-| `pkgs/standardebooks-dl/…-dl.sh` | ~940  | a rate-limited catalog sync with an on-disk quota ledger             |
-| `pkgs/drtv-dl/drtv-dl.sh`        | ~820  | a yt-dlp wrapper with skip detection and Jellyfin sidecar generation |
+| `scripts/flake-up-safe.sh`       | ~1300 | a search algorithm over flake input revisions                        |
+| `pkgs/standardebooks-dl/…-dl.sh` | ~1060 | a rate-limited catalog sync with an on-disk quota ledger             |
+| `pkgs/drtv-dl/drtv-dl.sh`        | ~1070 | a yt-dlp wrapper with skip detection and Jellyfin sidecar generation |
 
-A hermetic suite for all three **already exists** in `tests/` — 50 cases, ~615
-assertions, a full offline run in about 40 seconds. The job is to extend it and
+The suite also has two cases for the history-cleanup skill's `clean-history.py`
+(`tests/cases/history-cleanup/`), which rewrites the real shell history; they
+import the module for its pure functions and run `--apply` under real zsh with
+`HOME`/`ZDOTDIR` on an empty scratch directory.
+
+A hermetic suite for all of this **already exists** in `tests/` — 61 cases, ~870
+assertions, a full offline run in about a minute and a half. The job is to extend it and
 find defects that are still in there. Building a second harness alongside the
 first is the worst available outcome.
 
@@ -169,8 +174,11 @@ Run before writing the report, not after.
    `result-*` symlinks anywhere; no `.bak`, `.orig` or `__pycache__` under
    `tests/`.
 2. Empty the scratchpad.
-3. `scripts/check-leftovers.sh --since '<session start>'` lists what this
-   session left in `/tmp`; add `--remove` to delete exactly that set. It refuses
+3. `.agents/skills/test-scripts/scripts/check-leftovers.sh --since '<session
+start>'` lists what this session left in `/tmp`; add `--remove` to delete
+   exactly that set. "This session's" means _created_ since then (birth time,
+   not mtime, which a real run writing into an older directory refreshes), and a
+   directory a live process is working in is never removed. It refuses
    to delete by pattern alone, and never touches `tmp.XXXXXXXXXX` names, because
    Emil runs these scripts for real and one such directory turned out to hold a
    genuine sitemap from a killed run. Report anything unattributable instead of

@@ -10,8 +10,9 @@
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
-out="${TMPDIR:-/tmp}/drtv-se-build-check.$$"
-mkdir -p "$out"
+# mktemp, not a pid-named directory: `mkdir -p` happily reuses one that some
+# other process made first, symlink and all, and the result links land in it.
+out="$(mktemp -d "${TMPDIR:-/tmp}/drtv-se-build-check.XXXXXX")"
 trap 'rm -rf "$out"' EXIT
 
 for pkg in drtv-dl standardebooks-dl; do

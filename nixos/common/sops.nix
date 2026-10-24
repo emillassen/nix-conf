@@ -50,11 +50,13 @@ in
   systemd.services.sops-secrets-validation = {
     description = "Validate sops secrets are accessible";
     wantedBy = [ "multi-user.target" ];
-    after = [
-      "sops-nix.service"
-      "systemd-user-sessions.service"
-    ];
-    requires = [ "sops-nix.service" ];
+    # No dependency on sops-nix itself: there is no sops-nix.service. Secrets
+    # are installed by an activation script before systemd starts, or, with
+    # sops.useSystemdActivation, by sops-install-secrets.service before
+    # sysinit.target, and a default-dependency unit like this one is ordered
+    # after sysinit.target either way. Requiring the nonexistent unit meant the
+    # validator never ran at all.
+    after = [ "systemd-user-sessions.service" ];
     serviceConfig = {
       Type = "oneshot";
       User = "root";

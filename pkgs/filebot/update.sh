@@ -122,7 +122,13 @@ if cmp -s "$WORK" "$FILE"; then
   exit 1
 fi
 
-cp "$WORK" "$FILE"
+# A sibling and a rename, not a cp over the file: a cp that fails part-way
+# (a full disk) leaves default.nix truncated, and nothing here restores it.
+NEW="$(mktemp "$FILE.XXXXXX")"
+trap 'rm -f "$WORK" "$NEW"' EXIT
+cp "$WORK" "$NEW"
+chmod --reference="$FILE" "$NEW"
+mv -f "$NEW" "$FILE"
 
 echo
 echo "Updated $FILE → $VERSION"

@@ -177,6 +177,10 @@
         [[ -d "$HOME/.cache/zsh" ]] || mkdir -p "$HOME/.cache/zsh"
         if [[ -n "$_zcompdump"(#qN.mh+24) ]]; then
           compinit -d "$_zcompdump"
+          # A full compinit leaves a still-valid dump as it is, mtime and all,
+          # so without this the dump stays "older than a day" and every shell
+          # after the first day pays for the full audit (~90 ms against ~20).
+          touch "$_zcompdump"
         else
           compinit -C -d "$_zcompdump"
         fi
@@ -218,7 +222,9 @@
           vim = "nvim";
           bottom = "echo 'To run bottom, use the command btm'";
           myip = "curl ip.wtf/moo";
-          pupdate = "pocket-up";
+          # Both spelled out: zsh-abbr expands once, so `pupdate = "pocket-up"`
+          # left `pocket-up` on the line and ran it - a command that does not exist.
+          pupdate = "pupdate -s -p /run/media/$(whoami)/Pocket/";
           pocket-up = "pupdate -s -p /run/media/$(whoami)/Pocket/";
           ns = "sudo nixos-rebuild switch --flake $NH_FLAKE#fw13";
           # -u updates flake inputs before switching (nixos-rebuild --upgrade

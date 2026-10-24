@@ -175,18 +175,30 @@ sim_channel_filler() {
 }
 
 # --- Reading results back --------------------------------------------------------
+# A root.inputs entry is a node name, or - for a top-level `follows` - a path
+# to walk from root ("root's input a, then that node's input b"). The same walk
+# flake-up-safe.sh does: taking the path's last element names the right node
+# only by coincidence, and a simulator that took it would quietly test the
+# wrong node wherever the production fix matters.
+# shellcheck disable=SC2016 # $l and $seg are jq variables
+JQ_NODE='
+  def node($l): if type == "string" then . else
+    reduce .[] as $seg ("root";
+      ($l.nodes[.].inputs // {})[$seg]
+      | if . == null then "" elif type == "string" then . else node($l) end)
+  end;
+'
+
 lock_rev() {
-  jq -r --arg n "$1" '
-    . as $l | $l.nodes.root.inputs[$n] as $v
-    | (if ($v | type) == "string" then $v else $v[-1] end) as $node
+  jq -r --arg n "$1" "$JQ_NODE"'
+    . as $l | ($l.nodes.root.inputs[$n] | node($l)) as $node
     | $l.nodes[$node].locked.rev // ""
   ' "${2:-$FLAKE/flake.lock}"
 }
 
 lock_ts() {
-  jq -r --arg n "$1" '
-    . as $l | $l.nodes.root.inputs[$n] as $v
-    | (if ($v | type) == "string" then $v else $v[-1] end) as $node
+  jq -r --arg n "$1" "$JQ_NODE"'
+    . as $l | ($l.nodes.root.inputs[$n] | node($l)) as $node
     | $l.nodes[$node].locked.lastModified // 0
   ' "${2:-$FLAKE/flake.lock}"
 }

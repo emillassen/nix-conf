@@ -14,11 +14,19 @@
 #   reaching    one input name per line         which inputs reach the target
 #                                               (absent = all of them do)
 #   verdict.sh  bash, gets the combination      exit 0 = this lock builds
-#   check.sh    optional, same shape            exit 0 = `nix flake check` passes
+#   check.sh    optional, same shape            exit 0 = `nix flake check` passes;
+#                                               gets *every* input, reaching or
+#                                               not, since a check covers outputs
+#                                               the target's .drv says nothing about
 #   diff        optional                        `nix store diff-closures` output
 #   pin-noop    optional flag file              --override-input stops writing
 #   update-fail optional, one input name/line   `nix flake update` fails for it
 #   update-fail-once  same, but consumed on use  a transient blip, not a wall
+#   eval-writes-lock  optional flag file         `nix eval` rewrites flake.lock, as
+#                                               real nix does when flake.nix and the
+#                                               lock disagree - unless it is passed
+#                                               --no-write-lock-file
+#   build-pid   written by `nix build`          its own pid, while it runs
 #
 # The .drv path is a hash of the *reaching* inputs' revisions only, so an input
 # whose update does not reach the target composes to a .drv already on record
@@ -36,12 +44,26 @@ die() {
   exit 1
 }
 
+# A root.inputs entry is a node name, or - for a top-level `follows` - a path
+# to walk from root ("root's input a, then that node's input b"). The same walk
+# flake-up-safe.sh does: taking the path's last element names the right node
+# only by coincidence, and a simulator that took it would quietly test the
+# wrong node wherever the production fix matters.
+# shellcheck disable=SC2016 # $l and $seg are jq variables
+JQ_NODE='
+  def node($l): if type == "string" then . else
+    reduce .[] as $seg ("root";
+      ($l.nodes[.].inputs // {})[$seg]
+      | if . == null then "" elif type == "string" then . else node($l) end)
+  end;
+'
+
 # name<TAB>rev for every top-level input of a lock.
 lock_pairs() {
-  jq -r '
+  jq -r "$JQ_NODE"'
     . as $l | $l.nodes.root.inputs | to_entries[]
     | .key as $k
-    | (if (.value | type) == "string" then .value else .value[-1] end) as $n
+    | (.value | node($l)) as $n
     | "\($k)\t\($l.nodes[$n].locked.rev)"
   ' "$1"
 }
@@ -89,10 +111,9 @@ ts_of_rev() {
 set_locked() {
   local lock="$1" name="$2" rev="$3" ts="$4" tmp
   tmp="$(mktemp)"
-  jq --arg n "$name" --arg rev "$rev" --argjson ts "$ts" '
+  jq --arg n "$name" --arg rev "$rev" --argjson ts "$ts" "$JQ_NODE"'
     . as $l
-    | (if ($l.nodes.root.inputs[$n] | type) == "string"
-       then $l.nodes.root.inputs[$n] else $l.nodes.root.inputs[$n][-1] end) as $node
+    | ($l.nodes.root.inputs[$n] | node($l)) as $node
     | .nodes[$node].locked.rev = $rev
     | .nodes[$node].locked.lastModified = $ts
     | .nodes[$node].locked.narHash = "sha256-" + $rev[0:16]
@@ -105,6 +126,12 @@ shift || true
 case "$cmd" in
 eval)
   # Only ever asked one thing: what nixosConfigurations exist.
+  if [[ -f "$SIM/eval-writes-lock" && " $* " != *" --no-write-lock-file "* ]]; then
+    for a in "$@"; do
+      [[ "$a" == *'#nixosConfigurations'* ]] || continue
+      printf '{"rewritten":"by nix eval"}\n' >"${a%%#*}/flake.lock"
+    done
+  fi
   printf '["fw13"]\n'
   ;;
 
@@ -184,7 +211,7 @@ flake)
     dir=""
     for a in "$@"; do [[ "$a" == -* ]] || dir="$a"; done
     if [[ -x "$SIM/check.sh" ]]; then
-      feed "$SIM/check.sh" "$(combo_of "$dir/flake.lock")" || {
+      feed "$SIM/check.sh" "$(lock_pairs "$dir/flake.lock" | sort | tr '\t' '=')"$'\n' || {
         echo "error: flake check failed" >&2
         exit 1
       }
@@ -222,6 +249,7 @@ build)
   [[ -f "$SIM/drvs/$hash" ]] || die "build: unknown derivation $drv"
   combo="$(cat "$SIM/drvs/$hash")"
   printf '%s\n\n' "$combo" >>"$STUBLOG/builds.log"
+  printf '%s' "$$" >"$SIM/build-pid"
   rc=0
   feed "$SIM/verdict.sh" "$combo" || rc=$?
   if [[ "$rc" -ne 0 ]]; then

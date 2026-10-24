@@ -19,13 +19,15 @@ secrets/
 
 `sops.age.generateKey = false` in `nixos/common/sops.nix` — the age key is **not** generated on first boot. It must be provisioned before the system can decrypt anything (in particular `emil_password_hash`, which is `neededForUsers = true` and required during a fresh install).
 
-For a fresh install, `scripts/pre-install-secrets.sh` fetches the key from Bitwarden (a secure note named `fw13-age-key`) and:
+For a fresh install, `scripts/pre-install-secrets.sh` gets the key from Bitwarden (a secure note named `fw13-age-key`) in two phases, because they straddle disko:
 
-- writes it to `/mnt/home/emil/.config/sops/age/keys.txt` on the target system, and
-- uses it to decrypt `secrets/luks.yaml` to `/tmp/secret.key` for disko to consume during partitioning.
+- `fetch`, before disko: stages the key at `/tmp/fw13-age-key.txt` (after checking it is an age key and a recipient in `.sops.yaml`) and uses it to decrypt `secrets/luks.yaml` to `/tmp/secret.key`, which disko consumes during partitioning.
+- `install`, after disko has mounted the target at `/mnt` and before `nixos-install`: copies the key to `/mnt/home/emil/.config/sops/age/keys.txt`, owned by emil (uid 1000, pinned in `configuration.nix`), and deletes both staged files. It refuses to run while `/mnt` is not a mount point, since a key written there would vanish under the target's mount.
 
 ```bash
-./scripts/pre-install-secrets.sh
+./scripts/pre-install-secrets.sh fetch
+sudo nix --experimental-features "nix-command flakes" run github:nix-community/disko -- --mode disko /tmp/nix-conf/nixos/disks.nix
+sudo ./scripts/pre-install-secrets.sh install
 ```
 
 If you need to manage the key manually instead:
@@ -111,8 +113,8 @@ sops -d smb.yaml
 ### Template System
 
 - Use `config.sops.placeholder.secret_name` in templates
-- Templates are rendered to `/run/secrets-rendered/`
-- Example: SMB credentials template → `/run/secrets-rendered/smb-credentials`
+- Templates are rendered to `/run/secrets/rendered/`
+- Example: SMB credentials template → `/run/secrets/rendered/smb-credentials`
 
 ### Configuration Files
 
@@ -156,10 +158,12 @@ done
 ls -la /run/secrets/
 
 # Check if templates are rendered
-ls -la /run/secrets-rendered/
+ls -la /run/secrets/rendered/
 
-# View systemd logs
-journalctl -u sops-nix.service
+# sops-nix installs secrets during activation, not from a unit of its own,
+# so its errors are in the activation output (switch output, or the boot log)
+sudo journalctl -b | grep -i sops
+systemctl status sops-secrets-validation
 ```
 
 ## Security Notes

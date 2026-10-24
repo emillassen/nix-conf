@@ -49,6 +49,36 @@ shells out to jq) lost every time, and only `sim_check` appeared broken. The
 `nix` stub now feeds all three scenario scripts through a file. Any new stub that
 hands a payload to a case-supplied script should do the same rather than pipe it.
 
+**A not-contains assertion passes on empty output.** A helper that silently
+produced nothing - a python snippet whose fixture never arrived - turns every
+`assert_not_contains "the secret is gone"` green. Start such a block with one
+positive assertion that the helper produced something.
+
+**`python3 - <<EOF` takes stdin for the program**, so a fixture piped into the
+same call never arrives; pass the program with `-c`. And `-I` ignores
+`PYTHONDONTWRITEBYTECODE`, so importing a module from a case writes
+`__pycache__` next to it in the repo: add `-B`.
+
+**`$(...)` strips trailing newlines**, so `assert_contains … "X"$'\n'` never
+matches the last line of a capture. Compare `"${out##*$'\n'}"` instead.
+
+**A heredoc that writes a stub cannot share its delimiter with one inside it.**
+`cat >>case.sh <<'EOF'` around a case that itself does `cat >stub <<EOF` ends at
+the inner `EOF`, and the rest runs in the calling shell. Use a distinct outer
+delimiter.
+
+**`flock FILE -c cmd` leaves the child holding the lock** after flock itself is
+killed. A test that needs to hold a lock and let go of it: a subshell that opens
+the fd, `flock`s it and `exec`s into `sleep`, so there is one pid to kill.
+
+**A pty that `script` closes hangs up everything still on it**, which hides a
+child the run under test leaked. Check for leftovers (a held lock, a live pid)
+while the pty is still open - `script -qec "…; sleep 10"`.
+
+**`find` in an interactive zsh here is bfs**, which rejects `-newermt '1 hour
+ago'`; a script run by bash gets GNU find. Probe under `bash -c` before
+concluding anything about a script's `find`.
+
 **`grep -c` prints `0` and exits 1** on no match, so `grep -c … || echo 0`
 prints "0\n0" and every numeric assertion against it fails confusingly. Count
 with `awk` in helpers.

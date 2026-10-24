@@ -91,10 +91,9 @@ assert_contains "a rerun would fetch just the missing format" "$STDOUT" \
 assert_contains "and the two that never landed, whole" "$STDOUT" "homer/the-iliad"
 
 # --- a rename that cannot be made --------------------------------------------
-# The stuck book is deliberately not in this catalog. A run that also tried to
-# download into the unwritable directory would die on the bare `mkdir -p` in the
-# download loop long before reaching the summary, which is a separate matter from
-# whether a failed rename is survivable.
+# The stuck book is deliberately not in this catalog, so all this checks is that
+# a failed rename is survivable; what the ledger and the downloader then make of
+# a stuck book that *is* catalogued and indexed is 12-migration-ledger.
 se_init
 se_book wells/the-time-machine "Wells, H. G." "The Time Machine"
 se_sitemap
@@ -156,3 +155,38 @@ else
     "$(cat "$lib/.standardebooks-dl-index.tsv")" "aaa/first"
 fi
 chmod 700 "$lib/Aaa, A"
+
+# --- a format the site served but that broke in transit -----------------------
+# Counted against the quota like any other 200 - the site recorded it - and
+# thrown away like an empty one.
+se_init
+se_book wells/the-time-machine "Wells, H. G." "The Time Machine"
+se_sitemap
+lib="$SE_LIB"
+drop_url 'wells_the-time-machine.azw3'
+printf '%s/wells/the-time-machine/downloads/wells_the-time-machine.azw3?*\t200!18\thalf\n' \
+  "$dl" >>"$CURL_MAP"
+run_sedl -d "$lib"
+assert_exit "a broken transfer: exits 0" 0
+assert_contains "the book is incomplete" "$STDOUT" "incomplete: Wells, H. G/The Time Machine"
+assert_file_missing "the broken format is not kept" \
+  "$lib/Wells, H. G/The Time Machine/The Time Machine.azw3"
+assert_eq "nor its .part" "" "$(find "$lib" -name '*.part' -print)"
+assert_eq "and all four served responses are in the quota" 4 \
+  "$(awk 'END { print NR + 0 }' "$(quota_ledger)")"
+
+# The same for the metadata probe, which is an ordinary epub download as far as
+# the site is concerned.
+se_init
+se_book wells/the-time-machine "Wells, H. G." "The Time Machine"
+se_sitemap
+lib="$SE_LIB"
+drop_url 'wells_the-time-machine.epub?'
+printf '%s/wells/the-time-machine/downloads/wells_the-time-machine.epub?*\t200!28\thalf\n' \
+  "$dl" >>"$CURL_MAP"
+run_sedl -d "$lib"
+assert_exit "a broken probe: exits 0" 0
+assert_contains "the book is a failure to retry" "$STDERR" \
+  "wells/the-time-machine: failed to fetch compatible epub"
+assert_eq "and the served probe is in the quota" 1 \
+  "$(awk 'END { print NR + 0 }' "$(quota_ledger)")"

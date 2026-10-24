@@ -181,6 +181,10 @@
 
   # Services
   services = {
+    # VueScan ships udev rules giving the user access to the USB scanners it
+    # drives. It is installed through home.packages, and rules in a user
+    # profile reach no udev at all, so they are registered here.
+    udev.packages = [ pkgs.vuescan ];
     # Periodic TRIM for the SSD (LUKS allowDiscards is set in disks.nix)
     fstrim.enable = true;
     # Enables firmware updates
@@ -254,6 +258,10 @@
   users.users = {
     emil = {
       isNormalUser = true;
+      # What NixOS allocates the first normal user anyway; pinned because
+      # scripts/pre-install-secrets.sh chowns the age key to it before the
+      # user exists.
+      uid = 1000;
       description = "Emil Lassen";
       # Password hash managed by sops-nix
       hashedPasswordFile = config.sops.secrets.emil_password_hash.path;

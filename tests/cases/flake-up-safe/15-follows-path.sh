@@ -72,3 +72,16 @@ assert_matches "the follows path resolves to the node it actually points at" \
   "$STDOUT" '= agents-pkgs +unchanged \(2025-06-15\)'
 assert_not_contains "and is not mistaken for the root nixpkgs" "$STDOUT" \
   "↻ agents-pkgs"
+
+# --- and through a real search, not just the report ------------------------------
+# The simulator walks the path too (it used to take the last element, the very
+# bug this case is about): the update moves the root nixpkgs and agents, and the
+# follows entry has to go on reading nixpkgs_2, which nothing moved.
+cp "$SIM/head.lock" "$FLAKE/flake.lock"
+run_flake_up_safe -f "$FLAKE"
+assert_exit "a full run exits 0" 0
+assert_eq "the root nixpkgs is at its tip" "$(hexrev root-nixpkgs-tip)" "$(lock_rev nixpkgs)"
+assert_eq "while the follows entry still reads the node it points at" \
+  "$(hexrev agents-nixpkgs)" "$(lock_rev agents-pkgs)"
+assert_contains "and the builds saw it that way too" "$(build_combos)" \
+  "agents-pkgs=$(hexrev agents-nixpkgs)"

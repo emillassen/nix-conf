@@ -27,10 +27,11 @@ check() {
   fi
 }
 
+# Every file gets a byte in it: an empty one is not a video (see the end).
 place() {
-  rm -f "$d"/*
+  rm -rf "${d:?}"/*
   local f
-  for f in "$@"; do : >"$d/$f"; done
+  for f in "$@"; do printf 'x' >"$d/$f"; done
 }
 
 place
@@ -83,3 +84,14 @@ check "a question mark in a title" "Who? Me" yes
 # A video and its sidecars together: still a video.
 place "Ep.mp4" "Ep.nfo" "Ep-thumb.jpg"
 check "video plus sidecars" "Ep" yes
+
+# An empty file or a directory at the video's name is not a video. yt-dlp's
+# own downloads arrive through a .part and a rename, so a zero-length final
+# file is something else's doing - a touch, a copy that never got going - and
+# counting it would leave the episode empty for good.
+place
+: >"$d/Ep.mp4"
+check "an empty file does not count" "Ep" no
+place
+mkdir "$d/Ep.mp4"
+check "nor a directory" "Ep" no

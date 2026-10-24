@@ -203,7 +203,9 @@ wrap_fragment() {
   {
     printf '#!%s\n' "$HARNESS_BASH"
     printf 'set -o errexit\nset -o nounset\nset -o pipefail\n\n'
-    printf 'export PATH="%s"\n\n' "$(test_path)"
+    # %q, not "%s" inside double quotes: a PATH entry holding a $, a backtick
+    # or a quote would otherwise be expanded again by the generated script.
+    printf 'export PATH=%q\n\n' "$(test_path)"
     cat "$script"
   } >"$wrapped"
   chmod +x "$wrapped"

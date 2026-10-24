@@ -29,7 +29,14 @@ set -o pipefail" \
   "$(sed -n '2,4p' "$TMP/wrapped.sh")"
 assert_eq "under a real bash" '#!' "$(head -c2 "$TMP/wrapped.sh")"
 assert_contains "with the stub directory first on PATH" \
-  "$(sed -n '6p' "$TMP/wrapped.sh")" "export PATH=\"$STUBDIR:"
+  "$(sed -n '6p' "$TMP/wrapped.sh")" "export PATH=$(printf '%q' "$STUBDIR"):"
+# ... as a value, whatever is in it: the generated line is shell source, and a
+# PATH entry with a $ in it used to be expanded again (fatally, under nounset).
+weird="$TMP/a \$HOME \`b\` \"c\""
+mkdir -p "$weird"
+PATH="$weird:$PATH" wrap_fragment <(printf 'printf "%%s\\n" "$PATH"\n') "$TMP/weird.sh"
+assert_contains "and a PATH entry with shell syntax in it arrives literally" \
+  "$("$HARNESS_BASH" "$TMP/weird.sh" 2>&1)" "$weird"
 
 # And the options really are in force in a wrapped run: an unset variable must
 # be fatal.

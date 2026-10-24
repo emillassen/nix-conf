@@ -307,8 +307,11 @@ migrate_layout() {
       stuck=$((stuck + 1))
       continue
     fi
-    mkdir -p "$dest/${new%/*}"
-    if mv -- "$dir" "$dest/$new"; then
+    # The mkdir is guarded with the mv, not run bare before it: an author path
+    # that will not take a directory (a stray file of that name, an author
+    # directory with the wrong owner) is this book's problem, and under set -e a
+    # bare one ended the run before a single book had been looked at.
+    if mkdir -p "$dest/${new%/*}" && mv -- "$dir" "$dest/$new"; then
       moved=$((moved + 1))
       # clear the two directory levels the move emptied, innermost first.
       # Plain rmdir (never -p, which would walk on up into the library root
@@ -332,13 +335,21 @@ migrate_layout() {
 # The on-disk move above is only half of it - the ledger's stored paths have to
 # follow, or every migrated book looks missing and gets downloaded again into a
 # freshly recreated legacy directory.
+#
+# But only where the book actually went: a legacy directory that is still there
+# is one migrate_layout left behind (a collision, a failed move), and pointing
+# the ledger at the new path would have the downloader fetch a book that is
+# complete on disk all over again, into wherever that path leads. So the rule is
+# "rewrite unless the legacy directory still exists", not "rewrite what this run
+# moved" - a move made by an earlier run that died before getting here has no
+# legacy directory left either, and its entry would otherwise stay stale for ever.
 migrate_index() {
   local slug relpath changed=0 tmp="$index_file.migrating"
   [[ -s "$index_file" ]] || return 0
   : >"$tmp"
   while IFS=$'\t' read -r slug relpath; do
     [[ -n "$slug" ]] || continue
-    if [[ -n "$relpath" ]] && legacy_relpath "$relpath"; then
+    if [[ -n "$relpath" ]] && legacy_relpath "$relpath" && [[ ! -d "$dest/$relpath" ]]; then
       relpath="$(current_relpath "$relpath")"
       changed=$((changed + 1))
     fi
@@ -398,14 +409,26 @@ if [[ "$list_only" == 0 ]]; then
   migrate_index
 fi
 
+tmpdir="$(mktemp -d)"
+trap 'rm -rf "$tmpdir"' EXIT
+
 # A ledger that is missing or empty beside a library that already has books in
 # it is a lost ledger, not a first run - rebuild it from those books instead of
 # treating the entire library as missing. -r rebuilds unconditionally further
-# down and -n never writes, so this is for the ordinary run only.
-if [[ "$list_only" == 0 && "$recheck" == 0 && ! -s "$index_file" ]] &&
+# down. -n never writes, but it still has to see the library the way the real
+# run will, so it recovers the same mapping into scratch: a dry run that called
+# a complete library wholly missing would disagree with the real one by weeks.
+if [[ "$recheck" == 0 && ! -s "$index_file" && -d "$dest" ]] &&
   [[ -n "$(find "$dest" -type f -name '*.epub' \
     ! -name '*.kepub.epub' ! -name '*.advanced.epub' -print -quit)" ]]; then
-  echo "standardebooks-dl: ledger is missing or empty - rebuilding it from the library..." >&2
+  if [[ "$list_only" == 1 ]]; then
+    index_file="$tmpdir/index.tsv"
+    : >"$index_file"
+    echo "standardebooks-dl: ledger is missing or empty - recovering it from the library" \
+      "(in memory: -n writes nothing)..." >&2
+  else
+    echo "standardebooks-dl: ledger is missing or empty - rebuilding it from the library..." >&2
+  fi
   rebuild_index
 fi
 
@@ -445,9 +468,6 @@ if [[ "$recheck" == 1 ]]; then
   exit 0
 fi
 
-tmpdir="$(mktemp -d)"
-trap 'rm -rf "$tmpdir"' EXIT
-
 # One request enumerates every published ebook on the site, sparing the 30-odd
 # requests a page-by-page crawl of /ebooks?page=N would need.
 #
@@ -483,12 +503,45 @@ if [[ ${#books[@]} -eq 0 ]]; then
 fi
 echo "standardebooks-dl: ${#books[@]} published ebooks in the catalog" >&2
 
-declare -A indexed_path
+# path_owner is the ledger read the other way round, so a new book can tell
+# whether the directory its metadata names already belongs to another catalog
+# entry. Keyed lowercased: these libraries live on SMB shares, where "The Iliad"
+# and "The iliad" are one directory.
+declare -A indexed_path path_owner
 if [[ -f "$index_file" ]]; then
   while IFS=$'\t' read -r slug relpath; do
-    [[ -n "$slug" ]] && indexed_path["$slug"]="$relpath"
+    [[ -n "$slug" ]] || continue
+    indexed_path["$slug"]="$relpath"
+    [[ -n "$relpath" ]] || continue
+    owner="${path_owner[${relpath,,}]:-}"
+    if [[ -n "$owner" && "$owner" != "$slug" ]]; then
+      # What an older version left behind when two editions filed alike: the
+      # formats in there may be a mix of both. Nothing here can tell which file
+      # came from which, so say so rather than guess.
+      warn "$owner and $slug share $relpath - its formats may be mixed;" \
+        "delete the directory to have both fetched again"
+    fi
+    path_owner["${relpath,,}"]="$slug"
   done <"$index_file"
 fi
+
+# Whether the book directory REL already belongs to a catalog entry other than
+# SLUG: the ledger says so, or an epub sitting there names another entry, or
+# names none (a file that is not one of theirs - nothing proves it is this book,
+# and the probe would overwrite it). A directory with this book's own epub in
+# it, from a run that died before the ledger append, is not claimed.
+claimed_by_other() {
+  local slug="$1" rel="$2" owner epub on_disk
+  owner="${path_owner[${rel,,}]:-}"
+  if [[ -n "$owner" ]]; then
+    [[ "$owner" != "$slug" ]]
+    return
+  fi
+  epub="$dest/$rel/${rel##*/}.epub"
+  [[ -s "$epub" ]] || return 1
+  on_disk="$(epub_slug "$epub")" || return 0
+  [[ "$on_disk" != "$slug" ]]
+}
 
 fmt_duration() {
   local s="$1"
@@ -545,8 +598,12 @@ MIN_INTERVAL=30
 quota_dir="${XDG_STATE_HOME:-$HOME/.local/state}/standardebooks-dl"
 quota_file="$quota_dir/download-quota"
 quota_lock="$quota_dir/lock"
-mkdir -p "$quota_dir"
-touch "$quota_file"
+# -n reads this ledger and never writes it (quota_peek below), and that includes
+# not conjuring up its directory.
+if [[ "$list_only" == 0 ]]; then
+  mkdir -p "$quota_dir"
+  touch "$quota_file"
+fi
 
 # Two runs sharing this ledger is a documented use, not an abuse: the cap is per
 # IP address, so "two libraries synced from here draw on one budget". But
@@ -598,6 +655,21 @@ quota_used() {
   local -a stamps
   quota_load "$(date +%s)"
   printf '%s' "${#stamps[@]}"
+}
+
+# -n's count: the same filter as quota_load, read-only. No lock file, no prune,
+# and a ledger that is not there at all is an empty one. The prune is what made
+# -n a writer - quota_load rewrites the file on every call - and a dry run that
+# rewrites state another run may be appending to is not a dry run.
+quota_peek() {
+  local cutoff s n=0
+  cutoff=$(($(date +%s) - LONG_WINDOW))
+  if [[ -r "$quota_file" ]]; then
+    while read -r s; do
+      [[ "$s" =~ ^[0-9]+$ && "$s" -ge "$cutoff" ]] && n=$((n + 1))
+    done <"$quota_file"
+  fi
+  printf '%s' "$n"
 }
 
 quota_record() {
@@ -655,7 +727,8 @@ quota_wait() {
 # Fetches $1 into $2. Both --connect-timeout and --max-time are set because a
 # server that throttles by stalling the connection instead of answering 429
 # would otherwise hang curl forever - that's what happened before this was
-# added. Returns 0 ok, 2 not found (404), 1 any other failure.
+# added. Returns 0 ok, 2 not found (404), 3 served but the transfer then broke,
+# 1 any other failure.
 #
 # A 429 here means the quota ledger disagrees with the server - it was lost,
 # or something else on this IP (a browser, another machine behind the same NAT)
@@ -665,10 +738,18 @@ quota_wait() {
 # longer than the six-hour window, so outlasting it is the escape hatch: a 429
 # still coming back after that long is something other than the rate limit.
 fetch_url() {
-  local url="$1" out="$2" code backoff=60 blocked=0 down=0
+  local url="$1" out="$2" code backoff=60 blocked=0 down=0 crc
   while :; do
-    if ! code="$(curl -s -o "$out" -w '%{http_code}' \
-      --connect-timeout 15 --max-time 180 -A "$ua" -L "$url")"; then
+    crc=0
+    code="$(curl -s -o "$out" -w '%{http_code}' \
+      --connect-timeout 15 --max-time 180 -A "$ua" -L "$url")" || crc=$?
+    if [[ "$crc" != 0 ]]; then
+      # curl still prints the status it got when the body then fails to arrive
+      # (18 partial file, 23 write error, 28 timeout), and the site counted the
+      # download the moment it answered 200. Calling that a plain failure kept it
+      # out of the quota ledger, so a run of broken transfers left the ledger
+      # behind the server and the next requests met a 429 it had not predicted.
+      [[ "$code" == 200 ]] && return 3
       return 1
     fi
     case "$code" in
@@ -719,14 +800,23 @@ fetch_one() {
   rc=0
   fetch_url "$dlbase$url_ext?source=download" "$target.part" || rc=$?
   # The site records what it served, so the ledger follows the same rule: a 200
-  # counts against the quota whatever we end up doing with the bytes. A 404
-  # (and a 429) is refused before it is recorded, and costs nothing.
-  [[ "$rc" == 0 ]] && quota_record
+  # counts against the quota whatever we end up doing with the bytes, including
+  # a 200 whose transfer broke (3). A 404 (and a 429) is refused before it is
+  # recorded, and costs nothing.
+  [[ "$rc" == 0 || "$rc" == 3 ]] && quota_record
   # an empty body answered with 200 is not a book; leaving it in place would
   # make the file look downloaded to every later run
   if [[ "$rc" == 0 && -s "$target.part" ]]; then
-    mv -- "$target.part" "$target"
-    return 0
+    # Checked rather than bare: the caller runs this as `fetch_one ... || ok=0`,
+    # which switches set -e off for the whole function, so a rename that failed
+    # (a NAS gone away, a target that changed owner) fell straight through to
+    # the return 0 and the book was reported downloaded without the format.
+    if mv -- "$target.part" "$target"; then
+      return 0
+    fi
+    rm -f "$target.part"
+    warn "could not write ${target#"$dest_prefix"}"
+    return 1
   fi
   rm -f "$target.part"
   warn "failed to fetch $dlbase$url_ext"
@@ -774,7 +864,11 @@ done
 # that, so the finish time follows from the file count alone - worth saying out
 # loud before a job that runs for days, and worth saying accurately, because
 # the previous pacing promised hours and then delivered a wall of 429s.
-quota_now="$(quota_used)"
+if [[ "$list_only" == 1 ]]; then
+  quota_now="$(quota_peek)"
+else
+  quota_now="$(quota_used)"
+fi
 eta_seconds=$((files_needed * LONG_WINDOW / LONG_MAX))
 
 if [[ "$list_only" == 1 ]]; then
@@ -841,7 +935,7 @@ for slug in "${todo[@]}"; do
     quota_wait
     rc=0
     fetch_url "$dlbase.epub?source=download" "$epub_tmp" || rc=$?
-    [[ "$rc" == 0 ]] && quota_record
+    [[ "$rc" == 0 || "$rc" == 3 ]] && quota_record
     if [[ "$rc" != 0 ]]; then
       if [[ "$rc" == 2 ]]; then
         unavailable=$((unavailable + 1))
@@ -880,6 +974,24 @@ for slug in "${todo[@]}"; do
     author_dir="$(sanitize "$author_fileas")"
     base="$(sanitize "$title")"
 
+    # Two catalog entries can file alike: translations of one book share an
+    # author and a title (SE tells them apart by a third slug segment, the
+    # translator), and sanitize folds "A: B" and "A? B" into one name. Taking
+    # the directory regardless had the second probe replace the first edition's
+    # epub and keep its other three formats, after which both ledger entries
+    # pointed at one directory that every run saw as complete. The first comer
+    # keeps the plain name; a later one is set apart by its last slug segment.
+    if claimed_by_other "$slug" "$author_dir/$base"; then
+      alt="$base ($(sanitize "${slug##*/}"))"
+      if claimed_by_other "$slug" "$author_dir/$alt"; then
+        warn "$slug: both $author_dir/$base and $author_dir/$alt belong to other books - not filed"
+        failed=$((failed + 1))
+        progress "failed" "$slug"
+        continue
+      fi
+      base="$alt"
+    fi
+
     titledir="$dest/$author_dir/$base"
     # A directory that cannot be made is this book's failure, not the run's.
     # Everything else that can go wrong with a single book - a 404, a 403, an
@@ -899,7 +1011,12 @@ for slug in "${todo[@]}"; do
       continue
     fi
     relpath="${titledir#"$dest_prefix"}"
-    printf '%s\t%s\n' "$slug" "$relpath" >>"$index_file"
+    # Guarded like the mkdir and mv above, for the same reason: under set -e a
+    # ledger that stopped taking writes ended the run here. The ledger is a
+    # cache - the next run recovers a missing entry from this very epub - so a
+    # failed append costs a warning, not the catalog.
+    printf '%s\t%s\n' "$slug" "$relpath" >>"$index_file" ||
+      warn "$slug: could not record $relpath in the ledger"
     indexed_path["$slug"]="$relpath"
   fi
 

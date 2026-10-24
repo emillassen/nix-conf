@@ -13,7 +13,7 @@ My personal [NixOS](https://nixos.org/) configuration using [Nix Flakes](https:/
 Security and privacy:
 
 - SOPS secrets management with age encryption
-- YubiKey for GPG signing, SSH, and PAM auth
+- YubiKey for GPG signing and SSH
 - LUKS-encrypted disk via Disko
 - Firewall on by default
 - Mullvad VPN
@@ -34,7 +34,7 @@ Development:
 Applications:
 
 - Productivity: LibreOffice, Nextcloud
-- Media: mpv, Spotify, Calibre, YACReader, drtv-dl (DRTV downloads with Jellyfin naming, NFO metadata and artwork), standardebooks-dl (syncs a Calibre-style ebook library from standardebooks.org, with covers)
+- Media: mpv, Spotify, Calibre, YACReader, drtv-dl (DRTV downloads with Jellyfin naming, NFO metadata and artwork, each one checked for missing or broken streams after download), standardebooks-dl (syncs a Calibre-style ebook library from standardebooks.org, with covers)
 - Communication: Discord, Signal
 - System monitoring: btop, fastfetch, s-tui
 
@@ -98,25 +98,31 @@ Prerequisites:
    cd nix-conf
    ```
 
-3. Set up secrets (retrieves the age key from Bitwarden):
+3. Fetch the secrets (stages the age key from Bitwarden and decrypts the LUKS key to `/tmp/secret.key` for disko):
 
    ```bash
-   ./scripts/pre-install-secrets.sh
+   ./scripts/pre-install-secrets.sh fetch
    ```
 
-4. Partition and format disks with Disko:
+4. Partition and format disks with Disko (this mounts the target at `/mnt`):
 
    ```bash
    sudo nix --experimental-features "nix-command flakes" run github:nix-community/disko -- --mode disko /tmp/nix-conf/nixos/disks.nix
    ```
 
-5. Install NixOS:
+5. Install the age key onto the target (it needs the mounted `/mnt`, and nixos-install needs the key to decrypt the user password):
+
+   ```bash
+   sudo ./scripts/pre-install-secrets.sh install
+   ```
+
+6. Install NixOS:
 
    ```bash
    sudo nixos-install --root /mnt --flake /tmp/nix-conf#fw13 --no-root-passwd
    ```
 
-6. Reboot and remove the USB drive.
+7. Reboot and remove the USB drive.
 
 ### First Boot Setup
 
@@ -211,7 +217,7 @@ Secrets are encrypted with SOPS and age:
 
 ### YubiKey
 
-Used for GPG signing, SSH authentication, and PAM. Run `./scripts/setup-yubikey.sh` to configure (requires a pre-configured YubiKey).
+Used for GPG signing and SSH authentication. Run `./scripts/setup-yubikey.sh` to configure (requires a pre-configured YubiKey).
 
 ## Development
 

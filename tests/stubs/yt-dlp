@@ -31,7 +31,8 @@
 # titles as DR actually gives them.
 #
 # Every invocation is logged to $STUBLOG/yt-dlp.log, and every per-video
-# decision to $STUBLOG/ytdlp-events.log as "extract|skip-pre|skip-post <url>",
+# decision to $STUBLOG/ytdlp-events.log as "extract|skip-pre|skip-post <url>"
+# (plus "already-downloaded <url>" when the final file was there before it),
 # which is how a case proves an archived episode cost no extraction at all.
 set -uo pipefail
 
@@ -239,8 +240,18 @@ collect() {
 }
 
 # --- flat: one level down, no extraction -----------------------------------------
+# A URL the scenario knows nothing about - not a playlist, not a video, no
+# playlist metadata - is one DR no longer answers. Real yt-dlp says so on stderr
+# and, with --ignore-errors, carries on with the rest and exits 1 at the end.
+known() { jqs --arg u "$1" '(.playlists[$u] // .videos[$u] // .playlist_meta[$u] // null) != null'; }
 if [[ "$flat" == 1 ]]; then
+  status=0
   for u in ${urls[@]+"${urls[@]}"}; do
+    if [[ "$(known "$u")" != true ]]; then
+      printf 'ERROR: [DRTVSeason] %s: Unable to download JSON metadata: HTTP Error 404\n' "$u" >&2
+      status=1
+      continue
+    fi
     if [[ "$(is_playlist "$u")" == true ]]; then
       mapfile -t kids < <(children "$u")
     else
@@ -264,7 +275,7 @@ if [[ "$flat" == 1 ]]; then
       done
     done
   done
-  exit 0
+  exit "$status"
 fi
 
 # --- full extraction ----------------------------------------------------------------
@@ -341,6 +352,16 @@ for v in ${LEAVES[@]+"${LEAVES[@]}"}; do
   done
 
   [[ "$skip_download" == 1 ]] && continue
+
+  # Real yt-dlp takes any file already at the final name for "has already been
+  # downloaded", whatever is (or is not) in it, and fetches nothing. A stub that
+  # overwrote it would make an empty or broken file look repairable by simply
+  # running again, which is exactly what it is not.
+  if [[ -e "$media" ]]; then
+    printf '[download] %s has already been downloaded\n' "$media"
+    printf 'already-downloaded %s\n' "$v" >>"$EVENTS"
+    continue
+  fi
 
   mkdir -p "${media%/*}"
   printf '%s\n' "${F[payload]:-video bytes for $(field id)}" >"$media"

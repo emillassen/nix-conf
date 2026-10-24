@@ -17,7 +17,15 @@
 # is hit again and again, and the last one sticks — which is how "429, 429, then
 # 200" is expressed.
 #
-# STATUS 000 means the connection itself failed (curl exit 7).
+# STATUS 000 means the connection itself failed (curl exit 7). STATUS `CODE!RC`
+# answers CODE and serves the payload, then exits RC: a transfer that broke
+# after the server had answered (18 partial file, 23 write error, 28 timeout).
+# Real curl still prints %{http_code} as CODE in that case, which is the part a
+# caller has to cope with.
+#
+# A fixture that cannot be read, or an -o that cannot be written, fails loudly
+# (exit 26 / 23, as curl's own read and write errors do) instead of printing a
+# write-out that says 200 over a body that never arrived.
 #
 # Supports the flags the three scripts actually pass: -o, -w (%{http_code} and
 # %{url_effective}), -f, -s/-S, -L, -A, -H, -I, -m, --connect-timeout,
@@ -65,8 +73,15 @@ trap 'rm -f "$scratch"' EXIT
 
 emit() {
   local bodyfile="$1" code="$2" effective="$3"
+  if [[ ! -r "$bodyfile" ]]; then
+    echo "curl stub: scenario fixture $bodyfile is not readable" >&2
+    exit 26
+  fi
   if [[ -n "$out" ]]; then
-    cat "$bodyfile" >"$out"
+    cat "$bodyfile" >"$out" || {
+      echo "curl: (23) Failure writing output to destination" >&2
+      exit 23
+    }
   else
     cat "$bodyfile"
   fi
@@ -135,6 +150,21 @@ while :; do
       maxkeys="${maxkeys%%&*}"
       ;;
     esac
+    page=()
+    while IFS= read -r key; do
+      [[ -n "$key" ]] || continue
+      if [[ -n "$marker" ]] && ! [[ "$key" > "$marker" ]]; then continue; fi
+      # A page holds max-keys entries and says there are more. `nixos/unstable/`
+      # holds a decade of releases, so this is not hypothetical: a channel busy
+      # enough to publish a thousand of them inside the marker window puts its
+      # own tip on the second page.
+      if [[ "$shown" -ge "$maxkeys" ]]; then
+        truncated=true
+        break
+      fi
+      page+=("$key")
+      shown=$((shown + 1))
+    done < <(sort "$keyfile")
     {
       printf '<?xml version="1.0" encoding="UTF-8"?>\n<ListBucketResult>\n'
       # S3 echoes the request's own prefix back as a bare <Prefix>, ahead of the
@@ -142,21 +172,16 @@ while :; do
       # for one — so the stub emits it rather than serving a tidier listing than
       # the bucket does.
       printf '  <Prefix>%s</Prefix>\n' "$reqprefix"
-      while IFS= read -r key; do
-        [[ -n "$key" ]] || continue
-        if [[ -n "$marker" ]] && ! [[ "$key" > "$marker" ]]; then continue; fi
-        # A page holds max-keys entries and says there are more. `nixos/unstable/`
-        # holds a decade of releases, so this is not hypothetical: a channel busy
-        # enough to publish a thousand of them inside the marker window puts its
-        # own tip on the second page.
-        if [[ "$shown" -ge "$maxkeys" ]]; then
-          truncated=true
-          break
-        fi
+      # ... and puts IsTruncated up here too, before the page rather than after
+      # it. The real bucket answers on one single line, which happens to save a
+      # caller that greps for it through a pipe (grep has to read the whole line
+      # first); a line per entry, as here, is what shows that such a caller
+      # closes the pipe on the rest of a 70 kB page and dies of SIGPIPE.
+      printf '  <IsTruncated>%s</IsTruncated>\n' "$truncated"
+      for key in ${page[@]+"${page[@]}"}; do
         printf '  <CommonPrefixes><Prefix>%s</Prefix></CommonPrefixes>\n' "$key"
-        shown=$((shown + 1))
-      done < <(sort "$keyfile")
-      printf '  <IsTruncated>%s</IsTruncated>\n</ListBucketResult>\n' "$truncated"
+      done
+      printf '</ListBucketResult>\n'
     } >"$scratch"
     ;;
   *) printf '%s\n' "$payload" >"$scratch" ;;
@@ -165,6 +190,11 @@ while :; do
   if [[ "$status" == 000 ]]; then
     echo "curl: (7) Failed to connect" >&2
     exit 7
+  fi
+  broke=0
+  if [[ "$status" == *'!'* ]]; then
+    broke="${status#*!}"
+    status="${status%%!*}"
   fi
 
   case "$status" in
@@ -181,5 +211,9 @@ while :; do
     exit 22
   fi
   emit "$bodyfile" "$status" "$url"
+  if [[ "$broke" != 0 ]]; then
+    echo "curl: ($broke) transfer failed after the server answered $status" >&2
+    exit "$broke"
+  fi
   exit 0
 done

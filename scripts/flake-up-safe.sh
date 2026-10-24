@@ -189,6 +189,72 @@ for tool in git jq nix; do
 done
 command -v curl >/dev/null || die "curl not found in PATH"
 
+# --- One run per checkout, and the original lock safe before anything runs -----
+# Every trial rewrites this flake's flake.lock in place, so two runs against one
+# checkout would each build what the other just composed, and one restoring its
+# original under the other's feet would leave the second reporting "verified"
+# for a lock it never built. An flock on the flake directory itself: the kernel
+# drops it with the process, so an interrupted run never leaves a lock behind.
+# Where flock is missing (outside NixOS's util-linux) the run goes ahead unguarded.
+#
+# fd 8 is closed for every nix this starts (the `8<&-` below): a child that
+# inherited it would hold the checkout locked for as long as it outlived the run.
+if command -v flock >/dev/null; then
+  exec 8<"$FLAKE_DIR"
+  flock -n 8 || die "another flake-up-safe is already running on $FLAKE_DIR"
+fi
+
+# The backup and the traps come before the first nix command, host discovery
+# included: an evaluation can write flake.lock (it reconciles a lock that no
+# longer matches flake.nix), and a backup taken after it would have the run
+# "restore" that rewritten lock at the end.
+WORKDIR="$(mktemp -d -t flake-up-safe.XXXXXX)"
+ORIG_LOCK="$WORKDIR/orig.lock"
+BASELINE_LOCK="$WORKDIR/baseline.lock"
+LOGDIR="$WORKDIR/logs"
+LOCKCACHE="$WORKDIR/locks"
+mkdir -p "$LOGDIR" "$LOCKCACHE"
+cp "$LOCK" "$ORIG_LOCK"
+SUCCESS=0
+KEEP_LOGS=0
+NIX_CHILD=""
+
+cleanup() {
+  # Anything other than a completed search leaves flake.lock exactly as found.
+  if [ "$SUCCESS" -eq 0 ] && [ -f "$ORIG_LOCK" ]; then
+    if cp "$ORIG_LOCK" "$LOCK"; then
+      echo >&2
+      echo "flake.lock restored to its original contents." >&2
+    else
+      echo >&2
+      echo "error: could not restore flake.lock; the original is $ORIG_LOCK" >&2
+    fi
+    echo "logs kept in $WORKDIR" >&2
+  elif [ "$KEEP_LOGS" -eq 1 ]; then
+    echo
+    echo "logs kept in $WORKDIR"
+  else
+    rm -rf "$WORKDIR"
+  fi
+}
+trap cleanup EXIT
+# Without these, a Ctrl-C lands inside whichever `nix build` is running and the
+# script would carry on to the next trial with that one recorded as a failure.
+# The nix that is running goes too: run_nix starts it in the background (so the
+# signal is acted on now, not when a build of hours finishes), and a background
+# child of a non-interactive shell ignores SIGINT, so leaving it to the signal
+# would leave it building after the run has said it stopped.
+on_signal() {
+  if [ -n "$NIX_CHILD" ]; then
+    kill -TERM "$NIX_CHILD" 2>/dev/null || true
+    wait "$NIX_CHILD" 2>/dev/null || true
+  fi
+  echo >&2
+  echo "interrupted." >&2
+  exit 130
+}
+trap on_signal INT TERM HUP
+
 # Resolve the build target. With one nixosConfiguration (the usual case) the host
 # needs no flag; with several, -H picks. A -t without a flake reference is taken
 # as an attr of this flake, so `-t devilutionx` works from any directory.
@@ -203,8 +269,10 @@ if [ -n "$TARGET" ]; then
   esac
 else
   if [ -z "$HOST" ]; then
+    # --no-write-lock-file: listing hosts is a question, and must not reconcile
+    # (and so rewrite) the lock on the way.
     mapfile -t HOSTS < <(
-      nix eval --json --no-warn-dirty "$FLAKE_DIR#nixosConfigurations" \
+      nix eval --json --no-warn-dirty --no-write-lock-file "$FLAKE_DIR#nixosConfigurations" \
         --apply builtins.attrNames 2>/dev/null | jq -r '.[]'
     )
     case "${#HOSTS[@]}" in
@@ -216,14 +284,6 @@ else
   TARGET="$FLAKE_DIR#nixosConfigurations.$HOST.config.system.build.toplevel"
 fi
 
-WORKDIR="$(mktemp -d -t flake-up-safe.XXXXXX)"
-ORIG_LOCK="$WORKDIR/orig.lock"
-BASELINE_LOCK="$WORKDIR/baseline.lock"
-LOGDIR="$WORKDIR/logs"
-LOCKCACHE="$WORKDIR/locks"
-mkdir -p "$LOGDIR" "$LOCKCACHE"
-cp "$LOCK" "$ORIG_LOCK"
-
 KEPT=()
 PINS=()
 BISECTED=()
@@ -233,8 +293,6 @@ NORESOLVE=()
 RUN_START=$SECONDS
 BUILDS=0
 EVALS=0
-SUCCESS=0
-KEEP_LOGS=0
 TRIAL_N=0
 TRIAL_OUT=""
 BASELINE_OUT=""
@@ -242,25 +300,6 @@ FINAL_OUT=""
 
 # A progress line is only useful on a terminal; in a pipe or a log it is noise.
 if [ -t 1 ] && [ "$VERBOSE" -eq 0 ]; then TTY=1; else TTY=0; fi
-
-cleanup() {
-  # Anything other than a completed search leaves flake.lock exactly as found.
-  if [ "$SUCCESS" -eq 0 ] && [ -f "$ORIG_LOCK" ]; then
-    cp "$ORIG_LOCK" "$LOCK"
-    echo >&2
-    echo "flake.lock restored to its original contents." >&2
-    echo "logs kept in $WORKDIR" >&2
-  elif [ "$KEEP_LOGS" -eq 1 ]; then
-    echo
-    echo "logs kept in $WORKDIR"
-  else
-    rm -rf "$WORKDIR"
-  fi
-}
-trap cleanup EXIT
-# Without these, a Ctrl-C lands inside whichever `nix build` is running and the
-# script would carry on to the next trial with that one recorded as a failure.
-trap 'echo >&2; echo "interrupted." >&2; exit 130' INT TERM HUP
 
 fmt_dur() { printf '%dm%02ds' $(($1 / 60)) $(($1 % 60)); }
 
@@ -342,6 +381,13 @@ day_of() { date -u -d "@$1" +%F; }
 
 lock_key() { printf '%s\n' "$@" | sort | sha256sum | cut -c1-32; }
 
+# Every lock this run puts in place goes through here. A copy that fails is the
+# end of the run, not a trial: compose() is called as `compose ... || return 1`,
+# which switches set -e off inside it, so a failed cp used to fall through to
+# `return 0` - and the trial then built whatever lock happened to be on disk
+# and recorded the verdict against the recipe it had been asked for.
+put_lock() { cp -- "$1" "$2" || die "could not write $2 (from $1)"; }
+
 # Pin one input to a specific revision. Only `locked` moves: `original` keeps the
 # branch from flake.nix, so a later plain `nix flake update` still follows that
 # branch forward rather than staying frozen at the pinned revision. The flake
@@ -350,7 +396,7 @@ lock_key() { printf '%s\n' "$@" | sort | sha256sum | cut -c1-32; }
 pin_input() {
   local name="$1" slug="$2" rev="$3" got
   nix flake lock "$FLAKE_DIR" --override-input "$name" "github:$slug/$rev" \
-    --no-warn-dirty >>"$LOGDIR/pin.log" 2>&1 || {
+    --no-warn-dirty 8<&- >>"$LOGDIR/pin.log" 2>&1 || {
     echo "      error: could not pin $name to ${rev:0:10} (see $LOGDIR/pin.log)" >&2
     return 1
   }
@@ -370,7 +416,7 @@ run_flake_update() {
   shift
   for attempt in 1 2; do
     rc=0
-    nix flake update --flake "$FLAKE_DIR" --no-warn-dirty "$@" >"$log" 2>&1 || rc=$?
+    nix flake update --flake "$FLAKE_DIR" --no-warn-dirty "$@" 8<&- >"$log" 2>&1 || rc=$?
     [ "$rc" -eq 0 ] && return 0
     if [ "$attempt" -eq 1 ] && is_transient "$log"; then
       echo "    … network trouble resolving inputs, retrying once" >&2
@@ -388,7 +434,7 @@ compose() {
   key="$(lock_key "$@")"
   cached="$LOCKCACHE/$key.lock"
   if [ -f "$cached" ]; then
-    cp "$cached" "$LOCK"
+    put_lock "$cached" "$LOCK"
     return 0
   fi
   for t in "$@"; do
@@ -397,7 +443,7 @@ compose() {
     pin:*) pins+=("${t#pin:}") ;;
     esac
   done
-  cp "$BASELINE_LOCK" "$LOCK"
+  put_lock "$BASELINE_LOCK" "$LOCK"
   # `nix flake update` with no input arguments means "all", which is never what a
   # recipe asks for — the all-tips lock is composed from the full name list.
   if [ "${#tips[@]}" -gt 0 ]; then
@@ -430,14 +476,14 @@ compose() {
     IFS=: read -r pname pslug prev <<<"$p"
     pin_input "$pname" "$pslug" "$prev" || return 1
   done
-  cp "$LOCK" "$cached"
+  put_lock "$LOCK" "$cached"
 }
 
 # Reset to the baseline, then move every input to its tip. --refresh so a tip
 # resolved less than an hour ago (nix's tarball-ttl) is not mistaken for current;
 # the whole point of the run is to find out what is actually newest.
 update_all() {
-  cp "$BASELINE_LOCK" "$LOCK"
+  put_lock "$BASELINE_LOCK" "$LOCK"
   run_flake_update "$LOGDIR/update-all.log" --refresh || {
     echo "error: nix flake update failed" >&2
     cat "$LOGDIR/update-all.log" >&2
@@ -466,10 +512,11 @@ run_nix() {
   if [ "$VERBOSE" -eq 1 ]; then
     # A pipeline rather than a process substitution, so the log is complete by
     # the time the caller reads it back looking for the failure.
-    { "$@" 2>&1 >"$outf" | tee -a "$log" >&2; } || rc=$?
+    { "$@" 8<&- 2>&1 >"$outf" | tee -a "$log" >&2; } || rc=$?
   elif [ "$TTY" -eq 1 ]; then
-    "$@" >"$outf" 2>>"$log" &
+    "$@" 8<&- >"$outf" 2>>"$log" &
     pid=$!
+    NIX_CHILD="$pid"
     while kill -0 "$pid" 2>/dev/null; do
       # Quiet for the first few seconds: most trials are answered from the .drv
       # cache, and a line that appears and vanishes again is just flicker. Those
@@ -483,9 +530,16 @@ run_nix() {
       fi
     done
     wait "$pid" || rc=$?
+    NIX_CHILD=""
     printf '\r\033[K'
   else
-    "$@" >"$outf" 2>>"$log" || rc=$?
+    # In the background and waited for, rather than in the foreground: bash
+    # holds a trapped signal until the foreground command finishes, so a
+    # SIGTERM sent during a build of hours would wait those hours.
+    "$@" 8<&- >"$outf" 2>>"$log" &
+    NIX_CHILD=$!
+    wait "$NIX_CHILD" || rc=$?
+    NIX_CHILD=""
   fi
   return "$rc"
 }
@@ -553,17 +607,25 @@ trial() {
   : >"$log"
   printf '%s: %s\n' "$tag" "$label" >>"$log"
 
-  EVALS=$((EVALS + 1))
-  rc=0
-  run_nix "$log" "$WORKDIR/drv" nix path-info --derivation --no-warn-dirty "$TARGET" || rc=$?
-  drv="$(head -n1 "$WORKDIR/drv" 2>/dev/null || true)"
-  if [ "$rc" -ne 0 ] || [ -z "$drv" ]; then
+  # Evaluating fetches sources too, so it gets the same single retry for a
+  # network blip that a build does - without it one dropped packet held an
+  # input back for the rest of the run.
+  for attempt in 1 2; do
+    EVALS=$((EVALS + 1))
+    rc=0
+    run_nix "$log" "$WORKDIR/drv" nix path-info --derivation --no-warn-dirty "$TARGET" || rc=$?
+    drv="$(head -n1 "$WORKDIR/drv" 2>/dev/null || true)"
+    [ "$rc" -eq 0 ] && [ -n "$drv" ] && break
     abort_if_interrupted "$rc" "$log"
     abort_if_fatal "$log"
+    if [ "$attempt" -eq 1 ] && is_transient "$log"; then
+      printf '    … network trouble evaluating, retrying once\n'
+      continue
+    fi
     printf '    ✗ evaluation failed (%ds)\n' "$((SECONDS - start))"
     report_error "$log"
     return 1
-  fi
+  done
 
   if [ -n "${DRV_VERDICT[$drv]-}" ]; then
     if [ "${DRV_VERDICT[$drv]}" = ok ]; then
@@ -608,17 +670,29 @@ trial() {
 # `nix flake check` covers outputs the target's .drv says nothing about, so it is
 # keyed on the lock file itself rather than on the .drv.
 check_lock() {
-  local log="$1" start="$2" hash rc
+  local log="$1" start="$2" hash rc attempt
   [ "$RUN_CHECK" -eq 1 ] || return 0
   hash="$(sha256sum <"$LOCK" | cut -c1-32)"
   if [ -n "${LOCK_CHECKED[$hash]-}" ]; then
     [ "${LOCK_CHECKED[$hash]}" = ok ] && return 0
     return 1
   fi
-  rc=0
-  run_nix "$log" /dev/null nix flake check --no-warn-dirty "$FLAKE_DIR" || rc=$?
-  if [ "$rc" -ne 0 ]; then
+  # `nix flake check` builds too, so it fails the same environmental ways a build
+  # does, and gets the same answer: a full disk ends the run instead of being
+  # cached as this lock's verdict, and a network blip is worth one retry.
+  for attempt in 1 2; do
+    rc=0
+    run_nix "$log" /dev/null nix flake check --no-warn-dirty "$FLAKE_DIR" || rc=$?
+    [ "$rc" -eq 0 ] && break
     abort_if_interrupted "$rc" "$log"
+    abort_if_fatal "$log"
+    if [ "$attempt" -eq 1 ] && is_transient "$log"; then
+      printf '    … network trouble checking, retrying once\n'
+      continue
+    fi
+    break
+  done
+  if [ "$rc" -ne 0 ]; then
     LOCK_CHECKED[$hash]=bad
     printf '    ✗ flake check failed (%ds)\n' "$((SECONDS - start))"
     report_error "$log"
@@ -685,7 +759,11 @@ s3_releases() {
     names="$names$(printf '%s' "$out" | grep -o '<Prefix>[^<]*</Prefix>' |
       sed 's|<[^>]*>||g; s|/$||; s|.*/||')
 "
-    printf '%s' "$out" | grep -q '<IsTruncated>true</IsTruncated>' || break
+    # A substring test, not `printf | grep -q`: grep stops reading at its first
+    # match, which S3 puts near the top of the page, and the printf left
+    # writing the rest of it into a closed pipe dies of SIGPIPE - which
+    # pipefail turns into "this was the last page".
+    [[ "$out" == *'<IsTruncated>true</IsTruncated>'* ]] || break
     [ -n "$last" ] || break
     marker="$last"
   done
@@ -736,13 +814,22 @@ build_candidates() {
       marker="$prefix$nameprefix$((10#$(date -u -d "@${TIP_TS[$name]}" +%y) - 1))."
       ;;
     esac
-    local found=-1 idx=0
+    local found=-1 idx=0 listing="$WORKDIR/releases-$name"
+    # Through a file so that a failed listing is seen to fail. An empty list
+    # read as "the tip is not a published release", and the run fell back to
+    # a per-day commit search - revisions Hydra never built, on the strength
+    # of a network error. A listing that cannot be had leaves the input
+    # unsearched instead, the same as a GitHub that cannot be reached.
+    if ! s3_releases "$prefix" "$marker" >"$listing"; then
+      printf '    (could not list the %s releases; not falling back to commits)\n' "$ref"
+      return 2
+    fi
     while IFS=$'\t' read -r _ short relname; do
       rel_short+=("$short")
       rel_name+=("$relname")
       [ "${TIP_REV[$name]#"$short"}" != "${TIP_REV[$name]}" ] && found="$idx"
       idx=$((idx + 1))
-    done < <(s3_releases "$prefix" "$marker" || true)
+    done <"$listing"
 
     if [ "$found" -ge 0 ]; then
       for ((i = found + 1; i < ${#rel_short[@]}; i++)); do
@@ -765,9 +852,18 @@ build_candidates() {
   # between two lock positions. Revisions are resolved against the tip's own
   # history rather than the branch, so a branch that moves mid-run cannot change
   # what is being searched.
+  #
+  # Compared as calendar days, not timestamps. Subtracting whole days from the
+  # tip keeps the tip's time of day, so with the tip at 10:00 and the baseline
+  # at 15:00 the baseline's own day came out "older than the baseline" and was
+  # left out - though its commits after 15:00 are newer than the baseline, and
+  # the query for that day reaches them.
+  local base_day
+  base_day="$(day_of "${BASE_TS[$name]}")"
   ts=$((TIP_TS[$name] - 86400))
-  while [ "$ts" -ge "${BASE_TS[$name]}" ] && [ "${#CAND_SPEC[@]}" -lt "$MAX_DAYS" ]; do
+  while [ "${#CAND_SPEC[@]}" -lt "$MAX_DAYS" ]; do
     day="$(day_of "$ts")"
+    [[ "$day" < "$base_day" ]] && break
     CAND_LABEL+=("$day")
     CAND_SPEC+=("day:$slug:${TIP_REV[$name]}:$day")
     ts=$((ts - 86400))
@@ -820,7 +916,7 @@ try_cand() {
   if ! resolve_cand "$i"; then
     [ "$lookup" -eq 1 ] && LOOKUPS_FAILED=$((LOOKUPS_FAILED + 1))
     printf '    %-38s (could not resolve; skipping)\n' "${CAND_LABEL[$i]}"
-    return 1
+    return 2
   fi
   [ "$lookup" -eq 1 ] && LOOKUPS_OK=$((LOOKUPS_OK + 1))
   rev="$CAND_REV"
@@ -928,11 +1024,11 @@ fi
 if [ "${#ONLY[@]}" -eq 0 ]; then
   ALL_TOKENS=()
   for name in "${UPDATABLE[@]}"; do ALL_TOKENS+=("tip:$name"); done
-  cp "$LOCK" "$LOCKCACHE/$(lock_key "${ALL_TOKENS[@]}").lock"
+  put_lock "$LOCK" "$LOCKCACHE/$(lock_key "${ALL_TOKENS[@]}").lock"
 fi
 
 echo "Verifying the baseline builds..."
-cp "$BASELINE_LOCK" "$LOCK"
+put_lock "$BASELINE_LOCK" "$LOCK"
 if ! trial "baseline"; then
   KEEP_LOGS=1
   echo >&2
@@ -1018,10 +1114,23 @@ if [ "$BISECT" -eq 1 ] && [ "${#RED[@]}" -gt 0 ]; then
     fi
 
     CAND_REV_MEMO=()
+    # Per input, like the memo above: a verdict on a revision was reached for
+    # one input under the pins in force at the time, and two inputs that track
+    # one repository (nixpkgs and nixpkgs-stable) can meet the same revision -
+    # the second used to take the first one's verdict on it without a trial.
+    REV_VERDICT=()
+    REV_TS=()
+    UNRESOLVED=()
     CAND_KIND=""
     LOOKUPS_OK=0
     LOOKUPS_FAILED=0
-    build_candidates "$name" "$slug" "$ref"
+    rc=0
+    build_candidates "$name" "$slug" "$ref" || rc=$?
+    if [ "$rc" -eq 2 ]; then
+      NORESOLVE+=("$name")
+      printf '    → could not list its candidates; staying at baseline\n'
+      continue
+    fi
     n="${#CAND_SPEC[@]}"
     # The baseline is the known-good far end of the range, one index past the
     # list. Everything in between is what the search actually visits.
@@ -1033,11 +1142,18 @@ if [ "$BISECT" -eq 1 ] && [ "${#RED[@]}" -gt 0 ]; then
     step=1
     idx=0
     probed=0
+    # A candidate that could not be resolved (try_cand returns 2) is walked past
+    # like one that failed, since there is nothing to build, but it is not one:
+    # it is remembered, so a result with an unresolved candidate newer than it
+    # does not claim to be the newest that builds.
     while [ "$idx" -lt "$n" ]; do
-      if try_cand "$name" "$slug" "$idx"; then
+      rc=0
+      try_cand "$name" "$slug" "$idx" || rc=$?
+      if [ "$rc" -eq 0 ]; then
         hi="$idx"
         break
       fi
+      [ "$rc" -eq 2 ] && UNRESOLVED+=("$idx")
       lo="$idx"
       # One at a time while a build still buys a day of freshness worth having,
       # counted in probes made rather than in the index reached. The two are the
@@ -1055,12 +1171,23 @@ if [ "$BISECT" -eq 1 ] && [ "${#RED[@]}" -gt 0 ]; then
     # failed walk get searched rather than written off.
     while [ $((hi - lo)) -gt 1 ]; do
       mid=$(((lo + hi) / 2))
-      if try_cand "$name" "$slug" "$mid"; then
+      rc=0
+      try_cand "$name" "$slug" "$mid" || rc=$?
+      if [ "$rc" -eq 0 ]; then
         hi="$mid"
       else
+        [ "$rc" -eq 2 ] && UNRESOLVED+=("$mid")
         lo="$mid"
       fi
     done
+    newer_unresolved=0
+    for u in ${UNRESOLVED[@]+"${UNRESOLVED[@]}"}; do
+      [ "$u" -lt "$hi" ] && newer_unresolved=$((newer_unresolved + 1))
+    done
+    unresolved_note=""
+    [ "$newer_unresolved" -gt 0 ] &&
+      unresolved_note="$(printf '    (%d newer candidate(s) could not be resolved, so a newer one may build too)' \
+        "$newer_unresolved")"
 
     # A search in which every lookup failed found nothing because it could not
     # ask, not because nothing builds. Saying "no revision newer than the
@@ -1087,6 +1214,7 @@ if [ "$BISECT" -eq 1 ] && [ "${#RED[@]}" -gt 0 ]; then
     if [ "$hi" -ge "$n" ] || [ "$rev" = "${BASE_REV[$name]}" ] ||
       [ "${REV_TS[$rev]:-0}" -le "${BASE_TS[$name]}" ]; then
       printf '    → nothing newer than the baseline builds; staying at baseline\n'
+      [ -n "$unresolved_note" ] && printf '%s\n' "$unresolved_note"
       continue
     fi
     PINS+=("$name:$slug:$rev")
@@ -1095,6 +1223,7 @@ if [ "$BISECT" -eq 1 ] && [ "${#RED[@]}" -gt 0 ]; then
     # day and not the revision's own date — the summary at the end reports the
     # date the lock actually ends up with.
     printf '    → newest working candidate: %s → %s\n' "${CAND_LABEL[$hi]}" "${rev:0:10}"
+    [ -n "$unresolved_note" ] && printf '%s\n' "$unresolved_note"
   done
   echo
 fi
@@ -1116,7 +1245,7 @@ if [ "${#KEPT[@]}" -gt 0 ] || [ "${#BISECTED[@]}" -gt 0 ]; then
     echo
     echo "The combination that each step accepted does not build together." >&2
     echo "Falling back to the $BASELINE baseline." >&2
-    cp "$BASELINE_LOCK" "$LOCK"
+    put_lock "$BASELINE_LOCK" "$LOCK"
     KEPT=()
     BISECTED=()
     PINS=()
@@ -1199,8 +1328,9 @@ if [ "${#STILL_BACK[@]}" -gt 0 ]; then
     fi
     if [ "${#NORESOLVE[@]}" -gt 0 ]; then
       echo "No candidate revision could be resolved for: ${NORESOLVE[*]}"
-      echo "That is GitHub being unreachable or rate-limited, not a verdict on those"
-      echo "inputs — nothing was built for them. Re-run when it answers again."
+      echo "That is GitHub or the nix-releases bucket being unreachable or rate-limited,"
+      echo "not a verdict on those inputs — nothing was built for them. Re-run when it"
+      echo "answers again."
     fi
   fi
 fi

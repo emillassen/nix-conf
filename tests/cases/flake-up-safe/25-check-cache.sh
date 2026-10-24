@@ -54,3 +54,27 @@ assert_eq "b was held back on the check's word" "base-b" "$(lock_rev b)"
 assert_eq "the repeated lock cost no second check" 3 "$(stub_count nix 'flake check')"
 assert_eq "and no second build either" 3 "$(builds_run)"
 assert_contains "the build half was recognised as a repeat" "$STDOUT" "builds (identical to"
+
+# --- keyed on the lock, not on the .drv --------------------------------------
+# An input that does not reach the target (a dev-shell or checks-only input)
+# leaves the .drv as it was, and only the check can see it. Here its tip fails
+# the check. A check cache keyed on the .drv would carry that failure over to
+# every lock sharing the .drv - the {a} trial among them - and hold back the
+# input that had nothing to do with it.
+rm -f "$STUBLOG/nix.log" "$STUBLOG/builds.log"
+sim_init
+sim_input a org/a main base-a 1750000000 tip-a 1755000000
+sim_input dev org/dev main base-dev 1750000000 tip-dev 1755000000
+sim_write
+sim_reaching a
+sim_verdict <<'EOF'
+exit 0
+EOF
+sim_check <<'EOF'
+grep -qx 'dev=tip-dev' && exit 1
+exit 0
+EOF
+run_flake_up_safe -f "$FLAKE" -k --no-bisect
+assert_exit "a checks-only input: exits 0" 0
+assert_eq "the input the target sees reaches its tip" "tip-a" "$(lock_rev a)"
+assert_eq "the checks-only input is held back by the check" "base-dev" "$(lock_rev dev)"

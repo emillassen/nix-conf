@@ -35,6 +35,7 @@ script exists because the format has sharp edges (see _Format facts_).
 | bucket            | what it is                                              | default judgement                |
 | ----------------- | ------------------------------------------------------- | -------------------------------- |
 | `pattern:<re>`    | matched a `--drop-pattern` the user asked for           | drop                             |
+| `command:<name>`  | runs a command named with `--drop-command`              | drop                             |
 | `unresolved-bare` | unknown command, no args or just `--help`               | drop — a removed alias or a typo |
 | `unresolved-args` | unknown command **with real arguments**                 | **ask**                          |
 | `not-a-command`   | pasted prose, program output, bracketed-paste artifacts | drop                             |
@@ -51,7 +52,16 @@ Use the frequency table the report prints:
 - **bare name or `--help` only** → a one-off "is this installed?" probe. Junk.
 
 Rescue or condemn individual names with `--keep-command NAME` /
-`--drop-command NAME` rather than hand-editing the file.
+`--drop-command NAME` rather than hand-editing the file. `--drop-command` files
+every entry running that command under `command:NAME`, whether zsh knows the
+name or not; like the pattern buckets it is dropped with
+`--drop-bucket command:NAME`, or `--drop-bucket command` for all of them.
+
+`not-a-command` is dropped by default and `unresolved-args` is put to the user,
+so the prose heuristic errs towards the second: an entry counts as prose only
+if its first word is capitalised (`FIX IMMICH ROLE`), or it runs to six words
+or more with sentence punctuation in it. `terraform workspace select
+Production` is an uninstalled tool, not prose.
 
 ## Secrets
 
@@ -63,14 +73,21 @@ curl 'https://x/f?token=ac9f2122fbff…'                  ->   …?token=<REDACT
 ```
 
 Three layers, cheapest and safest first: vendor-prefixed tokens (`sk-ant-`,
-`ghp_`, `AKIA…`, JWTs, …); labelled values (`--token=`, `API_KEY=`,
-`?token=`, `Authorization: Bearer`, `https://user:pass@host`); and, only for
-entries that are _about_ authentication, a high-entropy scan that catches bare
-positional keys like the `immich login` case. That auth-context gate matters —
-an unguarded entropy scan shreds nix store paths, hashes and filenames. Nix
-store paths, SRI hashes, UUIDs, git SHAs, ssh public keys and anything ending
-in a file extension are excluded outright. Use `--no-entropy` to keep only the
-first two layers.
+`ghp_`, `AKIA…`, JWTs, …); labelled values (`--token=`, `TOKEN=`, `API_KEY=`,
+`?token=`, `Authorization: Bearer`, `https://user:pass@host`), where a quoted
+value goes whole, spaces and all; and, only for entries that are _about_
+authentication, a high-entropy scan that catches bare positional keys like the
+`immich login` case. That auth-context gate is decided per entry, not per line,
+since the keyword is often on the line before the key. It matters — an
+unguarded entropy scan shreds nix store paths, hashes and filenames. Nix store
+paths, SRI hashes, UUIDs, git SHAs, ssh public keys and anything ending in a
+file extension are excluded outright, and so is a shell expansion (`$TOKEN`
+is not a secret, and redacting it breaks the command). A pasted private key is
+redacted as a block, BEGIN through END, collapsed to one placeholder line. Use
+`--no-entropy` to keep only the first two layers.
+
+A stored line's trailing backslashes are its continuation marker, and are set
+aside before any pattern sees the line, so redaction never splits an entry.
 
 **Two things to tell the user afterwards:**
 
@@ -87,7 +104,8 @@ The report deliberately prints only masked previews, so it is safe to keep.
 
 Off by default; `--dedup` enables it, `--dedup-keep first|last` (default
 `last`). Exact matches only, compared on the command with the timestamp
-stripped — never fuzzy.
+stripped — never fuzzy, and not even trailing whitespace is trimmed (`a\ `
+and `a\<TAB>` are different commands).
 
 Recommended: **dedup, keeping the newest.** `HIST_IGNORE_DUPS` only suppresses
 _consecutive_ repeats, so a long history is mostly `ls` / `cd ..` / `clear`;
@@ -128,17 +146,26 @@ timestamps; that is the whole of the trade.
 ## Live-shell hazard
 
 `SHARE_HISTORY` means the user's other terminals append while the script runs;
-the file grows mid-analysis. The script re-reads at write time and swaps
-atomically (`os.replace`), so this is safe, but tell the user that a shell open
-_before_ the rewrite may re-append a few entries from its in-memory buffer when
-it exits. For a fully clean result they should close other terminals first, or
-run `fc -R` afterwards.
+the file grows mid-analysis. So `--apply` takes the lock zsh itself takes to
+write the file (an fcntl lock, which is what `HIST_FCNTL_LOCK` uses, and
+`<file>.LOCK`, which is what zsh uses without it), reads the file again under
+it, rebuilds the result from that read if anything changed, and swaps it in
+atomically (`os.replace`) before letting go. No append from a shell honouring
+the lock is lost. Still tell the user that a shell open _before_ the rewrite
+may re-append a few entries from its in-memory buffer when it exits. For a
+fully clean result they should close other terminals first, or run `fc -R`
+afterwards.
+
+The backup and the scratch file are created exclusively and `0600` from the
+start, and a backup name that is taken (two applies in one second) gets a
+`-1`, `-2`, … suffix rather than overwriting the original.
 
 ## Verification
 
 `--apply` re-reads the result with `zsh -f -i -c 'fc -R …; fc -l -n …'` and
 compares the entry count to what it intended to keep, printing `OK` or
-`MISMATCH`. `MISMATCH` means the continuation encoding was mangled — restore
+`MISMATCH` (and `FAILED` when zsh itself exits non-zero, whatever it printed).
+`MISMATCH` or `FAILED` means the continuation encoding was mangled — restore
 the backup. To double-check by hand that nothing was rewritten:
 
 ```sh

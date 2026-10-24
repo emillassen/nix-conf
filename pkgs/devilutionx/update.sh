@@ -77,7 +77,10 @@ LATEST="$(gh_api "https://api.github.com/repos/$OWNER/$REPO/commits/$BRANCH")" |
 
 REV="$(jq -r '.sha // empty' <<<"$LATEST")"
 DATE="$(jq -r '.commit.author.date // empty' <<<"$LATEST" | cut -dT -f1)"
-SUBJECT="$(jq -r '.commit.message // empty' <<<"$LATEST" | head -n1)"
+# The first line is taken inside jq, not with `| head -n1`: head exits after one
+# line, and a commit message longer than a pipe buffer then SIGPIPEs jq, which
+# pipefail turns into the whole updater exiting 141 before it has compared a rev.
+SUBJECT="$(jq -r '(.commit.message // "") | split("\n")[0]' <<<"$LATEST")"
 require_value "the latest commit sha" "$REV"
 require_value "the latest commit date" "$DATE"
 
@@ -199,7 +202,11 @@ for i in "${!ZIP_VARS[@]}"; do
     echo "  ! $var: failed to prefetch $url" >&2
     exit 1
   fi
-  patch_block "$var" url "$url" "$(to_sri "$b32")"
+  # Its own assignment, not an argument: a $(...) inside patch_block's argument
+  # list fails without failing anything, and the pin got an empty hash.
+  sri="$(to_sri "$b32")"
+  require_value "the $var hash for $url" "$sri"
+  patch_block "$var" url "$url" "$sri"
 done
 
 for i in "${!GIT_VARS[@]}"; do
@@ -216,6 +223,21 @@ for i in "${!GIT_VARS[@]}"; do
   gh_slug="${gh_slug%.git}"
   gh_owner="${gh_slug%%/*}"
   gh_repo="${gh_slug##*/}"
+  # patch_block rewrites rev and hash only. If upstream has moved the dependency
+  # to another repository, pinning its new rev under the old owner/repo would
+  # fetch a commit that is not there (or worse, one that is, from the old repo),
+  # so a move is stopped here for a human to look at instead.
+  pinned="$(awk -v var="$var" '
+    $0 ~ "^  " var " = fetch" { inblk = 1 }
+    inblk && match($0, /owner = "([^"]+)"/, a) { owner = a[1] }
+    inblk && match($0, /repo = "([^"]+)"/, a) { repo = a[1] }
+    inblk && /hash = "/ { print owner "/" repo; exit }
+  ' "$WORK")"
+  if [ "$pinned" != "$gh_owner/$gh_repo" ]; then
+    echo "  ! $var: upstream now fetches it from $gh_owner/$gh_repo, not $pinned;" \
+      "update owner/repo in $FILE by hand" >&2
+    exit 1
+  fi
   if grep -qF "\"$tag\"" "$WORK"; then
     echo "  = $var: unchanged"
     continue
@@ -246,7 +268,13 @@ if cmp -s "$WORK" "$FILE"; then
   exit 1
 fi
 
-cp "$WORK" "$FILE"
+# A sibling and a rename, not a cp over the file: a cp that fails part-way
+# (a full disk) leaves default.nix truncated, and nothing here restores it.
+NEW="$(mktemp "$FILE.XXXXXX")"
+trap 'rm -f "$WORK" "$WORK.tmp" "$NEW"' EXIT
+cp "$WORK" "$NEW"
+chmod --reference="$FILE" "$NEW"
+mv -f "$NEW" "$FILE"
 
 echo "Updated $FILE with ${#CHANGES[@]} change(s):"
 printf '  %s\n' "${CHANGES[@]}"

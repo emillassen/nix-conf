@@ -19,8 +19,14 @@ let
   # makes it propagate to each episode (url -> url_transparent). It also
   # surfaces show descriptions and poster images the API already returns,
   # which the NFO/artwork generation in the script feeds on.
+  # The second patch (on top of the first) makes the episode extractor use the
+  # numeric id from the URL: the webpage now carries a UUID item id, which DR's
+  # videos/items APIs reject with 400/404, failing every download.
   yt-dlp' = yt-dlp.overridePythonAttrs (old: {
-    patches = (old.patches or [ ]) ++ [ ./fix-drtv-season-metadata.patch ];
+    patches = (old.patches or [ ]) ++ [
+      ./fix-drtv-season-metadata.patch
+      ./fix-drtv-item-id.patch
+    ];
   });
 in
 writeShellApplication {

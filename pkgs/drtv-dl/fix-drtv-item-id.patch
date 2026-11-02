@@ -1,0 +1,29 @@
+DRTVIE took the item id from the episode webpage's embedded JSON, and DR
+now puts a UUID there (item['id'] = 'ede29e1a-...'). Both APIs reject it:
+/api/account/items/{id}/videos answers 400 "Item was not found", so every
+episode and film fails with "Unable to download JSON metadata: HTTP Error
+400", and /api/items/{id} answers 404, which the season-metadata graft from
+fix-drtv-season-metadata.patch turns into a warning per episode. The
+numeric id at the end of the URL slug (naturpatruljen_476036 -> 476036) is
+still accepted by both, and is what the backup branch already used, so use
+it whenever the slug ends in one; legacy dr.dk/tv/se/ slugs, which do not,
+keep the webpage's id. Applies on top of fix-drtv-season-metadata.patch.
+
+--- a/yt_dlp/extractor/drtv.py
++++ b/yt_dlp/extractor/drtv.py
+@@ -200,10 +200,11 @@
+             'segments': 'drtv,optedout',
+             'sub': 'Anonymous',
+         }
+-        if item:
+-            item_id = item.get('id')
+-        else:
+-            item_id = url_slug.rsplit('_', 1)[-1]
++        # The webpage's item id is now a UUID that the items and videos APIs
++        # reject (404/400); they still take the numeric id ending the URL slug.
++        slug_id = url_slug.rsplit('_', 1)[-1]
++        item_id = slug_id if slug_id.isdigit() else traverse_obj(item, 'id') or slug_id
++        if not item:
+             item = self._download_json(
+                 f'https://production-cdn.dr-massive.com/api/items/{item_id}', item_id,
+                 note='Attempting to download backup item data', query=items_api_query)

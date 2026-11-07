@@ -1,0 +1,41 @@
+DR's image service (ResizeImage, on both prod*-static.dr-massive.com and
+shain-api.drtv-platform.dr.dk) answers in the source image's own format
+unless the URL asks for one. For most shows that is JPEG, but for some -
+"Anton - min hemmelige ven" is one - every image is a PNG: the show poster
+URL even says Format='png', and the episode wallpaper URLs carry no Format
+at all. The URLs have no file extension, so yt-dlp saves each one under a
+.jpg name; --convert-thumbnails jpg then judges by that name ("already is
+in target format jpg") and leaves the PNG alone, and playlist thumbnails
+(poster.jpg, seasonNN-poster.jpg) are never converted at all. The result
+was PNGs of 4-5 MB each behind every .jpg name of such a show.
+
+The service transcodes on request (Format='jpg' gives image/jpeg on both
+hosts), so _drtv_thumbnails, which every DR image passes through, now asks
+for it: an existing Format parameter is set to 'jpg', and a URL without one
+gets it appended. Only ResizeImage URLs are touched. Applies on top of
+fix-drtv-season-metadata.patch and fix-drtv-item-id.patch.
+--- a/yt_dlp/extractor/drtv.py
++++ b/yt_dlp/extractor/drtv.py
+@@ -1,2 +1,3 @@
+ import json
++import re
+ import uuid
+@@ -18,2 +19,13 @@
+
++def _drtv_jpeg(url):
++    # DR's image service answers in the source image's own format unless told
++    # otherwise, and for some shows that is PNG. The URLs have no extension,
++    # so yt-dlp saves the PNG under a .jpg name, which ThumbnailsConvertor
++    # then trusts and leaves alone. The service transcodes on request.
++    if 'ResizeImage' not in url:
++        return url
++    url, n = re.subn(r'(?i)([?&]Format=)[^&]*', r"\1'jpg'", url)
++    return url if n else f"{url}{'&' if '?' in url else '?'}Format='jpg'"
++
++
+ def _drtv_thumbnails(images, preferred='poster'):
+@@ -21,3 +33,3 @@
+         return None
+-    return [{'id': k, 'url': v, 'preference': 1 if k == preferred else -1}
++    return [{'id': k, 'url': _drtv_jpeg(v), 'preference': 1 if k == preferred else -1}
+             for k, v in images.items() if url_or_none(v)] or None

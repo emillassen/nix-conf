@@ -22,10 +22,14 @@ let
   # The second patch (on top of the first) makes the episode extractor use the
   # numeric id from the URL: the webpage now carries a UUID item id, which DR's
   # videos/items APIs reject with 400/404, failing every download.
+  # The third asks DR's image service for JPEG outright: it otherwise answers
+  # in the source's own format, which for some shows is PNG, and yt-dlp then
+  # saves every poster and thumb of that show as a PNG under a .jpg name.
   yt-dlp' = yt-dlp.overridePythonAttrs (old: {
     patches = (old.patches or [ ]) ++ [
       ./fix-drtv-season-metadata.patch
       ./fix-drtv-item-id.patch
+      ./fix-drtv-jpeg-images.patch
     ];
   });
 in

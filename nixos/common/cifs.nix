@@ -37,6 +37,14 @@ let
       "file_mode=0755"
       "dir_mode=0755"
       "vers=3.1.1"
+      # The NAS is Unraid, whose user shares (shfs) do not keep inode numbers
+      # unique. With the server's numbers in use the kernel eventually logs
+      # "Inode number collision detected" and switches them off for the rest
+      # of the mount - on 2026-11-07 that happened 3s into a drtv-dl run into
+      # /mnt/series, which then left a new series folder empty and its other
+      # files half-written. Use client-side numbers from the start, as the
+      # kernel's own message advises; nothing here relies on hardlinks.
+      "noserverino"
     ];
   };
 in

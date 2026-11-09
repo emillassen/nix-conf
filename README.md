@@ -34,7 +34,7 @@ Development:
 Applications:
 
 - Productivity: LibreOffice, Nextcloud
-- Media: mpv, Spotify, Calibre, YACReader, drtv-dl (DRTV downloads with Jellyfin naming, NFO metadata and artwork, each one checked for missing or broken streams after download), standardebooks-dl (syncs a Calibre-style ebook library from standardebooks.org, with covers)
+- Media: mpv, Spotify, Calibre, YACReader, drtv-dl (DRTV downloads with Jellyfin naming, NFO metadata and artwork, each one checked for missing or broken streams after download), standardebooks-dl (syncs a Calibre-style ebook library from standardebooks.org, with covers), misterzine-jellyfin-update (keeps the MiSTer's Jellyfin client current, built from public source, checked hourly)
 - Communication: Discord, Signal
 - System monitoring: btop, fastfetch, s-tui
 
@@ -68,7 +68,7 @@ Applications:
 │       └── steam.nix         # Gaming
 ├── modules/                  # Reusable NixOS / Home Manager modules
 ├── overlays/default.nix      # Custom package overlays
-├── pkgs/                     # Custom packages (drtv-dl, standardebooks-dl, vuescan, devilutionx) + filebot pin
+├── pkgs/                     # Custom packages (drtv-dl, standardebooks-dl, misterzine-jellyfin-update, vuescan, devilutionx) + filebot pin
 ├── secrets/                  # Encrypted secrets (SOPS)
 └── scripts/                  # Installation and setup scripts
 ```

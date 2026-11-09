@@ -25,6 +25,7 @@
     ./config/zed-editor.nix
     ./config/helix.nix
     ./config/games.nix
+    ./config/misterzine.nix
     #./config/gnome/gnomesettings.nix # Keeps resetting settings
     #./config/gnome/catppuccin.nix # Broken atm
     #./config/nextcloud.nix # Broken in gnome

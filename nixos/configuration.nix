@@ -164,6 +164,16 @@
 
   # Enable networking
   networking.networkmanager.enable = true;
+  # A switch stops a changed unit before activating and starts it again after,
+  # unless told otherwise. For NetworkManager that takes the network down while
+  # systemd re-executes, and on 2026-11-09 a NAS share that was mounted at the
+  # time (/mnt/backups, its server now unreachable) stalled systemd's generator
+  # run for 90s until PID 1 gave up with "Freezing execution": no unit could be
+  # started again, so NetworkManager never came back and only a hard reboot
+  # helped. Restarted in the new configuration instead, it stays up through the
+  # re-exec, as it did through the 2026-11-07 switch that also re-executed
+  # systemd with a share mounted. (wpa_supplicant is not stopped by a switch.)
+  systemd.services.NetworkManager.stopIfChanged = false;
 
   # Enable Bluetooth
   hardware = {

@@ -50,7 +50,7 @@ that have one instead of needing -r over the whole library.
 Progress is reported per finished file against the number the run set out to
 fetch, with a rolling estimate of the time left:
 
-  drtv-dl: [7/23] finished: Gurli Gris/Season 10/... - 16 left, ~1h12m
+  drtv-dl: [7/23] finished: Rolf Rotte/Season 10/... - 16 left, ~1h12m
 
 Each downloaded video is checked before it counts: flushed to disk and read
 back past the page cache, it must have both an audio and a video stream of
@@ -284,7 +284,7 @@ check_single_season() {
 }
 
 # yt-dlp's DRTV extractor only matches the canonical slug URLs
-# (/drtv/serie/gurli-gris_7190). Bare-ID URLs like /drtv/serie/7190
+# (/drtv/serie/rolf-rotte_7190). Bare-ID URLs like /drtv/serie/7190
 # redirect there in a browser, so resolve them the same way first.
 args=()
 playlist_urls=()
@@ -397,7 +397,7 @@ dest_tmpl="${dest//\%/%%}"
 outbase="$dest_tmpl/%(series,movie_name)s/%(season_number&Season {:02d}|)s/%(series&{} - |)s%(season_number&S{:02d}|)s%(episode_number&E{:02d}|)s%(series& - |)s%(movie_name,episode,title)s"
 outtmpl="$outbase.%(ext)s"
 
-# DRTV episode titles repeat the series name ("Gurli Gris: Slemme skildpadde");
+# DRTV episode titles repeat the series name ("Rolf Rotte: Regnvejrsdagen");
 # strip that prefix from episode/title, but only when it matches the series
 # exactly (the backreference), so unrelated colons in titles are left alone.
 # The last two rules build movie_name = "Title (Year)" for films, keyed on

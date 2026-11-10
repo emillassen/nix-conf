@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # yt-dlp's DRTV extractor only matches the canonical slug URLs
-# (/drtv/serie/gurli-gris_7190). A bare-ID URL redirects there in a browser, so
+# (/drtv/serie/rolf-rotte_7190). A bare-ID URL redirects there in a browser, so
 # it is resolved the same way first — by the redirect if there is one, and by
 # the page's rel="canonical" link if the server answers 200 with the SPA
 # instead.
@@ -9,15 +9,15 @@
 test_init "drtv-dl: resolving bare-ID URLs"
 
 drtv_init
-canon="https://www.dr.dk/drtv/serie/gurli-gris_7190"
+canon="https://www.dr.dk/drtv/serie/rolf-rotte_7190"
 bare="https://www.dr.dk/drtv/serie/7190"
-season="https://www.dr.dk/drtv/saeson/gurli-gris_s10_7191"
-ep="https://www.dr.dk/drtv/episode/gurli-gris_ep1_1001"
+season="https://www.dr.dk/drtv/saeson/rolf-rotte_s10_7191"
+ep="https://www.dr.dk/drtv/episode/rolf-rotte_ep1_1001"
 drtv_child "$canon" "$season"
 drtv_child "$season" "$ep"
-drtv_meta "$canon" '{"series":"Gurli Gris"}'
-drtv_meta "$season" '{"series":"Gurli Gris","season_number":10}'
-drtv_video "$ep" '{"id":"1001","ext":"mp4","series":"Gurli Gris","season_number":10,
+drtv_meta "$canon" '{"series":"Rolf Rotte"}'
+drtv_meta "$season" '{"series":"Rolf Rotte","season_number":10}'
+drtv_video "$ep" '{"id":"1001","ext":"mp4","series":"Rolf Rotte","season_number":10,
   "episode_number":1,"episode":"En","title":"En"}'
 
 # --- the redirect --------------------------------------------------------------
@@ -36,11 +36,11 @@ assert_contains "and the series is scanned" "$STDERR" "1 of 1 videos not on disk
 drtv_init
 drtv_child "$canon" "$season"
 drtv_child "$season" "$ep"
-drtv_meta "$canon" '{"series":"Gurli Gris"}'
-drtv_meta "$season" '{"series":"Gurli Gris","season_number":10}'
-drtv_video "$ep" '{"id":"1001","ext":"mp4","series":"Gurli Gris","season_number":10,
+drtv_meta "$canon" '{"series":"Rolf Rotte"}'
+drtv_meta "$season" '{"series":"Rolf Rotte","season_number":10}'
+drtv_video "$ep" '{"id":"1001","ext":"mp4","series":"Rolf Rotte","season_number":10,
   "episode_number":1,"episode":"En","title":"En"}'
-printf '%s\t200\t<html><head><link rel="canonical" href="/drtv/serie/gurli-gris_7190"/></head></html>\n' \
+printf '%s\t200\t<html><head><link rel="canonical" href="/drtv/serie/rolf-rotte_7190"/></head></html>\n' \
   "$bare" >>"$CURL_MAP"
 run_drtv -d "$DRTV_LIB" -n "$bare"
 assert_exit "exits 0" 0

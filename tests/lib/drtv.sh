@@ -5,7 +5,7 @@
 # A scenario is built up a piece at a time and written once:
 #
 #   drtv_init
-#   drtv_meta   "$serie" '{"series":"Gurli Gris"}'
+#   drtv_meta   "$serie" '{"series":"Rolf Rotte"}'
 #   drtv_child  "$serie" "$season"
 #   drtv_video  "$ep1"   '{"id":"1001","ext":"mp4", ...}'
 #   drtv_write

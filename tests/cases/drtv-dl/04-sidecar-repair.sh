@@ -10,26 +10,26 @@
 test_init "drtv-dl: repairing a missing .nfo"
 
 drtv_init
-season="https://www.dr.dk/drtv/saeson/gurli-gris_s10_7191"
-ep1="https://www.dr.dk/drtv/episode/gurli-gris_ep1_1001"
-ep2="https://www.dr.dk/drtv/episode/gurli-gris_ep2_1002"
-drtv_meta "$season" '{"series":"Gurli Gris","season_number":10}'
+season="https://www.dr.dk/drtv/saeson/rolf-rotte_s10_7191"
+ep1="https://www.dr.dk/drtv/episode/rolf-rotte_ep1_1001"
+ep2="https://www.dr.dk/drtv/episode/rolf-rotte_ep2_1002"
+drtv_meta "$season" '{"series":"Rolf Rotte","season_number":10}'
 drtv_child "$season" "$ep1"
 drtv_child "$season" "$ep2"
-drtv_video "$ep1" '{"id":"1001","ext":"mp4","series":"Gurli Gris","season_number":10,
+drtv_video "$ep1" '{"id":"1001","ext":"mp4","series":"Rolf Rotte","season_number":10,
   "episode_number":1,"episode":"En","title":"En"}'
-drtv_video "$ep2" '{"id":"1002","ext":"mp4","series":"Gurli Gris","season_number":10,
+drtv_video "$ep2" '{"id":"1002","ext":"mp4","series":"Rolf Rotte","season_number":10,
   "episode_number":2,"episode":"To","title":"To","description":"Anden episode"}'
 
 lib="$DRTV_LIB"
-d="$lib/Gurli Gris/Season 10"
+d="$lib/Rolf Rotte/Season 10"
 mkdir -p "$d"
-printf 'video one\n' >"$d/Gurli Gris - S10E01 - En.mp4"
-printf '<episodedetails/>\n' >"$d/Gurli Gris - S10E01 - En.nfo"
-printf 'video two\n' >"$d/Gurli Gris - S10E02 - To.mp4"
+printf 'video one\n' >"$d/Rolf Rotte - S10E01 - En.mp4"
+printf '<episodedetails/>\n' >"$d/Rolf Rotte - S10E01 - En.nfo"
+printf 'video two\n' >"$d/Rolf Rotte - S10E02 - To.mp4"
 # ... and a file of the user's own, which nothing here may touch.
 printf 'my notes\n' >"$lib/notes.txt"
-before="$(stat -c %Y "$d/Gurli Gris - S10E02 - To.mp4")"
+before="$(stat -c %Y "$d/Rolf Rotte - S10E02 - To.mp4")"
 
 run_drtv -d "$lib/" "$season"
 
@@ -39,11 +39,11 @@ assert_contains "the scan reports both as present" "$STDERR" \
 assert_contains "and singles out the one missing its sidecar" "$STDERR" \
   "1 episode(s) on disk have no .nfo; re-extracting just those"
 
-assert_file_exists "the missing .nfo is written" "$d/Gurli Gris - S10E02 - To.nfo"
-assert_contains "from DR's own metadata" "$(cat "$d/Gurli Gris - S10E02 - To.nfo")" \
+assert_file_exists "the missing .nfo is written" "$d/Rolf Rotte - S10E02 - To.nfo"
+assert_contains "from DR's own metadata" "$(cat "$d/Rolf Rotte - S10E02 - To.nfo")" \
   "<plot>Anden episode</plot>"
 assert_eq "and the video file itself is untouched" "$before" \
-  "$(stat -c %Y "$d/Gurli Gris - S10E02 - To.mp4")"
+  "$(stat -c %Y "$d/Rolf Rotte - S10E02 - To.mp4")"
 
 # One extraction, for the one episode that needed it.
 assert_eq "exactly one extraction" 1 "$(drtv_extractions)"
@@ -60,4 +60,4 @@ assert_contains "and nothing was downloaded" "$STDERR" "downloaded 0 file(s)"
 assert_eq "no info.json survives the run" 0 \
   "$(find "$lib" -name '*.info.json' | grep -c '' || true)"
 assert_file_exists "the user's own file is still there" "$lib/notes.txt"
-assert_file_exists "and so are both videos" "$d/Gurli Gris - S10E02 - To.mp4"
+assert_file_exists "and so are both videos" "$d/Rolf Rotte - S10E02 - To.mp4"

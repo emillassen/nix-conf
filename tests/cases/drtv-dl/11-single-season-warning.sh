@@ -9,22 +9,22 @@
 . "$TESTS_DIR/lib/drtv.sh"
 test_init "drtv-dl: warning that a season URL is only one season"
 
-api='https://production-cdn.dr-massive.com/api/page?*path=/saeson/gurli-gris_s10_7191'
-serie="https://www.dr.dk/drtv/serie/gurli-gris_7190"
-season="https://www.dr.dk/drtv/saeson/gurli-gris_s10_7191"
-ep="https://www.dr.dk/drtv/episode/gurli-gris_ep1_1001"
+api='https://production-cdn.dr-massive.com/api/page?*path=/saeson/rolf-rotte_s10_7191'
+serie="https://www.dr.dk/drtv/serie/rolf-rotte_7190"
+season="https://www.dr.dk/drtv/saeson/rolf-rotte_s10_7191"
+ep="https://www.dr.dk/drtv/episode/rolf-rotte_ep1_1001"
 
 # The shape of DR's answer, cut down to the four fields the jq program reads.
-many_seasons='{"entries":[{"item":{"seasonNumber":10,"show":{"title":"Gurli Gris",
-  "path":"/serie/gurli-gris_7190","seasons":{"items":[{"id":1},{"id":2},{"id":3}]}}}}]}'
-one_season='{"entries":[{"item":{"seasonNumber":1,"show":{"title":"Gurli Gris",
-  "path":"/serie/gurli-gris_7190","seasons":{"items":[{"id":1}]}}}}]}'
+many_seasons='{"entries":[{"item":{"seasonNumber":10,"show":{"title":"Rolf Rotte",
+  "path":"/serie/rolf-rotte_7190","seasons":{"items":[{"id":1},{"id":2},{"id":3}]}}}}]}'
+one_season='{"entries":[{"item":{"seasonNumber":1,"show":{"title":"Rolf Rotte",
+  "path":"/serie/rolf-rotte_7190","seasons":{"items":[{"id":1}]}}}}]}'
 
 setup() {
   drtv_init
   drtv_child "$season" "$ep"
-  drtv_meta "$season" '{"series":"Gurli Gris","season_number":10}'
-  drtv_video "$ep" '{"id":"1001","ext":"mp4","series":"Gurli Gris","season_number":10,
+  drtv_meta "$season" '{"series":"Rolf Rotte","season_number":10}'
+  drtv_video "$ep" '{"id":"1001","ext":"mp4","series":"Rolf Rotte","season_number":10,
     "episode_number":1,"episode":"En","title":"En"}'
 }
 
@@ -34,9 +34,9 @@ printf '%s\t200\t%s\n' "$api" "${many_seasons//$'\n'/}" >>"$CURL_MAP"
 run_drtv -d "$DRTV_LIB" -n "$season"
 assert_exit "exits 0" 0
 assert_contains "it names the season and the show" "$STDERR" \
-  "$season is only season 10 of \"Gurli Gris\", which has 3 seasons"
+  "$season is only season 10 of \"Rolf Rotte\", which has 3 seasons"
 assert_contains "and gives the series URL that gets all of them" "$STDERR" \
-  "use https://www.dr.dk/drtv/serie/gurli-gris_7190 to get every season"
+  "use https://www.dr.dk/drtv/serie/rolf-rotte_7190 to get every season"
 assert_eq "one API request, not one per episode" 1 "$(stub_count curl-urls 'production-cdn')"
 
 # The trailing-slash spelling is the same subscription; the API path is built by
@@ -58,7 +58,7 @@ assert_not_contains "no warning for a genuinely single-season show" "$STDERR" "i
 # --- a series URL is not asked about at all ----------------------------------
 setup
 drtv_child "$serie" "$season"
-drtv_meta "$serie" '{"series":"Gurli Gris"}'
+drtv_meta "$serie" '{"series":"Rolf Rotte"}'
 run_drtv -d "$DRTV_LIB" -n "$serie"
 assert_exit "exits 0" 0
 assert_eq "a series URL costs no API request" 0 "$(stub_count curl-urls 'production-cdn')"

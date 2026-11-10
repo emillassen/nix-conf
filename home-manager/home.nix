@@ -84,7 +84,7 @@
       kcc # Kindle Comic Converter
       krita # Digital painting application
       #lgogdownloader # GOG.com game downloader
-      libation # Audible audiobook manager
+      libation
       libreoffice # Office suite
       mediainfo-gui # Media file information viewer
       meshcore-cli # CLI companion for MeshCore mesh radio devices

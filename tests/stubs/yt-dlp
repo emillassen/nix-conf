@@ -117,7 +117,7 @@ load_entry() {
   [[ -n "${F[extractor_key]:-}" ]] || F["extractor_key"]="DRTV"
 
   # --parse-metadata's effect, applied directly. DRTV episode titles repeat the
-  # series name ("Gurli Gris: Slemme skildpadde"); the prefix comes off, but
+  # series name ("Rolf Rotte: Regnvejrsdagen"); the prefix comes off, but
   # only when it matches the series exactly.
   local s="${F[series]:-}"
   if [[ -n "$s" ]]; then

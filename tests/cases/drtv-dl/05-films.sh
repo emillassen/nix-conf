@@ -9,20 +9,20 @@
 test_init "drtv-dl: films"
 
 drtv_init
-film="https://www.dr.dk/drtv/program/olsen-banden_12345"
+film="https://www.dr.dk/drtv/program/bandekuppet_12345"
 noyear="https://www.dr.dk/drtv/program/uden-aar_999"
-drtv_video "$film" '{"id":"5001","ext":"mp4","title":"Olsen-banden","release_year":1968,
-  "description":"Egon & banden","release_timestamp":1700000000,"duration":5400,
-  "thumbnails":[{"id":"poster","url":"https://img/olsen.jpg"}]}'
+drtv_video "$film" '{"id":"5001","ext":"mp4","title":"Bandekuppet","release_year":1968,
+  "description":"Bossen & banden","release_timestamp":1700000000,"duration":5400,
+  "thumbnails":[{"id":"poster","url":"https://img/bandekuppet.jpg"}]}'
 drtv_video "$noyear" '{"id":"5002","ext":"mp4","title":"Uden År","description":"Ingen årstal"}'
-printf 'https://img/olsen.jpg\t200\tposter bytes\n' >>"$CURL_MAP"
+printf 'https://img/bandekuppet.jpg\t200\tposter bytes\n' >>"$CURL_MAP"
 
 lib="$DRTV_LIB"
 
 # --- -n: one probe each, and the empty season component is not shown ----------
 run_drtv -d "$lib" -n "$film" "$noyear"
 assert_exit "-n exits 0" 0
-assert_contains "the film is listed missing" "$STDOUT" "Olsen-banden (1968)/Olsen-banden (1968)"
+assert_contains "the film is listed missing" "$STDOUT" "Bandekuppet (1968)/Bandekuppet (1968)"
 assert_not_contains "without the empty path component" "$STDOUT" "(1968)//"
 assert_contains "a film with no year keeps just its title" "$STDOUT" "Uden År/Uden År"
 assert_contains "and the count is right" "$STDERR" "2 of 2 videos not on disk yet"
@@ -32,20 +32,20 @@ assert_eq "-n downloads nothing" 0 "$(find "$lib" -name '*.mp4' | grep -c '' || 
 run_drtv -d "$lib" "$film" "$noyear"
 assert_exit "exits 0" 0
 assert_file_exists "the film lands one level up, as Jellyfin wants" \
-  "$lib/Olsen-banden (1968)/Olsen-banden (1968).mp4"
-assert_file_exists "with its .nfo" "$lib/Olsen-banden (1968)/Olsen-banden (1968).nfo"
+  "$lib/Bandekuppet (1968)/Bandekuppet (1968).mp4"
+assert_file_exists "with its .nfo" "$lib/Bandekuppet (1968)/Bandekuppet (1968).nfo"
 
-nfo="$(cat "$lib/Olsen-banden (1968)/Olsen-banden (1968).nfo")"
+nfo="$(cat "$lib/Bandekuppet (1968)/Bandekuppet (1968).nfo")"
 assert_contains "a film is a movie, not an episode" "$nfo" "<movie>"
 assert_not_contains "and carries no season" "$nfo" "<season>"
 assert_contains "it has a year" "$nfo" "<year>1968</year>"
 assert_contains "and a premiered date rather than an aired one" "$nfo" "<premiered>2023-11-14</premiered>"
-assert_contains "the plot is escaped" "$nfo" "Egon &amp; banden"
+assert_contains "the plot is escaped" "$nfo" "Bossen &amp; banden"
 assert_contains "the runtime is whole minutes" "$nfo" "<runtime>90</runtime>"
 assert_contains "and it is locked" "$nfo" "<lockdata>true</lockdata>"
 
 assert_file_exists "DR's portrait poster is fetched for the film" \
-  "$lib/Olsen-banden (1968)/poster.jpg"
+  "$lib/Bandekuppet (1968)/poster.jpg"
 
 nfo2="$(cat "$lib/Uden År/Uden År.nfo")"
 assert_contains "a film with nothing but a title still gets an NFO" "$nfo2" "<movie>"

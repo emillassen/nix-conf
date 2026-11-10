@@ -14,12 +14,12 @@
 test_init "drtv-dl: awkward library roots"
 
 drtv_init
-season="https://www.dr.dk/drtv/saeson/gurli-gris_s10_7191"
-ep1="https://www.dr.dk/drtv/episode/gurli-gris_slemme-skildpadde_1001"
-drtv_meta "$season" '{"series":"Gurli Gris","season_number":10}'
+season="https://www.dr.dk/drtv/saeson/rolf-rotte_s10_7191"
+ep1="https://www.dr.dk/drtv/episode/rolf-rotte_regnvejrsdagen_1001"
+drtv_meta "$season" '{"series":"Rolf Rotte","season_number":10}'
 drtv_child "$season" "$ep1"
-drtv_video "$ep1" '{"id":"1001","ext":"mp4","series":"Gurli Gris","season_number":10,
-  "episode_number":1,"episode":"Slemme skildpadde","title":"Slemme skildpadde"}'
+drtv_video "$ep1" '{"id":"1001","ext":"mp4","series":"Rolf Rotte","season_number":10,
+  "episode_number":1,"episode":"Regnvejrsdagen","title":"Regnvejrsdagen"}'
 
 run_in() {
   local root="$1"
@@ -34,9 +34,9 @@ lib="$TMP/Emil's videos"
 run_in "$lib"
 assert_exit "exits 0" 0
 assert_file_exists "the episode still lands" \
-  "$lib/Gurli Gris/Season 10/Gurli Gris - S10E01 - Slemme skildpadde.mp4"
+  "$lib/Rolf Rotte/Season 10/Rolf Rotte - S10E01 - Regnvejrsdagen.mp4"
 assert_contains "and the run announces it" "$STDOUT" \
-  "finished: Gurli Gris/Season 10/Gurli Gris - S10E01 - Slemme skildpadde.mp4"
+  "finished: Rolf Rotte/Season 10/Rolf Rotte - S10E01 - Regnvejrsdagen.mp4"
 assert_contains "the summary counts it" "$STDERR" "downloaded 1 file(s)"
 assert_not_contains "nothing in the progress script failed to parse" "$STDERR" \
   "Syntax error"
@@ -47,13 +47,13 @@ lib="$TMP/100%% done"
 run_in "$lib"
 assert_exit "a bare %% exits 0" 0
 assert_file_exists "and stays literal" \
-  "$lib/Gurli Gris/Season 10/Gurli Gris - S10E01 - Slemme skildpadde.mp4"
+  "$lib/Rolf Rotte/Season 10/Rolf Rotte - S10E01 - Regnvejrsdagen.mp4"
 
 lib="$TMP/lit %(id)s dir"
 run_in "$lib"
 assert_exit "a literal template in the path exits 0" 0
 assert_file_exists "and is not expanded" \
-  "$lib/Gurli Gris/Season 10/Gurli Gris - S10E01 - Slemme skildpadde.mp4"
+  "$lib/Rolf Rotte/Season 10/Rolf Rotte - S10E01 - Regnvejrsdagen.mp4"
 assert_file_missing "so no directory named after the video id appears" "$TMP/lit 1001 dir"
 
 # --- a trailing slash on -d ----------------------------------------------------

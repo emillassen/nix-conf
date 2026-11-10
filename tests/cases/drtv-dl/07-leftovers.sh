@@ -8,7 +8,7 @@ test_init "drtv-dl: leftover scratch files"
 
 drtv_init
 lib="$DRTV_LIB"
-d="$lib/Gurli Gris/Season 10"
+d="$lib/Rolf Rotte/Season 10"
 mkdir -p "$d"
 
 # What yt-dlp actually leaves behind.
@@ -35,9 +35,9 @@ keepers=(
 for f in "${leftovers[@]}" "${keepers[@]}"; do printf 'x' >"$d/$f"; done
 
 # An ordinary run reports them and removes nothing.
-season="https://www.dr.dk/drtv/saeson/gurli-gris_s10_7191"
+season="https://www.dr.dk/drtv/saeson/rolf-rotte_s10_7191"
 drtv_playlist "$season"
-drtv_meta "$season" '{"series":"Gurli Gris","season_number":10}'
+drtv_meta "$season" '{"series":"Rolf Rotte","season_number":10}'
 run_drtv -d "$lib" "$season"
 assert_contains "an ordinary run reports the leftovers" "$STDERR" \
   "8 leftover file(s) from interrupted runs"
@@ -50,7 +50,7 @@ run_drtv -d "$lib/" -c
 assert_exit "-c exits 0" 0
 assert_contains "-c reports the count" "$STDERR" "removed 8 leftover file(s)"
 assert_contains "-c names them relative to the library" "$STDOUT" \
-  "removed Gurli Gris/Season 10/Ep.mp4.part"
+  "removed Rolf Rotte/Season 10/Ep.mp4.part"
 assert_not_contains "not as absolute paths" "$STDOUT" "removed $lib/"
 for f in "${leftovers[@]}"; do
   assert_file_missing "-c removed $f" "$d/$f"

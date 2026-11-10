@@ -8,19 +8,19 @@
 test_init "drtv-dl: posters"
 
 drtv_init
-season="https://www.dr.dk/drtv/saeson/gurli-gris_s10_7191"
-ep1="https://www.dr.dk/drtv/episode/gurli-gris_ep1_1001"
+season="https://www.dr.dk/drtv/saeson/rolf-rotte_s10_7191"
+ep1="https://www.dr.dk/drtv/episode/rolf-rotte_ep1_1001"
 ph="https://asset.dr-massive.com/img?ImageId='16099618'&Format='png'"
 square="https://asset.dr-massive.com/img?ImageId='222'&Format='png'"
 tile="https://asset.dr-massive.com/img?ImageId='333'&Format='png'"
 wall="https://asset.dr-massive.com/img?ImageId='444'&Format='png'"
 
 drtv_meta "$season" "$(jq -n --arg ph "$ph" --arg sq "$square" --arg ti "$tile" --arg wa "$wall" '
-  {series:"Gurli Gris", season_number:10, thumbnails:[
+  {series:"Rolf Rotte", season_number:10, thumbnails:[
     {id:"wallpaper", url:$wa}, {id:"tile", url:$ti},
     {id:"poster", url:$ph}, {id:"square", url:$sq}]}')"
 drtv_child "$season" "$ep1"
-drtv_video "$ep1" '{"id":"1001","ext":"mp4","series":"Gurli Gris","season_number":10,
+drtv_video "$ep1" '{"id":"1001","ext":"mp4","series":"Rolf Rotte","season_number":10,
   "episode_number":1,"episode":"En","title":"En"}'
 
 # The replacement is asked for as a jpg, because the file keeps its .jpg name.
@@ -33,7 +33,7 @@ assert_exit "exits 0" 0
 assert_contains "the placeholder is recognised and replaced" "$STDOUT" \
   "replaced placeholder poster"
 assert_file_contains "with the square artwork, not the placeholder" \
-  "$lib/Gurli Gris/season10-poster.jpg" "square artwork"
+  "$lib/Rolf Rotte/season10-poster.jpg" "square artwork"
 assert_contains "asked for as a jpg" "$(stub_log curl-urls)" "Format='jpg'"
 assert_not_contains "the png was never fetched" "$(stub_log curl-urls)" "ImageId='222'&Format='png'"
 assert_not_contains "no warning about a poster it could not replace" "$STDERR" \
@@ -41,14 +41,14 @@ assert_not_contains "no warning about a poster it could not replace" "$STDERR" \
 assert_not_contains "and neither was the tile" "$(stub_log curl-urls)" "ImageId='333'"
 
 # Only a season playlist was processed, so its poster stands in for the series'.
-assert_file_exists "the season poster is promoted to the series poster" "$lib/Gurli Gris/poster.jpg"
-assert_file_contains "and it is the replaced one" "$lib/Gurli Gris/poster.jpg" "square artwork"
-assert_file_exists "a season-only run still writes tvshow.nfo" "$lib/Gurli Gris/tvshow.nfo"
+assert_file_exists "the season poster is promoted to the series poster" "$lib/Rolf Rotte/poster.jpg"
+assert_file_contains "and it is the replaced one" "$lib/Rolf Rotte/poster.jpg" "square artwork"
+assert_file_exists "a season-only run still writes tvshow.nfo" "$lib/Rolf Rotte/tvshow.nfo"
 
 # --- an existing series poster is not overwritten by a season one --------------
-printf 'the real series poster\n' >"$lib/Gurli Gris/poster.jpg"
+printf 'the real series poster\n' >"$lib/Rolf Rotte/poster.jpg"
 run_drtv -d "$lib" "$season"
-assert_file_contains "an existing poster stays" "$lib/Gurli Gris/poster.jpg" \
+assert_file_contains "an existing poster stays" "$lib/Rolf Rotte/poster.jpg" \
   "the real series poster"
 
 # --- a show with no thumbnails at all -------------------------------------------

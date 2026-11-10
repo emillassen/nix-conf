@@ -1,7 +1,7 @@
 DR's image service (ResizeImage, on both prod*-static.dr-massive.com and
 shain-api.drtv-platform.dr.dk) answers in the source image's own format
-unless the URL asks for one. For most shows that is JPEG, but for some -
-"Anton - min hemmelige ven" is one - every image is a PNG: the show poster
+unless the URL asks for one. For most shows that is JPEG, but for some
+every image is a PNG: the show poster
 URL even says Format='png', and the episode wallpaper URLs carry no Format
 at all. The URLs have no file extension, so yt-dlp saves each one under a
 .jpg name; --convert-thumbnails jpg then judges by that name ("already is

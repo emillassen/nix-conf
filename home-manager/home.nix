@@ -17,7 +17,6 @@
     # Per-app configs:
     ./config/git.nix
     ./config/catppuccin.nix
-    #./config/kitty.nix
     ./config/ghostty.nix
     ./config/nixvim.nix
     ./config/zsh/zsh.nix
@@ -27,9 +26,6 @@
     ./config/games.nix
     ./config/misterzine.nix
     ./config/kde.nix
-    #./config/gnome/gnomesettings.nix # Keeps resetting settings
-    #./config/gnome/catppuccin.nix # Broken atm
-    #./config/nextcloud.nix # Broken in gnome
   ];
 
   # Overlays and nixpkgs config (allowUnfree etc.) come from the system-level

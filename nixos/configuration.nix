@@ -21,7 +21,6 @@
     ./hardware-configuration.nix
     ./disks.nix
     ./common/pipewire.nix
-    #./gnome.nix # Uncomment this to use Gnome instead of KDE
     ./kde.nix
     ./common/steam.nix
     ./common/yubikey.nix

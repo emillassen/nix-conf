@@ -165,11 +165,11 @@ Inputs: nixpkgs (nixos-unstable), nixpkgs-stable (26.05), disko, home-manager, n
 
 - `nixos/configuration.nix` — Main system config. Imports hardware config, disks, KDE, and the `common/` modules, and wires in Home Manager. All nixpkgs overlays and config (allowUnfree) live **here** and serve both system and HM: `additions` (pkgs/), `modifications` (currently just `filebot`, whose whole expression lives in `pkgs/filebot/` — see below), `stable-packages` (`pkgs.stable`), `nix-vscode-extensions` (`pkgs.vscode-marketplace.*`). The AI agents are deliberately not an overlay: they are referenced directly as `inputs.llm-agents.packages.<system>.*` (in `home.nix` and `config/vscode.nix`), the pattern upstream's README documents, so the numtide cache applies.
 - `nixos/common/` — `pipewire.nix` (audio), `sops.nix` (secrets, see below), `yubikey.nix` (GPG agent + SSH support, yubikey-manager, touch detector), `cifs.nix` (NAS automounts at `/mnt/<share>` from 192.168.1.30, credentials via a sops template), `steam.nix` (+ gamemode, proton-ge), `catppuccin.nix` (system theming: SDDM, TTY, Plymouth).
-- `nixos/kde.nix` — active desktop (Plasma 6, SDDM on Wayland, autologin). `nixos/gnome.nix` exists but its import is commented out in `configuration.nix`.
+- `nixos/kde.nix` — active desktop (Plasma 6, SDDM on Wayland, autologin).
 - `nixos/disks.nix` — Disko layout: GPT, 2G ESP, LUKS (`crypted`, discards allowed) with ext4 root. `passwordFile = /tmp/secret.key` is only used at install time.
 - System notables: systemd initrd + Plymouth (themed LUKS prompt, `password-echo=no`), latest kernel, zram swap, tmpfs `/tmp` (16G), systemd-boot capped at 10 generations, fwupd (+ lvfs-testing), fprintd, Mullvad, fw-fanctrl, rtl-sdr, Danish locale and `dk`/`nodeadkeys` layout. `systemd.services.NetworkManager.stopIfChanged = false`: a switch otherwise stops a changed NetworkManager before activating, and on 2026-11-09 a lock update that also re-executed systemd did so while a NAS share was mounted — the generator run stalled 90s on the unreachable share and PID 1 froze ("Freezing execution"), leaving no network until a hard reboot. Restarted after the re-exec instead, the network stays up through it. Flake-only Nix: `nix.channel.enable = false` (NIX_PATH/registry resolve to the flake's nixpkgs via `nixpkgs.flake.*` defaults) and scheduled `nix.optimise` instead of `auto-optimise-store`. `system.stateVersion = "26.05"` — do not bump it.
 
-**home-manager/home.nix** is the HM entry point for `emil`. Per-app configs in `home-manager/config/`: git (+ delta, gh, GPG signing), catppuccin, ghostty, nixvim, zsh (+ starship, zsh-abbr), vscode, zed-editor, helix, games, misterzine (the MiSTer's address and the hourly `misterzine-jellyfin-update` user timer), kde (keys in files Plasma also writes, set one by one with `kwriteconfig6` from an activation step rather than owning the file — so far `kded5rc`, which kded6 still reads, turning off `trashdirnotify`: it watches the `.Trash-1000` KIO makes on every NAS share a file was deleted from, and its existence check on a share that idled out of its automount mounted it again, so each such share remounted every minute). Disabled imports (see comments in `home.nix`): `kitty.nix`, `gnome/gnomesettings.nix`, `gnome/catppuccin.nix`, `nextcloud.nix` — the gnome ones are moot under KDE but kept valid.
+**home-manager/home.nix** is the HM entry point for `emil`. Per-app configs in `home-manager/config/`: git (+ delta, gh, GPG signing), catppuccin, ghostty, nixvim, zsh (+ starship, zsh-abbr), vscode, zed-editor, helix, games, misterzine (the MiSTer's address and the hourly `misterzine-jellyfin-update` user timer), kde (keys in files Plasma also writes, set one by one with `kwriteconfig6` from an activation step rather than owning the file — so far `kded5rc`, which kded6 still reads, turning off `trashdirnotify`: it watches the `.Trash-1000` KIO makes on every NAS share a file was deleted from, and its existence check on a share that idled out of its automount mounted it again, so each such share remounted every minute). The Nextcloud desktop client is a plain package that autostarts through its own setting (`~/.config/autostart`), not a home-manager service.
 
 **pkgs/** — custom packages, exposed via the `additions` overlay and the `packages` output:
 
@@ -245,13 +245,13 @@ cost a debugging round.
 
 ## CI/CD — present but intentionally disabled
 
-Three workflows exist in `.github/workflows/`, but **all three are manually disabled** — the owner doesn't use them currently. Do not assume CI validates anything, and do not re-enable them unless asked; local `nix flake check` is the gate.
+One workflow exists in `.github/workflows/`, and it is **manually disabled** — the owner doesn't use it currently. Do not assume CI validates anything, and do not re-enable it unless asked; local `nix flake check` is the gate.
 
 - `ci.yml` — flake-checker + `nix flake check`, plus a full `fw13` toplevel build (push to main / PRs / dispatch).
-- `update-flake.yml` — weekly `nix flake update` PR via update-flake-lock (PAT `GH_TOKEN_FOR_UPDATES`).
-- `update-devilutionx.yml` — weekly upstream check; runs `pkgs/devilutionx/update.sh` (the single source of truth, which also re-syncs the vendored dependency pins) through `nix shell --inputs-from .`, then opens a PR.
 
-The action versions live in the workflow files themselves (Renovate keeps them bumped); they are pinned by tag, not by commit SHA.
+Updates are run locally: `scripts/flake-up-safe.sh` for the lock, `pkgs/devilutionx/update.sh` and `pkgs/filebot/update.sh` for the pinned packages. The weekly workflows that used to open update PRs for the first two were removed on 2026-11-10, with their stale bot branches.
+
+The action versions live in the workflow file itself (Renovate keeps them bumped); they are pinned by tag, not by commit SHA.
 
 ## Key Patterns & Gotchas
 
@@ -259,9 +259,8 @@ The action versions live in the workflow files themselves (Renovate keeps them b
 - **Never set `nixpkgs.*` options (overlays/config) inside Home Manager modules** — with `useGlobalPkgs` that is a hard eval error. Add overlays in `nixos/configuration.nix` instead.
 - Catppuccin Mocha comes from the catppuccin flake. HM sets `autoEnable = true`, so every enabled HM program is themed automatically — don't set per-app themes by hand (bat/btop/lazygit are enabled as HM programs precisely so they get themed). System targets (SDDM/TTY/Plymouth) are enrolled explicitly with `autoEnable = false`.
 - nixvim deliberately evaluates its own nixpkgs instance (`programs.nixvim.nixpkgs.source = inputs.nixpkgs`).
-- dconf values in `gnome/gnomesettings.nix` must be real Nix types (bool/float) — strings like `"true"` are rejected by GSettings and silently fall back to defaults.
 - Pre-commit hooks (defined in flake.nix, run by `nix flake check` and on commit): nixfmt, statix, deadnix, shellcheck (`scripts/*.sh` only — the scripts under `pkgs/` are shebang-less `writeShellApplication` fragments, which shellchecks them at build time instead), prettier (yaml/markdown, excluding `secrets/`), sops-encrypted, plus standard hygiene hooks. The root `.pre-commit-config.yaml` is a gitignored symlink generated by the dev shell.
-- Git: **work directly on `main` — do not create a branch to commit.** This is a single-user config repo with no human PR workflow and CI disabled, so a branch just leaves work stranded behind a merge the owner has to do by hand. Commit to `main` when asked to commit; `nix flake check` is the gate that would otherwise be a review. (The `update-*` and `claude/*` branches on the remote are bot-opened PR branches — leave them alone.)
+- Git: **work directly on `main` — do not create a branch to commit.** This is a single-user config repo with no human PR workflow and CI disabled, so a branch just leaves work stranded behind a merge the owner has to do by hand. Commit to `main` when asked to commit; `nix flake check` is the gate that would otherwise be a review. (A `claude/*` branch on the remote is a bot-opened PR branch — leave it alone.)
 - Git: commits are GPG-signed by default (key on a YubiKey — a touch may be required). SSH remote operations also need the YubiKey; the `gh` CLI is authenticated and is the reliable path for GitHub API/HTTPS operations. Commit style: short imperative subject line, then a body explaining the why (see `git log`).
 - `pkgs.stable` = nixpkgs 26.05; the primary channel is nixos-unstable.
 

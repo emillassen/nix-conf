@@ -21,14 +21,13 @@ Security and privacy:
 Desktop:
 
 - KDE Plasma with Catppuccin Mocha theming (Wayland)
-- GNOME config also present but disabled (`gnome.nix`)
 - Framework 13 specific tweaks (fan control, fingerprint sensor)
 
 Development:
 
 - Zsh with Starship prompt
 - Editors: Neovim (nixvim), Helix, VS Code, Zed
-- Ghostty terminal (kitty config present but disabled)
+- Ghostty terminal
 - Pre-commit hooks (nixfmt, statix, deadnix, prettier, sops check)
 
 Applications:
@@ -51,14 +50,12 @@ Applications:
 │       ├── git.nix           # Git configuration
 │       ├── zsh/              # Zsh and shell setup
 │       ├── nixvim.nix        # Neovim configuration
-│       ├── vscode.nix        # VS Code setup
-│       └── gnome/            # GNOME-specific configs
+│       └── vscode.nix        # VS Code setup
 ├── nixos/
 │   ├── configuration.nix     # Main NixOS configuration
 │   ├── hardware-configuration.nix
 │   ├── disks.nix             # Disko disk configuration
 │   ├── kde.nix               # KDE Plasma setup
-│   ├── gnome.nix             # GNOME setup
 │   └── common/               # Shared configurations
 │       ├── pipewire.nix      # Audio
 │       ├── sops.nix          # Secrets
@@ -231,13 +228,13 @@ pre-commit run --all-files # run hooks manually
 
 ## CI/CD
 
-Three GitHub Actions workflows exist in `.github/workflows/`, but **all three are currently disabled** (`disabled_manually` — confirmed via `gh workflow list --all`). Nothing runs automatically: no push or PR is validated by CI, and no update PRs are opened. **`nix flake check -v` run locally is the actual gate.**
+One GitHub Actions workflow exists in `.github/workflows/`, and it is **currently disabled** (`disabled_manually`). Nothing runs automatically: no push or PR is validated by CI. **`nix flake check -v` run locally is the actual gate.**
 
-The triggers below are what each workflow _would_ use if re-enabled:
+If re-enabled:
 
 - `ci.yml` — push to `main`, PRs, and manual dispatch. Two parallel jobs: flake checks ([Flake Checker](https://github.com/DeterminateSystems/flake-checker-action) + `nix flake check`) and a full build of the `fw13` configuration. Uses [Determinate Nix](https://github.com/DeterminateSystems/determinate-nix-action) and [Magic Nix Cache](https://github.com/DeterminateSystems/magic-nix-cache-action).
-- `update-flake.yml` — weekly (Sunday midnight UTC) or manual. Runs `nix flake update` and opens a PR via [update-flake-lock](https://github.com/DeterminateSystems/update-flake-lock).
-- `update-devilutionx.yml` — weekly or manual. Checks upstream devilutionX for a new commit, re-prefetches the hash, and opens a PR.
+
+Updates are run locally instead: `scripts/flake-up-safe.sh` for the flake inputs, and each pinned package's `update.sh`.
 
 ## Troubleshooting
 

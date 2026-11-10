@@ -13,7 +13,9 @@
 #
 # A video may also carry a "payload": what the downloaded file contains, in
 # place of the default "video bytes for <id>". The ffprobe and ffmpeg stubs
-# read their verdict on a download from it.
+# read their verdict on a download from it. "payloads" (a list) gives one per
+# download of that URL instead, consumed in order with the last one sticking:
+# ["corrupt", "ok"] is a video that arrives broken once and whole after that.
 #
 # What is faithfully reproduced: the output-template language drtv-dl actually
 # uses (%%, %(a,b)s alternatives, %(field&TEXT|FALLBACK)s conditionals with {}
@@ -364,11 +366,18 @@ for v in ${LEAVES[@]+"${LEAVES[@]}"}; do
   fi
 
   mkdir -p "${media%/*}"
-  printf '%s\n' "${F[payload]:-video bytes for $(field id)}" >"$media"
+  payload="${F[payload]:-video bytes for $(field id)}"
+  nth="$(grep -cFx -- "$v" "$STUBLOG/ytdlp-downloads.log" 2>/dev/null || true)"
+  printf '%s\n' "$v" >>"$STUBLOG/ytdlp-downloads.log"
+  listed="$(jqs --arg u "$v" --argjson n "${nth:-0}" \
+    '.videos[$u].payloads // empty | .[[$n, length - 1] | min]')"
+  [[ -n "$listed" ]] && payload="$listed"
+  printf '%s\n' "$payload" >"$media"
   [[ -n "$archive" ]] && printf 'drtv %s\n' "$(field id)" >>"$archive"
   if [[ -n "$exec_cmd" ]]; then
     cmd="${exec_cmd#after_move:}"
     cmd="${cmd//'%(filepath)q'/$(printf '%q' "$media")}"
+    cmd="${cmd//'%(webpage_url)q'/$(printf '%q' "$v")}"
     sh -c "$cmd"
   fi
 done

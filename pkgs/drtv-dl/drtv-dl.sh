@@ -56,8 +56,9 @@ Each downloaded video is checked before it counts: flushed to disk and read
 back past the page cache, it must have both an audio and a video stream of
 the same length, and decode without errors (about 30s for a half-hour
 episode). One that fails is moved to .drtv-broken/ in the library root, which
-Jellyfin is told to skip, and named in the summary; the next run downloads it
-again, and the broken copy is deleted once a good one arrives. A fragment
+Jellyfin is told to skip, and downloaded once more straight away, while DR
+still offers it; if that copy fails too, it is named in the summary and the
+next run tries again. The broken copy is deleted once a good one arrives. A fragment
 yt-dlp cannot fetch fails that video instead of leaving a gap in it, and the
 download holds a sleep inhibitor, so an idle suspend cannot cut it short
 (closing a laptop's lid still suspends).
@@ -735,6 +736,7 @@ announce="$tmpdir/announce"
 cat >"$announce" <<'EOF'
 #!/bin/sh
 f="$1"
+url="${2:-}"
 rel="$f"
 case "$rel" in
   "$DRTV_DEST"/*) rel="${rel#"$DRTV_DEST"/}" ;;
@@ -781,7 +783,7 @@ if [ -n "$reason" ]; then
   else
     where="could not be moved aside"
   fi
-  printf '%s\t%s\t%s\n' "$rel" "$reason" "$where" >>"$DRTV_BROKEN"
+  printf '%s\t%s\t%s\t%s\n' "$rel" "$reason" "$where" "$url" >>"$DRTV_BROKEN"
   label="BROKEN"
   detail="$rel - $reason; $where"
 else
@@ -844,29 +846,80 @@ fi
 # yt-dlp skips a fragment that still fails after its retries and saves the
 # video anyway - one whose picture stops early, or that jumps. Aborting that
 # video instead leaves the episode missing, so the next run fetches it again.
+dl_opts=(
+  --abort-on-unavailable-fragments
+  --embed-metadata
+  --sub-langs all --embed-subs
+  --concurrent-fragments 6
+  --write-info-json
+  --write-thumbnail --convert-thumbnails jpg
+  "${meta_args[@]}"
+  --output "$outtmpl"
+  --output "thumbnail:$outbase-thumb.%(ext)s"
+  --output "pl_thumbnail:$dest_tmpl/%(series)s/%(season_number&season{:02d}-poster|poster)s.%(ext)s"
+  --output "pl_infojson:$dest_tmpl/%(series)s/%(season_number&season{:02d}|tvshow)s"
+  --exec "after_move:$announce %(filepath)q %(webpage_url)q"
+)
+download() {
+  local rc=0
+  {
+    "${inhibit[@]}" yt-dlp "${dl_opts[@]}" "$@" 2>&1 1>&3 | tee -a "$errlog" >&2
+  } 3>&1 || rc=$?
+  return "$rc"
+}
 status=0
-{
-  "${inhibit[@]}" yt-dlp \
-    --abort-on-unavailable-fragments \
-    --embed-metadata \
-    --sub-langs all --embed-subs \
-    --concurrent-fragments 6 \
-    --write-info-json \
-    --write-thumbnail --convert-thumbnails jpg \
-    "${meta_args[@]}" \
-    "${skip_args[@]}" \
-    --output "$outtmpl" \
-    --output "thumbnail:$outbase-thumb.%(ext)s" \
-    --output "pl_thumbnail:$dest_tmpl/%(series)s/%(season_number&season{:02d}-poster|poster)s.%(ext)s" \
-    --output "pl_infojson:$dest_tmpl/%(series)s/%(season_number&season{:02d}|tvshow)s" \
-    --exec "after_move:$announce %(filepath)q" \
-    "${args[@]}" 2>&1 1>&3 | tee -a "$errlog" >&2
-} 3>&1 || status=$?
+download "${skip_args[@]}" "${args[@]}" || status=$?
+
+# A video that failed its check is downloaded once more, straight away, rather
+# than left for the next run. Waiting is what lost an episode for good: DR
+# offers some only for a few days (a series that rotates a handful of episodes
+# through at a time), and the usual cause of a broken file - a suspend that cost
+# the share its pending writes - says nothing about the next copy. One retry,
+# not a loop, so a video DR itself serves broken costs one extra download per
+# run rather than an endless one. Only videos that were moved aside qualify:
+# one left in place would read as "already downloaded" to yt-dlp. The
+# passthrough options come along; the URLs among them do not, except where a
+# URL is an option's value (--proxy http://...).
+retry_urls=()
+while IFS=$'\t' read -r rel reason where url; do
+  if [[ "$where" == moved* && -n "$url" ]]; then
+    retry_urls+=("$url")
+  fi
+done <"$broken"
+if [[ ${#retry_urls[@]} -gt 0 ]]; then
+  passthrough=()
+  prev=""
+  for a in "${args[@]}"; do
+    if [[ "$a" != http://* && "$a" != https://* ]] || [[ "$prev" == -* ]]; then
+      passthrough+=("$a")
+    fi
+    prev="$a"
+  done
+  echo "drtv-dl: ${#retry_urls[@]} video(s) failed their check; downloading them once more" >&2
+  DRTV_TOTAL=$((remaining + ${#retry_urls[@]}))
+  export DRTV_TOTAL
+  rc=0
+  download ${passthrough[@]+"${passthrough[@]}"} "${retry_urls[@]}" || rc=$?
+  if [[ "$status" -eq 0 ]]; then
+    status="$rc"
+  fi
+fi
 
 # The videos the announce hook rejected count as failed downloads: each one is
 # repeated in the summary, and the run exits non-zero even when yt-dlp didn't.
+# One whose retry passed is in the manifest by now and no longer counts.
 broken_n=0
-while IFS=$'\t' read -r rel reason where; do
+declare -A counted_broken=()
+while IFS=$'\t' read -r rel reason where url; do
+  if grep -qFx -- "$rel" "$manifest" 2>/dev/null; then
+    echo "drtv-dl: $rel failed its check ($reason); the second download is fine" >&2
+    continue
+  fi
+  # a video that failed twice is listed twice; say it once
+  if [[ -n "${counted_broken[$rel]-}" ]]; then
+    continue
+  fi
+  counted_broken[$rel]=1
   broken_n=$((broken_n + 1))
   if [[ "$where" == moved* ]]; then
     warn "$rel failed its check: $reason; moved to ${dest}/.drtv-broken - the next run downloads it again"

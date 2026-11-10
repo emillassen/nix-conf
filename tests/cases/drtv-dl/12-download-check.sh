@@ -67,11 +67,22 @@ assert_contains "only the good one counts as downloaded" "$STDERR" "downloaded 1
 assert_contains "the summary points at what was set aside" "$STDERR" "3 broken video(s) kept in $DRTV_LIB/.drtv-broken"
 assert_not_contains "yt-dlp is not blamed for it" "$STDERR" "yt-dlp exited with status"
 
-assert_eq "every download is probed" 4 "$(stub_count ffprobe)"
-assert_eq "only the ones whose streams look whole are decoded" 2 "$(stub_count ffmpeg)"
+# DR serves these broken every time, so the immediate second download fails as
+# well, and each is still reported once, not once per attempt.
+assert_contains "the broken ones are downloaded once more in the same run" "$STDERR" \
+  "3 video(s) failed their check; downloading them once more"
+assert_eq "each of them twice, the good one once" "1 2 2 2" \
+  "$(for u in "$ep_good" "$ep_short" "$ep_corrupt" "$ep_silent"; do
+    grep -cFx -- "$u" "$STUBLOG/ytdlp-downloads.log"
+  done | paste -sd' ')"
+# one warning is two lines: printed as it happens, repeated in the summary
+assert_eq "a video that failed twice is warned about once" 2 \
+  "$(grep -c "$short.mp4 failed its check" <<<"$STDERR")"
+assert_eq "every download is probed, retries included" 7 "$(stub_count ffprobe)"
+assert_eq "only the ones whose streams look whole are decoded" 3 "$(stub_count ffmpeg)"
 assert_contains "the download runs under a sleep inhibitor" "$(stub_log systemd-inhibit)" \
   "--what=sleep --who=drtv-dl --why=Downloading from DRTV yt-dlp --abort-on-unavailable-fragments"
-assert_eq "and only the download holds one (plus the probe that it can)" 2 "$(stub_count systemd-inhibit)"
+assert_eq "and only the downloads hold one (plus the probe that it can)" 3 "$(stub_count systemd-inhibit)"
 
 # --- the retry -------------------------------------------------------------------------
 # DR serves good copies this time. The broken ones are missing from the library,
@@ -92,6 +103,35 @@ done
 assert_file_missing "the emptied directories go with them" "$DRTV_LIB/.drtv-broken/Gurli Gris"
 assert_not_contains "the summary has nothing set aside to report" "$STDERR" "broken video(s) kept"
 assert_contains "and no warnings" "$STDERR" "no warnings"
+
+# --- broken once, whole the second time: fixed within the run ----------------------------
+# The case the immediate retry exists for: a suspend cost the share its writes,
+# DR still has the episode, and waiting for the next run risks DR taking it
+# down first. A passthrough option rides along on the retry; the playlist URL
+# that the first pass was given does not.
+drtv_init
+drtv_meta "$season" '{"series":"Gurli Gris","season_number":10}'
+drtv_child "$season" "$ep_good"
+drtv_child "$season" "$ep_corrupt"
+episode "$ep_good" 1012 12 "Linser"
+episode "$ep_corrupt" 1014 14 "Hr Tyr skal giftes"
+_scen_apply --arg u "$ep_corrupt" '.videos[$u].payloads = ["corrupt", "video bytes"]'
+run_drtv -d "$DRTV_LIB" "$season" --no-mtime
+assert_exit "a video fixed by its second download does not fail the run" 0
+assert_file_exists "it is in the library" "$d/$corrupt.mp4"
+assert_file_exists "with its .nfo" "$d/$corrupt.nfo"
+assert_file_missing "and the broken first copy is gone" "$q/$corrupt.mp4"
+assert_contains "the summary says what happened" "$STDERR" \
+  "Gurli Gris/Season 10/$corrupt.mp4 failed its check (it does not decode cleanly"
+assert_contains "and that the second copy is fine" "$STDERR" "the second download is fine"
+assert_contains "both copies that passed count as downloaded" "$STDERR" "downloaded 2 file(s)"
+assert_contains "nothing is left to report" "$STDERR" "no warnings"
+assert_not_contains "nothing is kept aside" "$STDERR" "broken video(s) kept"
+retry_call="$(tail -n 1 "$STUBLOG/yt-dlp.log")"
+assert_contains "the retry asks for the broken episode" "$retry_call" "$ep_corrupt"
+assert_contains "with the passthrough option" "$retry_call" "--no-mtime"
+assert_not_contains "but not the season the first pass was given" "$retry_call" "$season"
+assert_not_contains "nor the skip list, which would have skipped it" "$retry_call" "--download-archive"
 
 # --- a refused inhibitor ---------------------------------------------------------------
 # Over SSH, polkit may not grant the lock, and systemd-inhibit then runs nothing

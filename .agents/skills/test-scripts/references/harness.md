@@ -218,7 +218,11 @@ against the playlist's id and the URL slug, `--write-info-json`,
 `--write-thumbnail` and `--exec after_move:`. A video may carry `flat_id`
 distinct from `id`, to model the case the two-line archive exists for, and a
 `payload` - what the downloaded file contains - for the `ffprobe`/`ffmpeg` stubs
-to judge. A flat scan of a URL the scenario does not know prints an `ERROR:` and
+to judge. `payloads` (a list) gives one per download of that URL instead,
+consumed in order with the last one sticking (`["corrupt", "video bytes"]` is a
+video that arrives broken once and whole after that); every download is logged
+by URL to `$STUBLOG/ytdlp-downloads.log`. `--exec` substitutes `%(filepath)q`
+and `%(webpage_url)q`. A flat scan of a URL the scenario does not know prints an `ERROR:` and
 exits 1 at the end, as `--ignore-errors` yt-dlp does. A final file already at
 the output name is "already downloaded" (event `already-downloaded`) and is not
 overwritten: a stub that rewrote it made an empty or broken file look repairable

@@ -34,7 +34,10 @@ let
       "gid=100"
       "forceuid"
       "forcegid"
-      "file_mode=0755"
+      # Files are data, not programs: 0755 marked every video, epub and NFO
+      # on the NAS executable (green in ls, "Run" in Dolphin). A script on a
+      # share now runs with `bash script.sh` instead of `./script.sh`.
+      "file_mode=0644"
       "dir_mode=0755"
       "vers=3.1.1"
       # The NAS is Unraid, whose user shares (shfs) do not keep inode numbers

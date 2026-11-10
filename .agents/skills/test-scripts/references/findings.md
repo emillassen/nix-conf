@@ -120,6 +120,11 @@ Not known bugs. Places a bug could sit unobserved, which is where a new pass
 should start. Everything the last pass closed has been struck; what is left is
 genuinely uncovered.
 
+- **Jellyfin's side of drtv-dl's `<customrating>` is not testable offline.**
+  `14-rating` pins what the NFOs say; that Jellyfin reads `customrating` only
+  when it first adds an item, and never re-reads a locked item's NFO (Default,
+  FullRefresh and replace-all refreshes all left it unchanged), was observed on
+  a live 12.4.0 server on 2026-11-10, not proved by the suite.
 - **`s3_releases`' "no `CommonPrefixes` but truncated" page.** The pagination
   loop takes its next marker from the last `<Prefix>`, which on such a page is
   the echoed request prefix — the same value it already used, so the loop would

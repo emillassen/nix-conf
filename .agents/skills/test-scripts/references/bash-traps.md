@@ -126,3 +126,10 @@ pre-creates one to set its permissions has to spell it as `sanitize` leaves it â
 `"Milne, A. A."` files under `Milne, A. A`, trailing period trimmed. Creating the
 untrimmed spelling makes a directory the script never touches, and the case then
 passes while testing nothing.
+
+**A `$var` in a single-quoted jq filter is SC2016 at build time, not in the
+suite.** The suite runs the fragment raw and never lints it, so a jq filter that
+gains a `$name` (drtv-dl's `--arg rating`) passes every case and then fails
+`./tests/build-check.sh`, where `writeShellApplication` runs shellcheck. Give
+the assignment the same `# shellcheck disable=SC2016 # $x is a jq variable`
+line `media_nfo` carries, and run build-check after any template edit.

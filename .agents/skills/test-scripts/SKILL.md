@@ -38,7 +38,7 @@ The suite also has two cases for the history-cleanup skill's `clean-history.py`
 import the module for its pure functions and run `--apply` under real zsh with
 `HOME`/`ZDOTDIR` on an empty scratch directory.
 
-A hermetic suite for all of this **already exists** in `tests/` — 61 cases, ~870
+A hermetic suite for all of this **already exists** in `tests/` — 62 cases, ~885
 assertions, a full offline run in about a minute and a half. The job is to extend it and
 find defects that are still in there. Building a second harness alongside the
 first is the worst available outcome.

@@ -33,6 +33,15 @@ staying current is just:
   cd /mnt/series && drtv-dl -n    # list episodes you don't have yet
   cd /mnt/series && drtv-dl       # download them
 
+A "# rating: VALUE" line in that file (e.g. "# rating: G") gives everything
+the library holds that parental rating: it is written as <customrating> into
+every tvshow.nfo, episode and film NFO generated from then on, URLs given on
+the command line included, so a Jellyfin user with a rating limit and
+"block unrated items" still sees DR's children's shows, which carry no
+rating of their own. To older versions of drtv-dl the line is a comment. The
+last such line wins. Jellyfin reads the NFO when it first adds an item, so
+content already in a Jellyfin library has to be rated there once.
+
 An episode whose video is on disk but whose .nfo is missing (an interrupted
 run, or a library predating the sidecars) is re-extracted on its own with
 --skip-download, so an ordinary run repairs the gap for the few episodes
@@ -206,6 +215,25 @@ fi
 
 # With no URLs, fall back to the subscription file in the library root.
 subs="$dest/drtv-series.txt"
+
+# The library's parental rating, from a "# rating: VALUE" line in that same
+# file. It is read whether or not URLs were given: the rating belongs to the
+# library a video lands in, not to how it was asked for, and a one-off
+# `drtv-dl -d lib URL` into a children's library must not leave behind the one
+# unrated show that a "block unrated items" user cannot see. A comment is what
+# keeps the line harmless to older versions, whose parser drops it. The regex
+# lives in a variable because a quoted one is matched as a literal string; the
+# value stops at whitespace, which also leaves a CRLF file's \r behind.
+rating=""
+rating_re='^[[:space:]]*#[[:space:]]*[Rr][Aa][Tt][Ii][Nn][Gg][[:space:]]*:[[:space:]]*([^[:space:]#]+)'
+if [[ -f "$subs" ]]; then
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ "$line" =~ $rating_re ]]; then
+      rating="${BASH_REMATCH[1]}"
+    fi
+  done <"$subs"
+fi
+
 if [[ $# -eq 0 ]]; then
   if [[ ! -f "$subs" ]]; then
     echo "drtv-dl: no URLs given and no $subs to read them from" >&2
@@ -857,10 +885,18 @@ done <"$broken"
 xml_esc='def esc: tostring | gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;");'
 xml_decl='"<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>",'
 
+# The library's rating (see the subscription file) goes in as <customrating>,
+# not <mpaa>: it is the field Jellyfin's parental controls compare first, and
+# it claims nothing about an official certificate DR never gave. Every NFO
+# carries it, episodes included, rather than leaving episodes to inherit it
+# from tvshow.nfo: Jellyfin stores an episode's effective rating when it saves
+# the episode, so one scanned before its series had a rating stays unrated.
+# shellcheck disable=SC2016 # $rating is a jq variable, not a shell one
 tvshow_nfo="$xml_esc $xml_decl"'
   "<tvshow>",
   "  <title>\(.series // .title | esc)</title>",
   (if .description then "  <plot>\(.description | esc)</plot>" else empty end),
+  (if $rating != "" then "  <customrating>\($rating | esc)</customrating>" else empty end),
   "  <lockdata>true</lockdata>",
   "</tvshow>"'
 
@@ -875,6 +911,7 @@ media_nfo="$xml_esc"'
   (if .description then "  <plot>\(.description | esc)</plot>" else empty end),
   (if .release_timestamp then "  <\(if .series then "aired" else "premiered" end)>\((.release_timestamp | todate)[:10])</\(if .series then "aired" else "premiered" end)>" else empty end),
   (if .duration then "  <runtime>\(.duration / 60 | floor)</runtime>" else empty end),
+  (if $rating != "" then "  <customrating>\($rating | esc)</customrating>" else empty end),
   "  <lockdata>true</lockdata>",
   "</\($root)>"'
 
@@ -884,7 +921,7 @@ media_nfo="$xml_esc"'
 # for a sidecar and was never repaired - or emptied a good one.
 write_nfo() {
   local filter="$1" json="$2" target="$3"
-  if jq -r "$filter" "$json" >"$target.tmp" && [[ -s "$target.tmp" ]] &&
+  if jq -r --arg rating "$rating" "$filter" "$json" >"$target.tmp" && [[ -s "$target.tmp" ]] &&
     mv -- "$target.tmp" "$target"; then
     echo "drtv-dl: wrote $target"
     return 0
